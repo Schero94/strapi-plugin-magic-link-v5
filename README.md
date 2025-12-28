@@ -865,8 +865,8 @@ npm run develop
 
 ### Get Support
 
-- 🐛 [GitHub Issues](https://github.com/begservice/strapi-plugin-magic-link-v5/issues)
-- 📧 Email: 124470865+begservice@users.noreply.github.com
+- 🐛 [GitHub Issues](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues)
+- 📧 Email: schero@magicdx.dev
 - 📖 Check the README for updated examples
 
 ---
@@ -971,7 +971,7 @@ Contributions are welcome! Please:
 - 🎨 Improved badge colors for better readability
 - ✨ Better contrast for Premium/Advanced badges
 
-For full version history, see [GitHub Releases](https://github.com/begservice/strapi-plugin-magic-link-v5/releases).
+For full version history, see [GitHub Releases](https://github.com/Schero94/strapi-plugin-magic-link-v5/releases).
 
 ---
 
@@ -987,15 +987,15 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ### Need Help?
 
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/begservice/strapi-plugin-magic-link-v5/issues)
-- � **Feature Requests**: [GitHub Discussions](https://github.com/begservice/strapi-plugin-magic-link-v5/discussions)
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues)
+- � **Feature Requests**: [GitHub Discussions](https://github.com/Schero94/strapi-plugin-magic-link-v5/discussions)
 - 📧 **Email**: 124470865+begservice@users.noreply.github.com
 - 📦 **npm Package**: [strapi-plugin-magic-link-v5](https://www.npmjs.com/package/strapi-plugin-magic-link-v5)
 
 ### Resources
 
 - 📖 **Documentation**: This README + [Strapi Docs](https://docs.strapi.io)
-- 💻 **Source Code**: [GitHub Repository](https://github.com/begservice/strapi-plugin-magic-link-v5)
+- 💻 **Source Code**: [GitHub Repository](https://github.com/Schero94/strapi-plugin-magic-link-v5)
 - 🎯 **Live Example**: Coming soon
 - 📹 **Video Tutorial**: Coming soon
 
@@ -1012,11 +1012,11 @@ If this plugin saves you time and you'd like to support development:
 
 <div align="center">
 
-**Made with ❤️ by [begservice](https://github.com/begservice)**
+**Made with ❤️ by [Schero94](https://github.com/Schero94)**
 
 *Passwordless authentication, simplified.*
 
-[![GitHub](https://img.shields.io/github/stars/begservice/strapi-plugin-magic-link-v5?style=social)](https://github.com/begservice/strapi-plugin-magic-link-v5)
+[![GitHub](https://img.shields.io/github/stars/Schero94/strapi-plugin-magic-link-v5?style=social)](https://github.com/Schero94/strapi-plugin-magic-link-v5)
 [![npm](https://img.shields.io/npm/dt/strapi-plugin-magic-link-v5)](https://www.npmjs.com/package/strapi-plugin-magic-link-v5)
 
 </div>

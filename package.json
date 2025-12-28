@@ -80,13 +80,13 @@
   "description": "This plugin provides passwordless authentication via magic links sent to email",
   "license": "MIT",
   "private": false,
-  "author": "Schero A. <124470865+begservice@users.noreply.github.com>",
+  "author": "Schero A. <schero@magicdx.dev>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/begservice/strapi-plugin-magic-link-v5.git"
+    "url": "https://github.com/Schero94/strapi-plugin-magic-link-v5.git"
   },
   "bugs": {
-    "url": "https://github.com/begservice/strapi-plugin-magic-link-v5/issues"
+    "url": "https://github.com/Schero94/strapi-plugin-magic-link-v5/issues"
   },
-  "homepage": "https://github.com/begservice/strapi-plugin-magic-link-v5#readme"
+  "homepage": "https://github.com/Schero94/strapi-plugin-magic-link-v5#readme"
 }
