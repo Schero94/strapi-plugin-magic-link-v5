@@ -866,7 +866,6 @@ npm run develop
 ### Get Support
 
 - 🐛 [GitHub Issues](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues)
-- 📧 Email: schero@magicdx.dev
 - 📖 Check the README for updated examples
 
 ---
@@ -988,8 +987,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 ### Need Help?
 
 - 🐛 **Bug Reports**: [GitHub Issues](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues)
-- � **Feature Requests**: [GitHub Discussions](https://github.com/Schero94/strapi-plugin-magic-link-v5/discussions)
-- 📧 **Email**: 124470865+begservice@users.noreply.github.com
+- 💡 **Feature Requests**: [GitHub Discussions](https://github.com/Schero94/strapi-plugin-magic-link-v5/discussions)
 - 📦 **npm Package**: [strapi-plugin-magic-link-v5](https://www.npmjs.com/package/strapi-plugin-magic-link-v5)
 
 ### Resources

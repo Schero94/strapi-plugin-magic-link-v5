@@ -1,7 +1,7 @@
 /**
  * Magic Link - Passwordless Authentication for Strapi
  * 
- * Copyright (c) 2025 Schero A. (begservice)
+ * Copyright (c) 2025 Schero A. (Schero94)
  * 
  * Licensed under the MIT License
  * 
@@ -14,6 +14,6 @@
  * 
  * See LICENSE file for full terms.
  * 
- * Repository: https://github.com/begservice/strapi-plugin-magic-link-v5
- * Issues: https://github.com/begservice/strapi-plugin-magic-link-v5/issues
+ * Repository: https://github.com/Schero94/strapi-plugin-magic-link-v5
+ * Issues: https://github.com/Schero94/strapi-plugin-magic-link-v5/issues
  */
