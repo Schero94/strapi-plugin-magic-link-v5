@@ -805,7 +805,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                       <NumberInput
                         hint={formatMessage({ id: getTrad('settings.expire.hint') })}
                         value={settings.expire_period}
-                        onChange={val => updateSetting('expire_period', val)}
+                        onValueChange={val => updateSetting('expire_period', val)}
                         placeholder={formatMessage({ id: getTrad('settings.expire.placeholder') })}
                       />
                       <Box padding={2} background="primary50" style={{ borderRadius: '4px', marginTop: '8px' }}>
@@ -823,7 +823,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                       <NumberInput
                         hint={formatMessage({ id: getTrad('settings.tokenLength.hint') })}
                         value={settings.token_length}
-                        onChange={val => updateSetting('token_length', val)}
+                        onValueChange={val => updateSetting('token_length', val)}
                         placeholder={formatMessage({ id: getTrad('settings.tokenLength.placeholder') })}
                       />
                       <Box padding={2} background="success50" style={{ borderRadius: '4px', marginTop: '8px' }}>
@@ -847,7 +847,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                       <NumberInput
                         hint={formatMessage({ id: getTrad('settings.maxAttempts.hint') })}
                         value={settings.max_login_attempts}
-                        onChange={val => updateSetting('max_login_attempts', val)}
+                        onValueChange={val => updateSetting('max_login_attempts', val)}
                         placeholder={formatMessage({ id: getTrad('settings.maxAttempts.placeholder') })}
                       />
                       <Box padding={2} background="warning50" style={{ borderRadius: '4px', marginTop: '8px' }}>
