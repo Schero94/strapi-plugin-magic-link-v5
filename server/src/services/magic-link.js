@@ -122,8 +122,11 @@ module.exports = ({ strapi }) => ({
     const settings = await this.settings();
     const tokenLength = settings?.token_length || 20;
     const token = nanoid(tokenLength);
+    
+    // Use expire_period from settings (in seconds), default 3600 (1 hour)
+    const expireSeconds = settings?.expire_period || 3600;
     const expires = new Date();
-    expires.setHours(expires.getHours() + 1);
+    expires.setSeconds(expires.getSeconds() + expireSeconds);
 
     // Hash the token for secure storage
     const { hash: tokenHash, salt: tokenSalt } = cryptoUtils.hashToken(token);
