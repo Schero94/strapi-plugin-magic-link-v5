@@ -172,25 +172,28 @@ module.exports = {
       context = {};
     }
     
-    // Sanitize context to prevent injection attacks
-    // Whitelist allowed fields and limit their size
-    const allowedContextFields = ['redirectUrl', 'locale', 'source', 'ttl', 'metadata'];
+    // Sanitize context values (size limits) but pass ALL fields through.
+    // Security-sensitive fields are already filtered by whitelist/blacklist
+    // in the token creation step (tokens.js). No need to filter again here.
+    const sensitiveKeys = ['password', 'secret', 'apiKey', 'token', 'resetPasswordToken', 'confirmationToken'];
     const sanitizedContext = {};
-    for (const field of allowedContextFields) {
-      if (context[field] !== undefined) {
-        // Limit string length to prevent payload bloat
-        if (typeof context[field] === 'string') {
-          sanitizedContext[field] = String(context[field]).substring(0, 500);
-        } else if (typeof context[field] === 'number' && !isNaN(context[field])) {
-          sanitizedContext[field] = context[field];
-        } else if (typeof context[field] === 'object' && context[field] !== null) {
-          // For nested objects like metadata, stringify and limit size
-          try {
-            const jsonStr = JSON.stringify(context[field]).substring(0, 1000);
-            sanitizedContext[field] = JSON.parse(jsonStr);
-          } catch {
-            // Skip invalid objects
-          }
+    for (const [key, val] of Object.entries(context)) {
+      // Skip internal/sensitive keys as safety net
+      if (sensitiveKeys.includes(key)) continue;
+      if (val === undefined) continue;
+
+      if (typeof val === 'string') {
+        sanitizedContext[key] = val.substring(0, 2000);
+      } else if (typeof val === 'boolean') {
+        sanitizedContext[key] = val;
+      } else if (typeof val === 'number' && !isNaN(val)) {
+        sanitizedContext[key] = val;
+      } else if (typeof val === 'object' && val !== null) {
+        try {
+          const jsonStr = JSON.stringify(val).substring(0, 5000);
+          sanitizedContext[key] = JSON.parse(jsonStr);
+        } catch {
+          // Skip values that cannot be serialized
         }
       }
     }
@@ -473,11 +476,34 @@ module.exports = {
     delete sanitizedUser.confirmationToken;
     delete sanitizedUser.roles;
     
-    // Generate JWT
+    // Sanitize context from token (pass all fields except sensitive ones)
+    const mfaSensitiveKeys = ['password', 'secret', 'apiKey', 'token', 'resetPasswordToken', 'confirmationToken', 'requiresTOTP', 'totpVerified', 'userId'];
+    const mfaSanitizedContext = {};
+    for (const [key, val] of Object.entries(context)) {
+      if (mfaSensitiveKeys.includes(key)) continue;
+      if (val === undefined) continue;
+      if (typeof val === 'string') {
+        mfaSanitizedContext[key] = val.substring(0, 2000);
+      } else if (typeof val === 'boolean') {
+        mfaSanitizedContext[key] = val;
+      } else if (typeof val === 'number' && !isNaN(val)) {
+        mfaSanitizedContext[key] = val;
+      } else if (typeof val === 'object' && val !== null) {
+        try {
+          const jsonStr = JSON.stringify(val).substring(0, 5000);
+          mfaSanitizedContext[key] = JSON.parse(jsonStr);
+        } catch {
+          // Skip values that cannot be serialized
+        }
+      }
+    }
+    
+    // Generate JWT with context
     const settings = await magicLink.settings();
     const jwtToken = jwtService.issue({ 
       id: user.id,
-      mfaVerified: true
+      mfaVerified: true,
+      context: mfaSanitizedContext
     });
     
     // Calculate expiration
@@ -514,7 +540,8 @@ module.exports = {
         userAgent: requestInfo.userAgent,
         source: 'Magic Link + TOTP (MFA)',
         lastUsedAt: new Date().toISOString(),
-        mfaVerified: true
+        mfaVerified: true,
+        context: mfaSanitizedContext
       });
       
       await pluginStore.set({ key: 'jwt_sessions', value: jwtSessions });
@@ -526,6 +553,7 @@ module.exports = {
       jwt: jwtToken,
       user: sanitizedUser,
       mfaVerified: true,
+      context: mfaSanitizedContext,
       expires_at: expiresAt.toISOString()
     });
   },

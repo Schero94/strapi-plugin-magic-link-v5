@@ -123,9 +123,48 @@ module.exports = {
 
       const user = users[0];
 
-      // Generate JWT token
+      // Retrieve context from the original magic link token
+      let tokenContext = {};
+      if (magicLinkToken) {
+        try {
+          const magicLinkService = strapi.plugin('magic-link').service('magic-link');
+          const token = await magicLinkService.fetchToken(magicLinkToken);
+          if (token && token.context) {
+            tokenContext = token.context;
+          }
+        } catch (e) {
+          strapi.log.warn('[OTP] Could not retrieve magic link token context:', e.message);
+        }
+      }
+
+      // Sanitize context (same logic as auth.js login)
+      const sensitiveKeys = ['password', 'secret', 'apiKey', 'token', 'resetPasswordToken', 'confirmationToken'];
+      const sanitizedContext = {};
+      for (const [key, val] of Object.entries(tokenContext)) {
+        if (sensitiveKeys.includes(key)) continue;
+        if (val === undefined) continue;
+        if (typeof val === 'string') {
+          sanitizedContext[key] = val.substring(0, 2000);
+        } else if (typeof val === 'boolean') {
+          sanitizedContext[key] = val;
+        } else if (typeof val === 'number' && !isNaN(val)) {
+          sanitizedContext[key] = val;
+        } else if (typeof val === 'object' && val !== null) {
+          try {
+            const jsonStr = JSON.stringify(val).substring(0, 5000);
+            sanitizedContext[key] = JSON.parse(jsonStr);
+          } catch {
+            // Skip values that cannot be serialized
+          }
+        }
+      }
+
+      // Generate JWT token with context
       const jwtService = strapi.plugin('users-permissions').service('jwt');
-      const jwt = jwtService.issue({ id: user.id });
+      const jwt = jwtService.issue({
+        id: user.id,
+        context: sanitizedContext
+      });
 
       // Store login info if enabled
       const pluginStore = strapi.store({
@@ -152,7 +191,8 @@ module.exports = {
           id: user.id,
           username: user.username,
           email: user.email
-        }
+        },
+        context: sanitizedContext
       });
     } catch (error) {
       strapi.log.error('Error verifying OTP:', error);
