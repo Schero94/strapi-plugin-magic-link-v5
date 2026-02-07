@@ -494,7 +494,15 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
     e.preventDefault();
     setIsSaving(true);
     try {
-      await put('/magic-link/settings', { ...settings, ui_language: language });
+      // Convert comma-separated strings to arrays before saving
+      const toSave = { ...settings, ui_language: language };
+      if (typeof toSave.context_whitelist === 'string') {
+        toSave.context_whitelist = toSave.context_whitelist.split(',').map(s => s.trim()).filter(Boolean);
+      }
+      if (typeof toSave.context_blacklist === 'string') {
+        toSave.context_blacklist = toSave.context_blacklist.split(',').map(s => s.trim()).filter(Boolean);
+      }
+      await put('/magic-link/settings', toSave);
       toggleNotification({
         type: 'success',
         message: formatMessage({ id: getTrad('settings.save.success') })
@@ -870,9 +878,12 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                       </Typography>
                       <TextInput
                         hint={formatMessage({ id: getTrad('settings.context.whitelist.hint') })}
-                        value={(settings.context_whitelist || []).join(', ')}
+                        value={typeof settings.context_whitelist === 'string' ? settings.context_whitelist : (settings.context_whitelist || []).join(', ')}
                         onChange={(e) => {
-                          const value = e.target.value;
+                          updateSetting('context_whitelist', e.target.value);
+                        }}
+                        onBlur={(e) => {
+                          const value = typeof settings.context_whitelist === 'string' ? settings.context_whitelist : '';
                           const list = value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
                           updateSetting('context_whitelist', list);
                         }}
@@ -892,9 +903,12 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                       </Typography>
                       <TextInput
                         hint={formatMessage({ id: getTrad('settings.context.blacklist.hint') })}
-                        value={(settings.context_blacklist || []).join(', ')}
+                        value={typeof settings.context_blacklist === 'string' ? settings.context_blacklist : (settings.context_blacklist || []).join(', ')}
                         onChange={(e) => {
-                          const value = e.target.value;
+                          updateSetting('context_blacklist', e.target.value);
+                        }}
+                        onBlur={(e) => {
+                          const value = typeof settings.context_blacklist === 'string' ? settings.context_blacklist : '';
                           const list = value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
                           updateSetting('context_blacklist', list);
                         }}
