@@ -50,8 +50,8 @@ const PlaceholderGrid = styled(Box)`
 
 const PlaceholderTile = styled(Box)`
   border-radius: 8px;
-  border: 1px solid #bae6fd;
-  background: #ffffff;
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  background: rgba(14, 165, 233, 0.04);
   padding: 14px;
   cursor: pointer;
   display: flex;
@@ -83,25 +83,25 @@ const Container = styled(Box)`
 `;
 
 const ToggleCard = styled(Box)`
-  background: ${props => props.$active ? theme.colors.success[50] : theme.colors.neutral[50]};
+  background: ${props => props.$active ? 'rgba(22, 163, 74, 0.08)' : 'rgba(128, 128, 128, 0.06)'};
   border-radius: ${theme.borderRadius.md};
   padding: 20px;
   transition: all 0.2s ease;
-  border: 2px solid ${props => props.$active ? theme.colors.success[600] : theme.colors.neutral[200]};
-  box-shadow: ${props => props.$active ? '0 4px 12px rgba(34, 197, 94, 0.2)' : '0 1px 3px rgba(0, 0, 0, 0.1)'};
+  border: 2px solid ${props => props.$active ? 'rgba(22, 163, 74, 0.4)' : 'rgba(128, 128, 128, 0.2)'};
+  box-shadow: ${props => props.$active ? '0 4px 12px rgba(34, 197, 94, 0.15)' : '0 1px 3px rgba(0, 0, 0, 0.1)'};
   position: relative;
   user-select: none;
   cursor: pointer;
   
   &:hover {
     transform: translateY(-2px);
-    box-shadow: ${props => props.$active ? '0 6px 16px rgba(34, 197, 94, 0.3)' : '0 3px 8px rgba(0, 0, 0, 0.15)'};
-    border-color: ${props => props.$active ? theme.colors.success[700] : theme.colors.neutral[400]};
+    box-shadow: ${props => props.$active ? '0 6px 16px rgba(34, 197, 94, 0.25)' : '0 3px 8px rgba(128, 128, 128, 0.2)'};
+    border-color: ${props => props.$active ? 'rgba(22, 163, 74, 0.6)' : 'rgba(128, 128, 128, 0.4)'};
   }
   
   &:active {
     transform: translateY(0px);
-    box-shadow: ${props => props.$active ? '0 2px 6px rgba(34, 197, 94, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)'};
+    box-shadow: ${props => props.$active ? '0 2px 6px rgba(34, 197, 94, 0.15)' : '0 1px 2px rgba(0, 0, 0, 0.1)'};
   }
   
   ${props => props.$active && `
@@ -125,7 +125,7 @@ const ToggleCard = styled(Box)`
       position: absolute;
       top: 8px;
       right: 8px;
-      background: ${theme.colors.neutral[400]};
+      background: rgba(128, 128, 128, 0.5);
       color: white;
       padding: 2px 8px;
       border-radius: 4px;
@@ -161,10 +161,10 @@ const GreenToggle = styled.div`
   
   ${props => !props.$isActive && `
     button[role="switch"] {
-      background-color: #E5E7EB;
+      background-color: rgba(128, 128, 128, 0.3);
       
       &:hover {
-        background-color: #D1D5DB;
+        background-color: rgba(128, 128, 128, 0.4);
       }
     }
   `}
@@ -174,8 +174,8 @@ const StickySaveBar = styled(Box)`
   position: sticky;
   top: 0;
   z-index: 10;
-  background: white;
-  border-bottom: 1px solid ${theme.colors.neutral[200]};
+  background: var(--colors-neutral0, white);
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
   box-shadow: ${theme.shadows.sm};
 `;
 
@@ -187,7 +187,7 @@ const IconWrapper = styled.div`
   align-items: center;
   justify-content: center;
   margin-bottom: 12px;
-  background: ${props => props.$bgColor || theme.colors.primary[100]};
+  background: ${props => props.$bgColor || 'rgba(2, 132, 199, 0.12)'};
   
   svg {
     width: 24px;
@@ -701,7 +701,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
             <Accordion.Content>
               <Box padding={6}>
                 {/* Language Selector - Compact */}
-                <Box background="neutral50" padding={4} style={{ borderRadius: theme.borderRadius.md, border: '2px solid #E5E7EB', marginBottom: '24px' }}>
+                <Box background="neutral50" padding={4} style={{ borderRadius: theme.borderRadius.md, border: '2px solid rgba(128, 128, 128, 0.2)', marginBottom: '24px' }}>
                   <Flex gap={4} alignItems="center">
                     <Typography variant="pi" fontWeight="bold" style={{ minWidth: '150px' }}>
                       {formatMessage({ id: getTrad('settings.language.label') })}
@@ -935,7 +935,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                         onChange={(e) => updateSetting('login_path', e.target.value)}
                         placeholder={formatMessage({ id: getTrad('settings.loginPath.placeholder') })}
                       />
-                      <Box padding={2} background="neutral100" style={{ borderRadius: '4px', marginTop: '8px', border: '1px solid #E5E7EB' }}>
+                      <Box padding={2} background="neutral100" style={{ borderRadius: '4px', marginTop: '8px', border: '1px solid rgba(128, 128, 128, 0.2)' }}>
                         <Typography variant="pi" textColor="neutral700" style={{ fontSize: '11px', fontFamily: 'monospace' }}>
                           {formatMessage({ id: getTrad('settings.loginPath.fullPath') }, { path: settings.login_path })}
                         </Typography>
@@ -1122,11 +1122,11 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                   </Grid.Item>
                   
                   <Grid.Item col={12}>
-                    <Box padding={4} background="neutral50" style={{ borderRadius: '8px', border: '1px solid #E5E7EB' }}>
+                    <Box padding={4} background="neutral50" style={{ borderRadius: '8px', border: '1px solid rgba(128, 128, 128, 0.2)' }}>
                       <Typography variant="pi" fontWeight="bold" style={{ display: 'block', marginBottom: '8px' }}>
                         Vorschau:
                       </Typography>
-                      <Box padding={3} background="neutral0" style={{ borderRadius: '8px', whiteSpace: 'pre-wrap', fontFamily: 'system-ui', fontSize: '14px', lineHeight: '1.5', border: '1px solid #D1D5DB' }}>
+                      <Box padding={3} background="neutral0" style={{ borderRadius: '8px', whiteSpace: 'pre-wrap', fontFamily: 'system-ui', fontSize: '14px', lineHeight: '1.5', border: '1px solid rgba(128, 128, 128, 0.2)' }}>
                         {(settings.whatsapp_message_template || '')
                           .replace(/\{\{appName\}\}/g, settings.whatsapp_app_name || 'Magic Link')
                           .replace(/\{\{link\}\}/g, settings.frontend_url 
@@ -1268,7 +1268,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                         <SingleSelectOption value="emailUsername">{formatMessage({ id: getTrad('settings.auth.strategy.emailUsername') })}</SingleSelectOption>
                         <SingleSelectOption value="manual">{formatMessage({ id: getTrad('settings.auth.strategy.manual') })}</SingleSelectOption>
                       </SingleSelect>
-                      <Box padding={2} background="neutral100" style={{ borderRadius: '4px', marginTop: '8px', border: '1px solid #E5E7EB' }}>
+                      <Box padding={2} background="neutral100" style={{ borderRadius: '4px', marginTop: '8px', border: '1px solid rgba(128, 128, 128, 0.2)' }}>
                         <Typography variant="pi" textColor="neutral700" style={{ fontSize: '11px' }}>
                           {formatMessage({ id: getTrad('settings.auth.strategy.current') }, { 
                             strategy: settings.user_creation_strategy === 'email' ? formatMessage({ id: getTrad('settings.auth.strategy.email') }) :
@@ -1493,7 +1493,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                       padding={5} 
                       style={{ 
                         borderRadius: theme.borderRadius.lg, 
-                        border: '2px solid #E5E7EB',
+                        border: '2px solid rgba(128, 128, 128, 0.2)',
                         marginBottom: '24px'
                       }}
                     >
@@ -1644,7 +1644,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                       padding={5} 
                       style={{ 
                         borderRadius: theme.borderRadius.lg, 
-                        border: '2px solid #E5E7EB',
+                        border: '2px solid rgba(128, 128, 128, 0.2)',
                         marginBottom: '24px'
                       }}
                     >
@@ -1671,7 +1671,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                               padding={5} 
                               style={{ 
                                 borderRadius: '12px', 
-                                border: '2px solid #E9D5FF',
+                                border: '2px solid rgba(139, 92, 246, 0.3)',
                                 background: 'linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)',
                                 marginBottom: '16px'
                               }}
@@ -1810,7 +1810,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                     <Box 
                       background="neutral0" 
                       padding={5} 
-                      style={{ borderRadius: theme.borderRadius.lg, border: '2px solid #0EA5E9', marginBottom: '24px', background: 'linear-gradient(135deg, #EFF6FF 0%, #F0F9FF 100%)' }}
+                      style={{ borderRadius: theme.borderRadius.lg, border: '2px solid #0EA5E9', marginBottom: '24px', background: 'rgba(14, 165, 233, 0.06)' }}
                     >
                       <Flex alignItems="center" gap={2} style={{ marginBottom: '12px' }}>
                         <Mail width="20px" height="20px" style={{ color: '#0EA5E9' }} />
@@ -1840,13 +1840,13 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                               background="white"
                               style={{
                                 borderRadius: '10px',
-                                border: `2px solid ${isActive ? '#0284C7' : '#E5E7EB'}`,
+                                border: `2px solid ${isActive ? 'rgba(2, 132, 199, 0.6)' : 'rgba(128, 128, 128, 0.2)'}`,
                                 cursor: 'pointer',
                                 transition: 'all 0.2s',
                                 padding: '16px',
                                 minHeight: '110px',
                                 boxShadow: isActive ? '0 8px 20px rgba(2, 132, 199, 0.25)' : '0 2px 6px rgba(15, 23, 42, 0.08)',
-                                background: isActive ? 'linear-gradient(135deg, #E0F2FE 0%, #F0F9FF 100%)' : 'white',
+                                background: isActive ? 'rgba(14, 165, 233, 0.08)' : 'rgba(128, 128, 128, 0.04)',
                                 outline: 'none',
                                 display: 'flex',
                                 flexDirection: 'column',
@@ -1912,7 +1912,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                     <Box 
                       background="neutral0" 
                       padding={6} 
-                      style={{ borderRadius: theme.borderRadius.lg, border: '2px solid #E5E7EB', width: '100%' }}
+                      style={{ borderRadius: theme.borderRadius.lg, border: '2px solid rgba(128, 128, 128, 0.2)', width: '100%' }}
                     >
                       <Flex justifyContent="space-between" alignItems="center" style={{ marginBottom: '16px' }}>
                         <Flex alignItems="center" gap={2}>
@@ -1949,7 +1949,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                       </Typography>
                       <Box 
                         style={{ 
-                          border: '2px solid #E5E7EB', 
+                          border: '2px solid rgba(128, 128, 128, 0.2)', 
                           borderRadius: '6px', 
                           overflow: 'hidden',
                           background: '#1e1e1e',
@@ -2023,7 +2023,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                     <Box 
                       background="neutral0" 
                       padding={6} 
-                      style={{ borderRadius: theme.borderRadius.lg, border: '2px solid #E5E7EB', width: '100%' }}
+                      style={{ borderRadius: theme.borderRadius.lg, border: '2px solid rgba(128, 128, 128, 0.2)', width: '100%' }}
                     >
                       <Flex justifyContent="space-between" alignItems="center" style={{ marginBottom: '16px' }}>
                         <Flex alignItems="center" gap={2}>
@@ -2055,7 +2055,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                       </Typography>
                       <Box 
                         style={{ 
-                          border: '2px solid #E5E7EB', 
+                          border: '2px solid rgba(128, 128, 128, 0.2)', 
                           borderRadius: '6px', 
                           overflow: 'hidden',
                           background: '#f5f5f5',
@@ -2067,7 +2067,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                         <Box 
                           padding={2} 
                           background="neutral200" 
-                          style={{ borderBottom: '1px solid #d1d5db', flexShrink: 0 }}
+                          style={{ borderBottom: '1px solid rgba(128, 128, 128, 0.2)', flexShrink: 0 }}
                         >
                           <Typography variant="omega" style={{ color: '#666', fontSize: '11px', fontFamily: 'monospace' }}>
                             {formatMessage({ id: getTrad('settings.email.text.filename') })}
@@ -2181,7 +2181,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                   style={{ 
                     borderRadius: theme.borderRadius.md, 
                     marginBottom: '24px', 
-                    border: '2px solid #E5E7EB'
+                    border: '2px solid rgba(128, 128, 128, 0.2)'
                   }}
                 >
                   <Flex justifyContent="space-between" alignItems="center" style={{ marginBottom: '12px' }}>
