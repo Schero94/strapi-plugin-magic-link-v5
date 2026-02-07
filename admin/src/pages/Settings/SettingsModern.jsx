@@ -9,7 +9,7 @@ import {
   Textarea,
   Typography,
   Grid,
-  Toggle,
+  Switch,
   NumberInput,
   Divider,
   SingleSelect,
@@ -738,10 +738,9 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                       <ToggleCard $active={settings.enabled} $statusLabel={settings.enabled ? statusActive : statusInactive}>
                         <Flex direction="column" gap={3}>
                           <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                            <Toggle
+                            <Switch
                               checked={settings.enabled}
                               onCheckedChange={(checked) => updateSetting('enabled', checked)}
-                              size="L"
                             />
                           </Flex>
                           <Box>
@@ -759,10 +758,9 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                       <ToggleCard $active={settings.createUserIfNotExists} $statusLabel={settings.createUserIfNotExists ? statusActive : statusInactive}>
                         <Flex direction="column" gap={3}>
                           <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                            <Toggle
+                            <Switch
                               checked={settings.createUserIfNotExists}
                               onCheckedChange={(checked) => updateSetting('createUserIfNotExists', checked)}
-                              size="L"
                             />
                           </Flex>
                           <Box>
@@ -780,10 +778,9 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                       <ToggleCard $active={settings.stays_valid} $statusLabel={settings.stays_valid ? statusActive : statusInactive}>
                         <Flex direction="column" gap={3}>
                           <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                            <Toggle
+                            <Switch
                               checked={settings.stays_valid}
                               onCheckedChange={(checked) => updateSetting('stays_valid', checked)}
-                              size="L"
                             />
                           </Flex>
                           <Box>
@@ -1085,7 +1082,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                       <ToggleCard $active={settings.whatsapp_debug} $statusLabel={settings.whatsapp_debug ? 'DEBUG' : 'OFF'} onClick={() => updateSetting('whatsapp_debug', !settings.whatsapp_debug)}>
                         <Flex gap={3} alignItems="center">
                           <GreenToggle $isActive={settings.whatsapp_debug}>
-                            <Toggle checked={settings.whatsapp_debug} onCheckedChange={(checked) => updateSetting('whatsapp_debug', checked)} />
+                            <Switch checked={settings.whatsapp_debug} onCheckedChange={(checked) => updateSetting('whatsapp_debug', checked)} />
                           </GreenToggle>
                           <Box>
                             <Typography variant="omega" fontWeight="bold">Debug Mode</Typography>
@@ -1170,7 +1167,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                       <ToggleCard $active={settings.verify_email} $statusLabel={settings.verify_email ? statusActive : statusInactive}>
                         <Flex direction="column" gap={3}>
                           <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                            <Toggle
+                            <Switch
                               checked={settings.verify_email}
                               onCheckedChange={(checked) => updateSetting('verify_email', checked)}
                               size="L"
@@ -1191,7 +1188,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                       <ToggleCard $active={settings.welcome_email} $statusLabel={settings.welcome_email ? statusActive : statusInactive}>
                         <Flex direction="column" gap={3}>
                           <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                            <Toggle
+                            <Switch
                               checked={settings.welcome_email}
                               onCheckedChange={(checked) => updateSetting('welcome_email', checked)}
                               size="L"
@@ -1212,7 +1209,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                       <ToggleCard $active={settings.use_jwt_token} $statusLabel={settings.use_jwt_token ? statusActive : statusInactive}>
                         <Flex direction="column" gap={3}>
                           <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                            <Toggle
+                            <Switch
                               checked={settings.use_jwt_token}
                               onCheckedChange={(checked) => updateSetting('use_jwt_token', checked)}
                               size="L"
@@ -1233,7 +1230,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                       <ToggleCard $active={settings.store_login_info} $statusLabel={settings.store_login_info ? statusActive : statusInactive}>
                         <Flex direction="column" gap={3}>
                           <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                            <Toggle
+                            <Switch
                               checked={settings.store_login_info}
                               onCheckedChange={(checked) => updateSetting('store_login_info', checked)}
                               size="L"
@@ -1507,7 +1504,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                               Use Email Designer Template
                             </Typography>
                             <GreenToggle $isActive={settings.use_email_designer || false}>
-                              <Toggle
+                              <Switch
                                 checked={settings.use_email_designer || false}
                                 onCheckedChange={(checked) => updateSetting('use_email_designer', checked)}
                               />
@@ -1658,7 +1655,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                               Use MagicMail for Sending
                             </Typography>
                             <GreenToggle $isActive={settings.use_magic_mail || false}>
-                              <Toggle
+                              <Switch
                                 checked={settings.use_magic_mail || false}
                                 onCheckedChange={(checked) => updateSetting('use_magic_mail', checked)}
                               />
@@ -2143,7 +2140,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                     <ToggleCard $active={settings.allow_magic_links_on_public_registration} $statusLabel={settings.allow_magic_links_on_public_registration ? statusActive : statusInactive}>
                       <Flex direction="column" gap={3}>
                         <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                          <Toggle
+                          <Switch
                             checked={settings.allow_magic_links_on_public_registration}
                             onCheckedChange={(checked) => updateSetting('allow_magic_links_on_public_registration', checked)}
                             size="L"
@@ -2689,7 +2686,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                       </Flex>
                     </Box>
                     <GreenToggle $isActive={settings.totp_as_primary_auth}>
-                      <Toggle
+                      <Switch
                         checked={settings.totp_as_primary_auth || false}
                         onCheckedChange={(checked) => {
                           if (checked && !checkLicenseAndSetMode('totp-primary')) {
@@ -2852,7 +2849,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                       <ToggleCard $active={settings.rate_limit_enabled} $statusLabel={settings.rate_limit_enabled ? statusActive : statusInactive}>
                         <Flex direction="column" gap={3}>
                           <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                            <Toggle
+                            <Switch
                               checked={settings.rate_limit_enabled}
                               onCheckedChange={(checked) => updateSetting('rate_limit_enabled', checked)}
                               size="L"
@@ -3022,7 +3019,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                     <ToggleCard $active={settings.passwordlessCompatibility} $statusLabel={settings.passwordlessCompatibility ? statusActive : statusInactive}>
                       <Flex direction="column" gap={3}>
                         <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                          <Toggle
+                          <Switch
                             checked={settings.passwordlessCompatibility}
                             onCheckedChange={(checked) => updateSetting('passwordlessCompatibility', checked)}
                             size="L"
@@ -3061,7 +3058,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                     <ToggleCard $active={settings.emailDesignerCompatibility} $statusLabel={settings.emailDesignerCompatibility ? statusActive : statusInactive}>
                       <Flex direction="column" gap={3}>
                         <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                          <Toggle
+                          <Switch
                             checked={settings.emailDesignerCompatibility}
                             onCheckedChange={(checked) => updateSetting('emailDesignerCompatibility', checked)}
                             size="L"
