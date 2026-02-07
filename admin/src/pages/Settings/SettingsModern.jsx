@@ -62,7 +62,7 @@ const PlaceholderTile = styled(Box)`
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(2, 132, 199, 0.15);
-    border-color: #0ea5e9;
+    border-color: rgba(14, 165, 233, 0.6);
   }
 
   &:active {
@@ -110,7 +110,7 @@ const ToggleCard = styled(Box)`
       position: absolute;
       top: 8px;
       right: 8px;
-      background: ${theme.colors.success[600]};
+      background: #16A34A;
       color: white;
       padding: 2px 8px;
       border-radius: 4px;
@@ -174,7 +174,6 @@ const StickySaveBar = styled(Box)`
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--colors-neutral0, white);
   border-bottom: 1px solid rgba(128, 128, 128, 0.2);
   box-shadow: ${theme.shadows.sm};
 `;
@@ -192,7 +191,7 @@ const IconWrapper = styled.div`
   svg {
     width: 24px;
     height: 24px;
-    color: ${props => props.$iconColor || theme.colors.primary[600]};
+    color: ${props => props.$iconColor || 'var(--colors-primary600, #0284C7)'};
   }
 `;
 
@@ -609,13 +608,13 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
   return (
     <Container as="form" onSubmit={handleSave}>
       {/* Sticky Save Bar */}
-      <StickySaveBar paddingTop={5} paddingBottom={5} paddingLeft={6} paddingRight={6}>
+      <StickySaveBar background="neutral0" paddingTop={5} paddingBottom={5} paddingLeft={6} paddingRight={6}>
         <Flex justifyContent="space-between" alignItems="center">
           <Flex direction="column" gap={1} alignItems="flex-start">
-            <Typography variant="alpha" fontWeight="bold" style={{ fontSize: '24px' }}>
+            <Typography variant="alpha" fontWeight="bold" textColor="neutral800" tag="h1" style={{ fontSize: '24px' }}>
               {formatMessage({ id: getTrad('settings.page.title') })}
             </Typography>
-            <Typography variant="epsilon" textColor="neutral600">
+            <Typography variant="epsilon" textColor="neutral600" tag="p">
               {formatMessage({ id: getTrad('settings.page.subtitle') })}
             </Typography>
           </Flex>
@@ -654,9 +653,8 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
       <Box paddingTop={6} paddingLeft={6} paddingRight={6} paddingBottom={10}>
         {/* Info Banner */}
         <Box
-          background="primary50"
           padding={5}
-          style={{ borderRadius: theme.borderRadius.lg, border: '2px solid #BAE6FD', marginBottom: '24px' }}
+          style={{ borderRadius: theme.borderRadius.lg, border: '2px solid rgba(2, 132, 199, 0.3)', marginBottom: '24px', background: 'rgba(2, 132, 199, 0.06)' }}
         >
           <Flex gap={3} alignItems="flex-start">
             <Box
@@ -664,7 +662,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                 width: '40px',
                 height: '40px',
                 borderRadius: '50%',
-                background: theme.colors.primary[600],
+                background: 'var(--colors-primary600, #0284C7)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -674,10 +672,10 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
               <Cog style={{ width: '20px', height: '20px', color: 'white' }} />
             </Box>
             <Box>
-              <Typography variant="pi" fontWeight="bold" style={{ fontSize: '14px', marginBottom: '4px', display: 'block' }}>
+              <Typography variant="pi" fontWeight="bold" textColor="neutral800" style={{ fontSize: '14px', marginBottom: '4px', display: 'block' }}>
                 {formatMessage({ id: getTrad('settings.info.header') })}
               </Typography>
-              <Typography variant="pi" style={{ lineHeight: '1.6', fontSize: '13px' }}>
+              <Typography variant="pi" textColor="neutral600" style={{ lineHeight: '1.6', fontSize: '13px' }}>
                 • {formatMessage({ id: getTrad('settings.info.line1') })}<br/>
                 • {formatMessage({ id: getTrad('settings.info.line2') })}<br/>
                 • {formatMessage({ id: getTrad('settings.info.line3') })}<br/>
@@ -727,7 +725,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
 
                 {/* Feature Toggles */}
                 <Box background="neutral100" padding={5} style={{ borderRadius: theme.borderRadius.md, marginBottom: '24px' }}>
-                  <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', textAlign: 'center', color: theme.colors.neutral[700] }}>
+                  <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', textAlign: 'center', color: 'var(--colors-neutral700)' }}>
                     {formatMessage({ id: getTrad('settings.features.title') })}
                   </Typography>
                   <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '20px', display: 'block', textAlign: 'center', fontSize: '12px' }}>
@@ -798,7 +796,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                 </Box>
 
                 {/* Basic Settings */}
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: theme.colors.neutral[700] }}>
+                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
                   {formatMessage({ id: getTrad('settings.time.title') })}
                 </Typography>
                 <Grid.Root gap={6} style={{ marginBottom: '32px' }}>
@@ -840,7 +838,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                   </Grid.Item>
                 </Grid.Root>
 
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: theme.colors.neutral[700] }}>
+                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
                   {formatMessage({ id: getTrad('settings.security.title') })}
                 </Typography>
                 <Grid.Root gap={6} style={{ marginBottom: '32px' }}>
@@ -864,7 +862,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                   </Grid.Item>
                 </Grid.Root>
 
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: theme.colors.neutral[700] }}>
+                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
                   {formatMessage({ id: getTrad('settings.context.title') })}
                 </Typography>
                 <Grid.Root gap={6} style={{ marginBottom: '32px' }}>
@@ -920,7 +918,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                   </Grid.Item>
                 </Grid.Root>
 
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: theme.colors.neutral[700] }}>
+                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
                   {formatMessage({ id: getTrad('settings.api.title') })}
                 </Typography>
                 <Grid.Root gap={6}>
@@ -1046,7 +1044,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
               <Box padding={6}>
                 <Grid.Root gap={4}>
                   <Grid.Item col={12}>
-                    <Box background="success50" padding={4} style={{ borderRadius: '8px', border: '2px solid #22C55E', marginBottom: '16px' }}>
+                    <Box background="success50" padding={4} style={{ borderRadius: '8px', border: '2px solid rgba(34, 197, 94, 0.4)', marginBottom: '16px' }}>
                       <Flex gap={3} alignItems="flex-start">
                         <Lightning style={{ color: '#22C55E', width: '24px', height: '24px', flexShrink: 0, marginTop: '2px' }} />
                         <Box>
@@ -1156,7 +1154,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
               <Box padding={6}>
                 {/* Auth Toggles */}
                 <Box background="neutral100" padding={5} style={{ borderRadius: theme.borderRadius.md, marginBottom: '24px' }}>
-                  <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', textAlign: 'center', color: theme.colors.neutral[700] }}>
+                  <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', textAlign: 'center', color: 'var(--colors-neutral700)' }}>
                     {formatMessage({ id: getTrad('settings.auth.options.title') })}
                   </Typography>
                   <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '20px', display: 'block', textAlign: 'center', fontSize: '12px' }}>
@@ -1251,7 +1249,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                 </Box>
 
                 {/* Auth Settings */}
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: theme.colors.neutral[700] }}>
+                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
                   {formatMessage({ id: getTrad('settings.auth.management.title') })}
                 </Typography>
                 <Grid.Root gap={6}>
@@ -1322,26 +1320,26 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                     style={{ 
                       borderRadius: theme.borderRadius.md, 
                       marginBottom: '32px', 
-                      border: '2px solid #fca5a5',
+                      border: '2px solid rgba(239, 68, 68, 0.4)',
                       boxShadow: '0 4px 12px rgba(220, 38, 38, 0.15)'
                     }}
                   >
                     <Flex direction="column" gap={3}>
                       <Flex alignItems="center" gap={2}>
-                        <Mail style={{ color: theme.colors.danger[600], width: '24px', height: '24px' }} />
-                        <Typography variant="delta" fontWeight="bold" style={{ color: theme.colors.danger[700] }}>
+                        <Mail style={{ color: 'var(--colors-danger600, #DC2626)', width: '24px', height: '24px' }} />
+                        <Typography variant="delta" fontWeight="bold" style={{ color: 'var(--colors-danger600, #B91C1C)' }}>
                           ⚠️ No Email Provider Configured
                         </Typography>
                       </Flex>
-                      <Typography variant="pi" style={{ fontSize: '13px', color: theme.colors.danger[700], lineHeight: '1.6' }}>
+                      <Typography variant="pi" style={{ fontSize: '13px', color: 'var(--colors-danger600, #B91C1C)', lineHeight: '1.6' }}>
                         <strong>Magic Link cannot send emails!</strong> You need to configure an email provider for the plugin to work.
                       </Typography>
-                      <Divider style={{ backgroundColor: theme.colors.danger[300] }} />
-                      <Typography variant="pi" fontWeight="semiBold" style={{ fontSize: '13px', color: theme.colors.danger[800], marginBottom: '8px' }}>
+                      <Divider style={{ backgroundColor: 'rgba(220, 38, 38, 0.3)' }} />
+                      <Typography variant="pi" fontWeight="semiBold" style={{ fontSize: '13px', color: 'var(--colors-danger600, #991B1B)', marginBottom: '8px' }}>
                         📋 Choose one of these options:
                       </Typography>
                       <Box paddingLeft={3}>
-                        <Typography variant="pi" style={{ fontSize: '12px', color: theme.colors.danger[700], lineHeight: '1.8' }}>
+                        <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-danger600, #B91C1C)', lineHeight: '1.8' }}>
                           <strong>1. Install Nodemailer (Recommended)</strong><br/>
                           <code style={{ 
                             backgroundColor: 'rgba(255,255,255,0.8)', 
@@ -1352,11 +1350,11 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                           }}>npm install @strapi/provider-email-nodemailer</code>
                           <br/>Then configure in <code>config/plugins.js</code>
                         </Typography>
-                        <Typography variant="pi" style={{ fontSize: '12px', color: theme.colors.danger[700], lineHeight: '1.8', marginTop: '12px', display: 'block' }}>
+                        <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-danger600, #B91C1C)', lineHeight: '1.8', marginTop: '12px', display: 'block' }}>
                           <strong>2. Install MagicMail Plugin</strong><br/>
                           Advanced email routing with OAuth2, multi-account support, and analytics
                         </Typography>
-                        <Typography variant="pi" style={{ fontSize: '12px', color: theme.colors.danger[700], lineHeight: '1.8', marginTop: '12px', display: 'block' }}>
+                        <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-danger600, #B91C1C)', lineHeight: '1.8', marginTop: '12px', display: 'block' }}>
                           <strong>3. Use other providers</strong><br/>
                           SendGrid, Mailgun, Amazon SES, or any Strapi email provider
                         </Typography>
@@ -1370,11 +1368,11 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                   <Box 
                     background="success100" 
                     padding={4} 
-                    style={{ borderRadius: theme.borderRadius.md, marginBottom: '24px', border: '2px solid #86efac' }}
+                    style={{ borderRadius: theme.borderRadius.md, marginBottom: '24px', border: '2px solid rgba(34, 197, 94, 0.4)' }}
                   >
                     <Flex alignItems="center" gap={2}>
-                      <Check style={{ color: theme.colors.success[600] }} />
-                      <Typography variant="pi" fontWeight="semiBold" style={{ color: theme.colors.success[700] }}>
+                      <Check style={{ color: 'var(--colors-success600, #16A34A)' }} />
+                      <Typography variant="pi" fontWeight="semiBold" style={{ color: 'var(--colors-success600, #15803D)' }}>
                         {magicMailInstalled 
                           ? '✅ Email Provider: MagicMail (Advanced Routing)' 
                           : `✅ Email Provider: ${emailProviderName || 'Configured'}`}
@@ -1384,7 +1382,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                 )}
                 
                 {/* Email From Settings */}
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', color: theme.colors.neutral[700] }}>
+                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', color: 'var(--colors-neutral700)' }}>
                   {formatMessage({ id: getTrad('settings.email.sender.title') })}
                 </Typography>
                 <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '20px', display: 'block', fontSize: '12px' }}>
@@ -1466,30 +1464,29 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                     
                     {/* Header Section */}
                     <Box 
-                      background="neutral0" 
                       padding={5} 
                       style={{ 
                         borderRadius: theme.borderRadius.lg, 
-                        border: '2px solid #10b981', 
+                        border: '2px solid rgba(16, 185, 129, 0.4)', 
                         marginBottom: '24px',
-                        background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)'
+                        background: 'rgba(16, 185, 129, 0.06)'
                       }}
                     >
                       <Flex alignItems="center" gap={3} style={{ marginBottom: '12px' }}>
-                        <Check width="24px" height="24px" style={{ color: '#059669' }} />
-                        <Typography variant="delta" fontWeight="bold" style={{ color: '#065F46' }}>
-                          📧 Email Designer Integration
+                        <Check width="24px" height="24px" style={{ color: '#10b981' }} />
+                        <Typography variant="delta" fontWeight="bold" textColor="success600">
+                          Email Designer Integration
                         </Typography>
                         <Badge style={{ backgroundColor: '#10b981', color: 'white' }}>Active</Badge>
                       </Flex>
-                      <Typography variant="pi" style={{ color: '#047857', fontSize: '13px' }}>
+                      <Typography variant="pi" textColor="success600" style={{ fontSize: '13px' }}>
                         Use your beautiful Email Designer 5 templates for Magic Link emails!
                       </Typography>
                     </Box>
 
                     {/* Toggle & Template Selection */}
                     <Box 
-                      background="white" 
+                      background="neutral0" 
                       padding={5} 
                       style={{ 
                         borderRadius: theme.borderRadius.lg, 
@@ -1526,7 +1523,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                               background="primary50" 
                               style={{ 
                                 borderRadius: '8px', 
-                                border: '2px solid #BAE6FD',
+                                border: '2px solid rgba(14, 165, 233, 0.3)',
                                 marginBottom: '16px'
                               }}
                             >
@@ -1553,9 +1550,9 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                               <Box 
                                 background="success100" 
                                 padding={3} 
-                                style={{ borderRadius: '6px', border: '1px solid #86efac' }}
+                                style={{ borderRadius: '6px', border: '1px solid rgba(34, 197, 94, 0.4)' }}
                               >
-                                <Typography variant="pi" style={{ fontSize: '12px', color: theme.colors.success[700] }}>
+                                <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-success600, #15803D)' }}>
                                   ✨ {emailTemplates.length} template{emailTemplates.length !== 1 ? 's' : ''} available
                                 </Typography>
                               </Box>
@@ -1563,9 +1560,9 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                               <Box 
                                 background="warning100" 
                                 padding={3} 
-                                style={{ borderRadius: '6px', border: '1px solid #fcd34d' }}
+                                style={{ borderRadius: '6px', border: '1px solid rgba(234, 179, 8, 0.4)' }}
                               >
-                                <Typography variant="pi" style={{ fontSize: '12px', color: theme.colors.warning[700] }}>
+                                <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-warning600, #A16207)' }}>
                                   ⚠️ No templates found. Create one in Email Designer 5 first!
                                 </Typography>
                               </Box>
@@ -1578,9 +1575,9 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                     <Box 
                       background="warning100" 
                       padding={3} 
-                      style={{ borderRadius: theme.borderRadius.md, marginBottom: '24px', border: '1px solid #fcd34d' }}
+                      style={{ borderRadius: theme.borderRadius.md, marginBottom: '24px', border: '1px solid rgba(234, 179, 8, 0.4)' }}
                     >
-                      <Typography variant="pi" style={{ fontSize: '12px', color: theme.colors.warning[700] }}>
+                      <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-warning600, #A16207)' }}>
                         {formatMessage({ id: getTrad('settings.email.designer.variables') })}
                       </Typography>
                     </Box>
@@ -1640,7 +1637,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
 
                     {/* Toggle & Template Selection */}
                     <Box 
-                      background="white" 
+                      background="neutral0" 
                       padding={5} 
                       style={{ 
                         borderRadius: theme.borderRadius.lg, 
@@ -1672,7 +1669,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                               style={{ 
                                 borderRadius: '12px', 
                                 border: '2px solid rgba(139, 92, 246, 0.3)',
-                                background: 'linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)',
+                                background: 'rgba(124, 58, 237, 0.06)',
                                 marginBottom: '16px'
                               }}
                             >
@@ -1687,7 +1684,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                                 }}>
                                   <Mail width="16px" height="16px" style={{ color: 'white' }} />
                                 </div>
-                                <Typography variant="pi" fontWeight="bold" style={{ fontSize: '15px', color: '#5B21B6' }}>
+                                <Typography variant="pi" fontWeight="bold" style={{ fontSize: '15px', color: 'var(--colors-neutral800, #5B21B6)' }}>
                                   Select Email Template
                                 </Typography>
                               </Flex>
@@ -1712,7 +1709,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                                 ))}
                               </SingleSelect>
                               
-                              <Typography variant="omega" style={{ fontSize: '12px', color: '#7C3AED', marginTop: '12px', display: 'block' }}>
+                              <Typography variant="omega" textColor="neutral500" style={{ fontSize: '12px', marginTop: '12px', display: 'block' }}>
                                 💡 Templates are managed in your MagicMail settings
                               </Typography>
                             </Box>
@@ -1724,11 +1721,11 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                     <Box 
                       background="warning100" 
                       padding={3} 
-                      style={{ borderRadius: theme.borderRadius.md, marginBottom: '24px', border: '1px solid #fcd34d' }}
+                      style={{ borderRadius: theme.borderRadius.md, marginBottom: '24px', border: '1px solid rgba(234, 179, 8, 0.4)' }}
                     >
                       <Flex gap={2} alignItems="flex-start">
-                        <CheckCircle width="14px" height="14px" style={{ color: theme.colors.warning[700], flexShrink: 0, marginTop: '2px' }} />
-                        <Typography variant="pi" style={{ fontSize: '12px', color: theme.colors.warning[700] }}>
+                        <CheckCircle width="14px" height="14px" style={{ color: 'var(--colors-warning600, #A16207)', flexShrink: 0, marginTop: '2px' }} />
+                        <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-warning600, #A16207)' }}>
                           <strong>Tip:</strong> MagicMail will use your configured email accounts and routing rules. Make sure you have at least one active account configured in MagicMail settings.
                         </Typography>
                       </Flex>
@@ -1738,10 +1735,10 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
 
                 {/* Email Templates */}
                 <Divider style={{ marginBottom: '24px' }} />
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', color: theme.colors.neutral[700] }}>
+                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', color: 'var(--colors-neutral700)' }}>
                   {formatMessage({ id: getTrad('settings.email.templates.title') })}
                   {emailDesignerInstalled && settings.use_email_designer && (
-                    <Badge style={{ marginLeft: '8px', backgroundColor: theme.colors.neutral[400] }}>
+                    <Badge style={{ marginLeft: '8px', backgroundColor: 'rgba(128, 128, 128, 0.3)' }}>
                       {formatMessage({ id: getTrad('settings.email.designer.fallbackBadge') })}
                     </Badge>
                   )}
@@ -1756,10 +1753,10 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                 <Box 
                   background="primary100" 
                   padding={3} 
-                  style={{ borderRadius: theme.borderRadius.md, marginBottom: '16px', border: '2px solid #BAE6FD' }}
+                  style={{ borderRadius: theme.borderRadius.md, marginBottom: '16px', border: '2px solid rgba(14, 165, 233, 0.3)' }}
                 >
                   <Flex justifyContent="space-between" alignItems="center" style={{ marginBottom: '12px' }}>
-                    <Typography variant="pi" fontWeight="bold" style={{ color: theme.colors.primary[700], fontSize: '13px' }}>
+                    <Typography variant="pi" fontWeight="bold" style={{ color: 'var(--colors-primary600, #075985)', fontSize: '13px' }}>
                       📋 {formatMessage({ id: getTrad('settings.email.placeholders.title') })}
                     </Typography>
                     <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px' }}>
@@ -1782,7 +1779,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                           <Typography variant="pi" style={{ 
                             fontFamily: 'monospace', 
                             fontSize: '13px', 
-                            color: theme.colors.primary[700], 
+                            color: 'var(--colors-primary600, #075985)', 
                             fontWeight: 'bold',
                             wordBreak: 'break-all'
                           }}>
@@ -1810,12 +1807,12 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                     <Box 
                       background="neutral0" 
                       padding={5} 
-                      style={{ borderRadius: theme.borderRadius.lg, border: '2px solid #0EA5E9', marginBottom: '24px', background: 'rgba(14, 165, 233, 0.06)' }}
+                      style={{ borderRadius: theme.borderRadius.lg, border: '2px solid rgba(14, 165, 233, 0.4)', marginBottom: '24px', background: 'rgba(14, 165, 233, 0.06)' }}
                     >
                       <Flex alignItems="center" gap={2} style={{ marginBottom: '12px' }}>
                         <Mail width="20px" height="20px" style={{ color: '#0EA5E9' }} />
-                        <Typography variant="delta" fontWeight="bold" style={{ color: '#0369A1' }}>
-                          🎨 Email Template Gallery
+                        <Typography variant="delta" fontWeight="bold" style={{ color: 'var(--colors-primary600, #0369A1)' }}>
+                          Email Template Gallery
                         </Typography>
                         <Badge style={{ backgroundColor: '#0EA5E9', color: 'white' }}>New</Badge>
                       </Flex>
@@ -1837,7 +1834,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                               key={template.value}
                               role="button"
                               tabIndex={0}
-                              background="white"
+                              background="neutral0"
                               style={{
                                 borderRadius: '10px',
                                 border: `2px solid ${isActive ? 'rgba(2, 132, 199, 0.6)' : 'rgba(128, 128, 128, 0.2)'}`,
@@ -2058,7 +2055,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                           border: '2px solid rgba(128, 128, 128, 0.2)', 
                           borderRadius: '6px', 
                           overflow: 'hidden',
-                          background: '#f5f5f5',
+                          background: 'var(--colors-neutral100, #f5f5f5)',
                           height: '500px',
                           display: 'flex',
                           flexDirection: 'column'
@@ -2081,8 +2078,8 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                             height: '100%',
                             fontSize: '14px',
                             lineHeight: '1.8',
-                            background: '#f5f5f5',
-                            color: '#1f2937',
+                            background: 'var(--colors-neutral100, #f5f5f5)',
+                            color: 'var(--colors-neutral800, #1f2937)',
                             border: 'none',
                             padding: '20px',
                             resize: 'none',
@@ -2129,7 +2126,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
             </Accordion.Header>
             <Accordion.Content>
               <Box padding={6}>
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', color: theme.colors.neutral[700] }}>
+                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', color: 'var(--colors-neutral700)' }}>
                   {formatMessage({ id: getTrad('settings.advanced.title') })}
                 </Typography>
                 <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '20px', display: 'block', fontSize: '12px' }}>
@@ -2207,7 +2204,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                 </Box>
 
                 {/* Authentication Modes */}
-                <Typography variant="delta" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: theme.colors.neutral[800] }}>
+                <Typography variant="delta" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral800)' }}>
                   Choose Authentication Mode
                 </Typography>
 
@@ -2233,7 +2230,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                       }}
                       style={{ cursor: 'pointer', minHeight: '160px', width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
                     >
-                      <IconWrapper $bgColor={theme.colors.primary[100]} $iconColor={theme.colors.primary[600]}>
+                      <IconWrapper $bgColor="rgba(2, 132, 199, 0.12)" $iconColor="var(--colors-primary600, #0284C7)">
                         <Link />
                       </IconWrapper>
                       <Box>
@@ -2243,7 +2240,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                         <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginBottom: '12px' }}>
                           Ein-Klick-Login per E-Mail. Schnell und benutzerfreundlich.
                         </Typography>
-                        <Typography variant="pi" style={{ fontSize: '10px', color: theme.colors.primary[600], display: 'block', marginBottom: '8px' }}>
+                        <Typography variant="pi" style={{ fontSize: '10px', color: 'var(--colors-primary600, #0284C7)', display: 'block', marginBottom: '8px' }}>
                           ✓ Keine Passwörter<br/>
                           ✓ Schneller Login<br/>
                           ✓ Immer verfügbar
@@ -2251,7 +2248,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                       </Box>
                       <Badge style={{ 
                         marginTop: '8px', 
-                        backgroundColor: theme.colors.primary[600], 
+                        backgroundColor: 'var(--colors-primary600, #0284C7)', 
                         color: 'white',
                         fontWeight: '600',
                         fontSize: '11px',
@@ -2520,21 +2517,21 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                       style={{ 
                         borderRadius: theme.borderRadius.md, 
                         marginBottom: '24px',
-                        border: '1px solid #BFDBFE'
+                        border: '1px solid rgba(14, 165, 233, 0.3)'
                       }}
                     >
                       <Flex alignItems="center" gap={2} style={{ marginBottom: '8px' }}>
-                        <Mail width="18px" height="18px" style={{ color: theme.colors.primary[700] }} />
-                        <Typography variant="pi" fontWeight="bold" style={{ color: theme.colors.primary[700] }}>
+                        <Mail width="18px" height="18px" style={{ color: 'var(--colors-primary600, #075985)' }} />
+                        <Typography variant="pi" fontWeight="bold" style={{ color: 'var(--colors-primary600, #075985)' }}>
                           Email OTP Einstellungen
                         </Typography>
                       </Flex>
-                      <Typography variant="pi" style={{ fontSize: '12px', color: theme.colors.primary[700], lineHeight: '1.6' }}>
+                      <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-primary600, #075985)', lineHeight: '1.6' }}>
                         Konfiguriere hier, wie der OTP-Code per E-Mail verschickt wird. Benutzer erhalten nach dem Klick auf den Magic Link einen zusätzlichen Verifikationscode per E-Mail.
                       </Typography>
                     </Box>
                     
-                    <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: theme.colors.neutral[700] }}>
+                    <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
                       Code-Einstellungen
                     </Typography>
 
@@ -2633,15 +2630,15 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                     <Box 
                       background="success100" 
                       padding={4} 
-                      style={{ borderRadius: theme.borderRadius.md, border: '1px solid #BBF7D0', marginBottom: '24px' }}
+                      style={{ borderRadius: theme.borderRadius.md, border: '1px solid rgba(34, 197, 94, 0.3)', marginBottom: '24px' }}
                     >
                       <Flex gap={2} alignItems="flex-start" style={{ marginBottom: '12px' }}>
-                        <CheckCircle width="16px" height="16px" style={{ color: theme.colors.success[700], flexShrink: 0, marginTop: '2px' }} />
+                        <CheckCircle width="16px" height="16px" style={{ color: 'var(--colors-success600, #15803D)', flexShrink: 0, marginTop: '2px' }} />
                         <Box>
-                          <Typography variant="pi" fontWeight="bold" style={{ fontSize: '13px', color: theme.colors.success[700], marginBottom: '6px', display: 'block' }}>
+                          <Typography variant="pi" fontWeight="bold" style={{ fontSize: '13px', color: 'var(--colors-success600, #15803D)', marginBottom: '6px', display: 'block' }}>
                             So funktioniert's:
                           </Typography>
-                          <Typography variant="pi" style={{ fontSize: '12px', color: theme.colors.success[700], lineHeight: '1.6' }}>
+                          <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-success600, #15803D)', lineHeight: '1.6' }}>
                             1. Benutzer klickt auf Magic Link in der E-Mail<br/>
                             2. Wird zu OTP-Verifikationsseite weitergeleitet<br/>
                             3. Gibt den {settings.otp_length || 6}-stelligen Code ein, der an {settings.otp_type === 'sms' ? 'sein Telefon' : 'seine E-Mail'} gesendet wurde<br/>
@@ -2679,8 +2676,8 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                         Allow users to login with Email + TOTP code directly, without waiting for magic link email.
                       </Typography>
                       <Flex gap={2} alignItems="flex-start">
-                        <Lightning width="14px" height="14px" style={{ color: theme.colors.warning[700], flexShrink: 0, marginTop: '2px' }} />
-                        <Typography variant="pi" style={{ fontSize: '11px', color: theme.colors.warning[700] }}>
+                        <Lightning width="14px" height="14px" style={{ color: 'var(--colors-warning600, #A16207)', flexShrink: 0, marginTop: '2px' }} />
+                        <Typography variant="pi" style={{ fontSize: '11px', color: 'var(--colors-warning600, #A16207)' }}>
                           <strong>Fast login:</strong> Users open authenticator app, enter code → instant login (no email needed)
                         </Typography>
                       </Flex>
@@ -2704,7 +2701,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                   <>
                     <Divider style={{ marginBottom: '24px' }} />
                     
-                    <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: theme.colors.neutral[700] }}>
+                    <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
                       TOTP Configuration
                     </Typography>
 
@@ -2761,11 +2758,11 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                     <Box 
                       background="success100" 
                       padding={4} 
-                      style={{ borderRadius: theme.borderRadius.md, border: '1px solid #BBF7D0', marginTop: '16px' }}
+                      style={{ borderRadius: theme.borderRadius.md, border: '1px solid rgba(34, 197, 94, 0.3)', marginTop: '16px' }}
                     >
                       <Flex gap={2} alignItems="flex-start">
-                        <Key width="14px" height="14px" style={{ color: theme.colors.success[700], flexShrink: 0, marginTop: '2px' }} />
-                        <Typography variant="pi" style={{ fontSize: '12px', color: theme.colors.success[700] }}>
+                        <Key width="14px" height="14px" style={{ color: 'var(--colors-success600, #15803D)', flexShrink: 0, marginTop: '2px' }} />
+                        <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-success600, #15803D)' }}>
                           <strong>How it works:</strong> Users scan QR code with Google Authenticator, Authy, or any TOTP app. They'll get a new 6-digit code every 30 seconds.
                         </Typography>
                       </Flex>
@@ -2779,42 +2776,42 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                 <Box 
                   background="primary100" 
                   padding={4} 
-                  style={{ borderRadius: theme.borderRadius.md, border: '2px solid #BFDBFE' }}
+                  style={{ borderRadius: theme.borderRadius.md, border: '2px solid rgba(14, 165, 233, 0.3)' }}
                 >
                   <Flex gap={2} alignItems="center" style={{ marginBottom: '8px' }}>
-                    <CheckCircle width="16px" height="16px" style={{ color: theme.colors.primary[700] }} />
-                    <Typography variant="pi" fontWeight="bold" style={{ color: theme.colors.primary[700] }}>
+                    <CheckCircle width="16px" height="16px" style={{ color: 'var(--colors-primary600, #075985)' }} />
+                    <Typography variant="pi" fontWeight="bold" style={{ color: 'var(--colors-primary600, #075985)' }}>
                       Current Configuration:
                     </Typography>
                   </Flex>
                   {!settings.otp_enabled && !settings.mfa_require_totp && !settings.totp_as_primary_auth && (
                     <Flex gap={2} alignItems="flex-start">
-                      <Link width="14px" height="14px" style={{ color: theme.colors.neutral[700], flexShrink: 0, marginTop: '2px' }} />
-                      <Typography variant="pi" style={{ fontSize: '12px', color: theme.colors.neutral[700] }}>
+                      <Link width="14px" height="14px" style={{ color: 'var(--colors-neutral700)', flexShrink: 0, marginTop: '2px' }} />
+                      <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-neutral700)' }}>
                         Users login with Magic Link only (one-click email login)
                       </Typography>
                     </Flex>
                   )}
                   {settings.otp_enabled && !settings.mfa_require_totp && (
                     <Flex gap={2} alignItems="flex-start">
-                      <Mail width="14px" height="14px" style={{ color: theme.colors.neutral[700], flexShrink: 0, marginTop: '2px' }} />
-                      <Typography variant="pi" style={{ fontSize: '12px', color: theme.colors.neutral[700] }}>
+                      <Mail width="14px" height="14px" style={{ color: 'var(--colors-neutral700)', flexShrink: 0, marginTop: '2px' }} />
+                      <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-neutral700)' }}>
                         Users click Magic Link → Enter 6-digit code from email
                       </Typography>
                     </Flex>
                   )}
                   {settings.mfa_require_totp && (
                     <Flex gap={2} alignItems="flex-start">
-                      <Lock width="14px" height="14px" style={{ color: theme.colors.neutral[700], flexShrink: 0, marginTop: '2px' }} />
-                      <Typography variant="pi" style={{ fontSize: '12px', color: theme.colors.neutral[700] }}>
+                      <Lock width="14px" height="14px" style={{ color: 'var(--colors-neutral700)', flexShrink: 0, marginTop: '2px' }} />
+                      <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-neutral700)' }}>
                         Users click Magic Link → Enter code from authenticator app (MFA)
                       </Typography>
                     </Flex>
                   )}
                   {settings.totp_as_primary_auth && (
                     <Flex gap={2} alignItems="flex-start" style={{ marginTop: settings.mfa_require_totp ? '8px' : '0' }}>
-                      <Lightning width="14px" height="14px" style={{ color: theme.colors.neutral[700], flexShrink: 0, marginTop: '2px' }} />
-                      <Typography variant="pi" style={{ fontSize: '12px', color: theme.colors.neutral[700] }}>
+                      <Lightning width="14px" height="14px" style={{ color: 'var(--colors-neutral700)', flexShrink: 0, marginTop: '2px' }} />
+                      <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-neutral700)' }}>
                         + TOTP-only login enabled (users can skip email and login with code directly)
                       </Typography>
                     </Flex>
@@ -2838,7 +2835,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
               <Box padding={6}>
                 {/* Rate Limit Toggle */}
                 <Box background="neutral100" padding={5} style={{ borderRadius: theme.borderRadius.md, marginBottom: '24px' }}>
-                  <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', textAlign: 'center', color: theme.colors.neutral[700] }}>
+                  <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', textAlign: 'center', color: 'var(--colors-neutral700)' }}>
                     {formatMessage({ id: getTrad('settings.rateLimit.title') })}
                   </Typography>
                   <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '20px', display: 'block', textAlign: 'center', fontSize: '12px' }}>
@@ -2870,7 +2867,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                 </Box>
 
                 {/* Rate Limit Configuration */}
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: theme.colors.neutral[700] }}>
+                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
                   {formatMessage({ id: getTrad('settings.rateLimit.config.title') })}
                 </Typography>
                 <Grid.Root gap={6} style={{ marginBottom: '32px' }}>
@@ -2910,12 +2907,12 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                 {rateLimitStats && (
                   <>
                     <Divider style={{ marginBottom: '24px' }} />
-                    <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: theme.colors.neutral[700] }}>
+                    <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
                       {formatMessage({ id: getTrad('settings.rateLimit.stats.title') })}
                     </Typography>
                     <Flex gap={4} wrap="wrap" justifyContent="center" style={{ marginBottom: '24px' }}>
                       <Box padding={4} background="neutral100" style={{ borderRadius: '8px', textAlign: 'center', minWidth: '140px', flex: '1' }}>
-                        <Typography variant="beta" style={{ color: theme.colors.primary[600], fontWeight: '700' }}>
+                        <Typography variant="beta" style={{ color: 'var(--colors-primary600, #0284C7)', fontWeight: '700' }}>
                           {rateLimitStats.totalEntries || 0}
                         </Typography>
                         <Typography variant="omega" textColor="neutral600" style={{ fontSize: '11px', marginTop: '4px', display: 'block' }}>
@@ -2923,7 +2920,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                         </Typography>
                       </Box>
                       <Box padding={4} background="danger100" style={{ borderRadius: '8px', textAlign: 'center', minWidth: '140px', flex: '1' }}>
-                        <Typography variant="beta" style={{ color: theme.colors.danger[600], fontWeight: '700' }}>
+                        <Typography variant="beta" style={{ color: 'var(--colors-danger600, #DC2626)', fontWeight: '700' }}>
                           {rateLimitStats.blocked || 0}
                         </Typography>
                         <Typography variant="omega" textColor="neutral600" style={{ fontSize: '11px', marginTop: '4px', display: 'block' }}>
@@ -2931,7 +2928,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                         </Typography>
                       </Box>
                       <Box padding={4} background="primary100" style={{ borderRadius: '8px', textAlign: 'center', minWidth: '140px', flex: '1' }}>
-                        <Typography variant="beta" style={{ color: theme.colors.primary[600], fontWeight: '700' }}>
+                        <Typography variant="beta" style={{ color: 'var(--colors-primary600, #0284C7)', fontWeight: '700' }}>
                           {rateLimitStats.ipLimits || 0}
                         </Typography>
                         <Typography variant="omega" textColor="neutral600" style={{ fontSize: '11px', marginTop: '4px', display: 'block' }}>
@@ -2939,7 +2936,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                         </Typography>
                       </Box>
                       <Box padding={4} background="success100" style={{ borderRadius: '8px', textAlign: 'center', minWidth: '140px', flex: '1' }}>
-                        <Typography variant="beta" style={{ color: theme.colors.success[600], fontWeight: '700' }}>
+                        <Typography variant="beta" style={{ color: 'var(--colors-success600, #16A34A)', fontWeight: '700' }}>
                           {rateLimitStats.emailLimits || 0}
                         </Typography>
                         <Typography variant="omega" textColor="neutral600" style={{ fontSize: '11px', marginTop: '4px', display: 'block' }}>
@@ -2983,7 +2980,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
             </Accordion.Header>
             <Accordion.Content>
               <Box padding={6}>
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', color: theme.colors.neutral[700] }}>
+                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', color: 'var(--colors-neutral700)' }}>
                   {formatMessage({ id: getTrad('settings.compatibility.title') })}
                 </Typography>
                 <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '20px', display: 'block', fontSize: '12px' }}>
@@ -2997,11 +2994,11 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                   style={{ 
                     borderRadius: theme.borderRadius.md, 
                     marginBottom: '24px', 
-                    border: '2px solid #BAE6FD'
+                    border: '2px solid rgba(14, 165, 233, 0.3)'
                   }}
                 >
                   <Flex alignItems="flex-start" gap={3}>
-                    <Link width="20px" height="20px" style={{ color: theme.colors.primary[600], flexShrink: 0, marginTop: '2px' }} />
+                    <Link width="20px" height="20px" style={{ color: 'var(--colors-primary600, #0284C7)', flexShrink: 0, marginTop: '2px' }} />
                     <Box>
                       <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '6px', display: 'block' }}>
                         {formatMessage({ id: getTrad('settings.compatibility.info.title') })}
@@ -3040,7 +3037,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                             style={{ 
                               borderRadius: theme.borderRadius.md, 
                               marginTop: '8px',
-                              border: '1px solid #BBF7D0'
+                              border: '1px solid rgba(34, 197, 94, 0.3)'
                             }}
                           >
                             <Typography variant="pi" style={{ fontSize: '11px', fontFamily: 'monospace' }}>
@@ -3079,7 +3076,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                             style={{ 
                               borderRadius: theme.borderRadius.md, 
                               marginTop: '8px',
-                              border: '1px solid #BBF7D0'
+                              border: '1px solid rgba(34, 197, 94, 0.3)'
                             }}
                           >
                             <Typography variant="pi" style={{ fontSize: '11px' }}>
@@ -3100,11 +3097,11 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                   style={{ 
                     borderRadius: theme.borderRadius.md, 
                     marginTop: '24px',
-                    border: '2px solid #FDE68A'
+                    border: '2px solid rgba(234, 179, 8, 0.4)'
                   }}
                 >
                   <Flex alignItems="flex-start" gap={3}>
-                    <Code width="20px" height="20px" style={{ color: theme.colors.warning[600], flexShrink: 0, marginTop: '2px' }} />
+                    <Code width="20px" height="20px" style={{ color: 'var(--colors-warning600, #D97706)', flexShrink: 0, marginTop: '2px' }} />
                     <Box>
                       <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '6px', display: 'block' }}>
                         {formatMessage({ id: getTrad('settings.compatibility.migration.title') })}
@@ -3124,10 +3121,10 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
         <Box
           background="success50"
           padding={5}
-          style={{ borderRadius: theme.borderRadius.lg, marginTop: '32px', border: '2px solid #BBF7D0' }}
+          style={{ borderRadius: theme.borderRadius.lg, marginTop: '32px', border: '2px solid rgba(34, 197, 94, 0.3)' }}
         >
           <Flex gap={3} alignItems="center" justifyContent="center">
-            <Check style={{ width: '24px', height: '24px', color: theme.colors.success[600] }} />
+            <Check style={{ width: '24px', height: '24px', color: 'var(--colors-success600, #16A34A)' }} />
             <Box>
               <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '4px', display: 'block' }}>
                 {formatMessage({ id: getTrad('settings.footer.quickhelp') })}
