@@ -1082,6 +1082,9 @@ const TokensProfessional = () => {
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
   
+  // Default TTL from settings (loaded on mount)
+  const [defaultTtlHours, setDefaultTtlHours] = useState(24);
+  
   // Create Token Form State
   const [newToken, setNewToken] = useState({
     email: '',
@@ -1226,6 +1229,23 @@ const TokensProfessional = () => {
   
   useEffect(() => {
     fetchTokens();
+    
+    /** Loads plugin settings to get expire_period for default TTL */
+    const loadDefaultTtl = async () => {
+      try {
+        const res = await get('/magic-link/settings');
+        const settingsData = res?.data?.settings || res?.data?.data || res?.data;
+        if (settingsData?.expire_period) {
+          const hours = Math.max(1, Math.round(Number(settingsData.expire_period) / 3600));
+          setDefaultTtlHours(hours);
+          setNewToken(prev => ({ ...prev, ttl: hours }));
+        }
+      } catch (err) {
+        // Fallback to 24h if settings cannot be loaded
+        console.error('Error loading settings for default TTL:', err);
+      }
+    };
+    loadDefaultTtl();
   }, [fetchTokens]);
   
   // Handlers
@@ -1304,7 +1324,7 @@ const TokensProfessional = () => {
       
       await fetchTokens();
       setShowCreateModal(false);
-      setNewToken({ email: '', ttl: 24, context: {}, sendEmail: true });
+      setNewToken({ email: '', ttl: defaultTtlHours, context: {}, sendEmail: true });
       setSearchQuery(''); // Explizit Suchfeld leeren
       
       // Show the created token modal with plaintext token
