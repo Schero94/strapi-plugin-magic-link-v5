@@ -1751,13 +1751,13 @@ const TokensProfessional = () => {
                             <Typography 
                               variant="pi" 
                               fontWeight="semiBold"
+                              textColor="neutral800"
                               style={{ 
                                 fontFamily: 'monospace', 
                                 fontSize: '12px',
-                                background: 'rgba(255, 255, 255, 0.12)',
+                                background: 'rgba(128, 128, 128, 0.1)',
                                 padding: '2px 8px',
                                 borderRadius: '4px',
-                                color: '#ffffff',
                                 letterSpacing: '0.5px',
                               }}
                             >
@@ -1985,19 +1985,19 @@ const TokensProfessional = () => {
                     
                     {/* Reference ID */}
                     <Flex alignItems="center" gap={3}>
-                      <Typography variant="sigma" fontWeight="semiBold" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>
+                      <Typography variant="sigma" fontWeight="semiBold" textColor="neutral500" style={{ fontSize: '12px' }}>
                         {formatMessage({ id: getTrad('tokens.details.reference') })}:
                       </Typography>
                       <Typography 
                         variant="pi" 
                         fontWeight="bold"
+                        textColor="neutral800"
                         style={{ 
                           fontFamily: 'monospace', 
                           fontSize: '14px',
-                          background: 'rgba(255,255,255,0.12)',
+                          background: 'rgba(128, 128, 128, 0.1)',
                           padding: '4px 12px',
                           borderRadius: '6px',
-                          color: '#ffffff',
                         }}
                       >
                         #{selectedTokenDetails.documentId ? selectedTokenDetails.documentId.slice(-8) : selectedTokenDetails.id}
@@ -2008,7 +2008,7 @@ const TokensProfessional = () => {
                     <Box
                       style={{
                         borderRadius: '12px',
-                        border: '1px solid rgba(255,255,255,0.1)',
+                        border: '1px solid rgba(128, 128, 128, 0.15)',
                         overflow: 'hidden',
                       }}
                     >
@@ -2018,11 +2018,11 @@ const TokensProfessional = () => {
                         justifyContent="space-between"
                         style={{
                           padding: '14px 20px',
-                          background: 'rgba(255,255,255,0.06)',
-                          borderBottom: '1px solid rgba(255,255,255,0.1)',
+                          background: 'rgba(128, 128, 128, 0.06)',
+                          borderBottom: '1px solid rgba(128, 128, 128, 0.15)',
                         }}
                       >
-                        <Typography variant="omega" fontWeight="semiBold" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>
+                        <Typography variant="omega" fontWeight="semiBold" textColor="neutral600" style={{ fontSize: '13px' }}>
                           {formatMessage({ id: getTrad('tokens.details.status') })}
                         </Typography>
                         {getStatusBadge(selectedTokenDetails)}
@@ -2034,14 +2034,13 @@ const TokensProfessional = () => {
                         justifyContent="space-between"
                         style={{
                           padding: '12px 20px',
-                          background: 'rgba(255,255,255,0.03)',
-                          borderBottom: '1px solid rgba(255,255,255,0.06)',
+                          borderBottom: '1px solid rgba(128, 128, 128, 0.08)',
                         }}
                       >
-                        <Typography variant="omega" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
+                        <Typography variant="omega" textColor="neutral500" style={{ fontSize: '13px' }}>
                           {formatMessage({ id: getTrad('tokens.details.created') })}
                         </Typography>
-                        <Typography variant="pi" style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff' }}>
+                        <Typography variant="pi" textColor="neutral800" style={{ fontSize: '13px', fontWeight: '600' }}>
                           {formatDate(selectedTokenDetails.createdAt)}
                         </Typography>
                       </Flex>
@@ -2052,20 +2051,16 @@ const TokensProfessional = () => {
                         justifyContent="space-between"
                         style={{
                           padding: '12px 20px',
-                          background: 'rgba(255,255,255,0.03)',
-                          borderBottom: selectedTokenDetails.used_at || selectedTokenDetails.last_used_at ? '1px solid rgba(255,255,255,0.06)' : 'none',
+                          borderBottom: selectedTokenDetails.used_at || selectedTokenDetails.last_used_at ? '1px solid rgba(128, 128, 128, 0.08)' : 'none',
                         }}
                       >
-                        <Typography variant="omega" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
+                        <Typography variant="omega" textColor="neutral500" style={{ fontSize: '13px' }}>
                           {formatMessage({ id: getTrad('tokens.details.expiresAt') })}
                         </Typography>
                         <Typography 
                           variant="pi" 
-                          style={{ 
-                            fontSize: '13px', 
-                            fontWeight: '600',
-                            color: isDateExpired(selectedTokenDetails.expires_at) ? '#f87171' : '#ffffff'
-                          }}
+                          textColor={isDateExpired(selectedTokenDetails.expires_at) ? 'danger600' : 'neutral800'}
+                          style={{ fontSize: '13px', fontWeight: '600' }}
                         >
                           {formatDate(selectedTokenDetails.expires_at) || formatMessage({ id: getTrad('tokens.details.unlimited') })}
                         </Typography>
@@ -2078,11 +2073,11 @@ const TokensProfessional = () => {
                           justifyContent="space-between"
                           style={{
                             padding: '12px 20px',
-                            background: 'rgba(34, 197, 94, 0.08)',
-                            borderBottom: selectedTokenDetails.last_used_at && selectedTokenDetails.last_used_at !== selectedTokenDetails.used_at ? '1px solid rgba(34, 197, 94, 0.15)' : 'none',
+                            background: 'rgba(34, 197, 94, 0.06)',
+                            borderBottom: selectedTokenDetails.last_used_at && selectedTokenDetails.last_used_at !== selectedTokenDetails.used_at ? '1px solid rgba(34, 197, 94, 0.12)' : 'none',
                           }}
                         >
-                          <Typography variant="omega" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
+                          <Typography variant="omega" textColor="neutral500" style={{ fontSize: '13px' }}>
                             {formatMessage({ id: getTrad('tokens.details.usedAt') })}
                           </Typography>
                           <Flex alignItems="center" gap={2}>
@@ -2090,9 +2085,9 @@ const TokensProfessional = () => {
                               width: '8px', 
                               height: '8px', 
                               borderRadius: '50%', 
-                              background: '#4ade80' 
+                              background: '#22c55e' 
                             }} />
-                            <Typography variant="pi" style={{ fontSize: '13px', fontWeight: '600', color: '#4ade80' }}>
+                            <Typography variant="pi" textColor="success600" style={{ fontSize: '13px', fontWeight: '600' }}>
                               {formatDate(selectedTokenDetails.used_at)}
                             </Typography>
                           </Flex>
@@ -2104,15 +2099,12 @@ const TokensProfessional = () => {
                         <Flex 
                           alignItems="center" 
                           justifyContent="space-between"
-                          style={{
-                            padding: '12px 20px',
-                            background: 'rgba(255,255,255,0.03)',
-                          }}
+                          style={{ padding: '12px 20px' }}
                         >
-                          <Typography variant="omega" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
+                          <Typography variant="omega" textColor="neutral500" style={{ fontSize: '13px' }}>
                             {formatMessage({ id: getTrad('tokens.details.lastUsedAt') })}
                           </Typography>
-                          <Typography variant="pi" style={{ fontSize: '13px', fontWeight: '600', color: '#ffffff' }}>
+                          <Typography variant="pi" textColor="neutral800" style={{ fontSize: '13px', fontWeight: '600' }}>
                             {formatDate(selectedTokenDetails.last_used_at)}
                           </Typography>
                         </Flex>
@@ -2122,28 +2114,28 @@ const TokensProfessional = () => {
                     {/* Technical Details */}
                     {(selectedTokenDetails.ip_address || selectedTokenDetails.user_agent) && (
                       <Box>
-                        <Typography variant="sigma" fontWeight="semiBold" style={{ marginBottom: '8px', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px', color: 'rgba(255,255,255,0.5)' }}>
+                        <Typography variant="sigma" fontWeight="semiBold" textColor="neutral500" style={{ marginBottom: '8px', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px' }}>
                           {formatMessage({ id: getTrad('tokens.details.technicalInfo') })}
                         </Typography>
                         <Box
                           padding={4}
+                          background="neutral100"
                           style={{
                             borderRadius: '8px',
-                            border: '1px solid rgba(255,255,255,0.1)',
-                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px solid rgba(128, 128, 128, 0.15)',
                           }}
                         >
                           <Flex direction="column" gap={2}>
                             {selectedTokenDetails.ip_address && (
                               <Flex alignItems="center" gap={2}>
-                                <Earth style={{ width: '14px', height: '14px', color: 'rgba(255,255,255,0.5)' }} />
-                                <Typography variant="pi" style={{ fontFamily: 'monospace', fontSize: '12px', color: 'rgba(255,255,255,0.8)' }}>
+                                <Earth style={{ width: '14px', height: '14px', color: 'var(--colors-neutral500)' }} />
+                                <Typography variant="pi" textColor="neutral700" style={{ fontFamily: 'monospace', fontSize: '12px' }}>
                                   {selectedTokenDetails.ip_address}
                                 </Typography>
                               </Flex>
                             )}
                             {selectedTokenDetails.user_agent && (
-                              <Typography variant="pi" style={{ fontSize: '11px', wordBreak: 'break-all', color: 'rgba(255,255,255,0.5)' }}>
+                              <Typography variant="pi" textColor="neutral500" style={{ fontSize: '11px', wordBreak: 'break-all' }}>
                                 {selectedTokenDetails.user_agent}
                               </Typography>
                             )}
@@ -2155,7 +2147,7 @@ const TokensProfessional = () => {
                     {/* Context Data */}
                     {selectedTokenDetails.context && Object.keys(selectedTokenDetails.context).length > 0 && (
                       <Box>
-                        <Typography variant="sigma" fontWeight="semiBold" style={{ marginBottom: '8px', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px', color: 'rgba(255,255,255,0.5)' }}>
+                        <Typography variant="sigma" fontWeight="semiBold" textColor="neutral500" style={{ marginBottom: '8px', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px' }}>
                           {formatMessage({ id: getTrad('tokens.details.context') })}
                         </Typography>
                         <Box
@@ -2183,7 +2175,7 @@ const TokensProfessional = () => {
 
                     {/* Action Buttons */}
                     <Box style={{ marginTop: '8px' }}>
-                      <Typography variant="sigma" fontWeight="semiBold" style={{ marginBottom: '12px', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px', color: 'rgba(255,255,255,0.5)' }}>
+                      <Typography variant="sigma" fontWeight="semiBold" textColor="neutral500" style={{ marginBottom: '12px', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px' }}>
                         {formatMessage({ id: getTrad('tokens.details.actions') })}
                       </Typography>
                       <Flex gap={2} wrap="wrap">
@@ -2316,9 +2308,9 @@ const TokensProfessional = () => {
                   paddingBottom={5}
                   paddingLeft={7}
                   paddingRight={7}
+                  background="neutral100"
                   style={{
-                    borderTop: '1px solid rgba(255,255,255,0.08)',
-                    background: 'rgba(255,255,255,0.03)',
+                    borderTop: '1px solid rgba(128, 128, 128, 0.12)',
                     borderBottomLeftRadius: '8px',
                     borderBottomRightRadius: '8px',
                   }}

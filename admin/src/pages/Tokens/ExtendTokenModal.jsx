@@ -106,14 +106,14 @@ const ExtendTokenModal = ({
             paddingLeft={6}
             paddingRight={5}
             style={{
-              borderBottom: '1px solid rgba(255,255,255,0.08)',
+              borderBottom: '1px solid rgba(128, 128, 128, 0.15)',
             }}
           >
             <Flex direction="column" gap={1} alignItems="flex-start">
-              <Typography variant="beta" style={{ fontSize: '16px', fontWeight: '600', color: '#ffffff' }}>
+              <Typography variant="beta" textColor="neutral800" style={{ fontSize: '16px', fontWeight: '600' }}>
                 {formatMessage({ id: getTrad('tokens.extend.title') })}
               </Typography>
-              <Typography variant="pi" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
+              <Typography variant="pi" textColor="neutral500" style={{ fontSize: '13px' }}>
                 {selectedToken.email}
               </Typography>
             </Flex>
@@ -132,20 +132,21 @@ const ExtendTokenModal = ({
               {/* Current Status */}
               <Box 
                 padding={3} 
+                background="neutral100"
                 style={{ 
                   borderRadius: '6px',
                   textAlign: 'center',
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(128, 128, 128, 0.15)',
                 }}
               >
                 <Typography 
                   variant="omega" 
-                  style={{ fontSize: '11px', display: 'block', marginBottom: '4px', color: 'rgba(255,255,255,0.5)' }}
+                  textColor="neutral500"
+                  style={{ fontSize: '11px', display: 'block', marginBottom: '4px' }}
                 >
                   {formatMessage({ id: getTrad('tokens.extend.currentExpiry') })}
                 </Typography>
-                <Typography variant="pi" style={{ fontSize: '15px', fontWeight: '600', color: '#ffffff' }}>
+                <Typography variant="pi" textColor="neutral800" style={{ fontSize: '15px', fontWeight: '600' }}>
                   {formatDate(selectedToken.expires_at) || formatMessage({ id: getTrad('tokens.details.unlimited') })}
                 </Typography>
               </Box>
@@ -154,7 +155,8 @@ const ExtendTokenModal = ({
               <Box>
                 <Typography 
                   variant="omega" 
-                  style={{ fontSize: '12px', marginBottom: '12px', display: 'block', color: 'rgba(255,255,255,0.6)' }}
+                  textColor="neutral600"
+                  style={{ fontSize: '12px', marginBottom: '12px', display: 'block' }}
                 >
                   {formatMessage({ id: getTrad('tokens.extend.selectExtension') })}
                 </Typography>
@@ -227,8 +229,8 @@ const ExtendTokenModal = ({
               {/* New Expiry Date */}
               <Box>
                 <Flex alignItems="center" gap={1} style={{ marginBottom: '8px' }}>
-                  <Check style={{ width: '14px', height: '14px', color: '#4ade80' }} />
-                  <Typography variant="omega" style={{ fontSize: '12px', color: '#4ade80' }}>
+                  <Check style={{ width: '14px', height: '14px', color: '#16a34a' }} />
+                  <Typography variant="omega" textColor="success600" style={{ fontSize: '12px' }}>
                     {formatMessage({ id: getTrad('tokens.extend.newExpiry') })}
                   </Typography>
                 </Flex>
@@ -236,12 +238,12 @@ const ExtendTokenModal = ({
                   padding={3} 
                   style={{ 
                     borderRadius: '6px',
-                    border: '1px solid rgba(74, 222, 128, 0.3)',
-                    background: 'rgba(74, 222, 128, 0.08)',
+                    border: '1px solid rgba(22, 163, 74, 0.3)',
+                    background: 'rgba(22, 163, 74, 0.06)',
                     textAlign: 'center',
                   }}
                 >
-                  <Typography variant="pi" style={{ fontSize: '15px', color: '#4ade80', fontWeight: '600' }}>
+                  <Typography variant="pi" textColor="success600" style={{ fontSize: '15px', fontWeight: '600' }}>
                     {calculateNewExpiryDate()}
                   </Typography>
                 </Box>
@@ -255,9 +257,9 @@ const ExtendTokenModal = ({
             paddingBottom={5}
             paddingLeft={6}
             paddingRight={6}
+            background="neutral100"
             style={{
-              borderTop: '1px solid rgba(255,255,255,0.08)',
-              background: 'rgba(255,255,255,0.03)',
+              borderTop: '1px solid rgba(128, 128, 128, 0.12)',
               borderBottomLeftRadius: '8px',
               borderBottomRightRadius: '8px',
             }}
