@@ -761,7 +761,7 @@ const JWTSessions = () => {
                 <Tr>
                   <Th>
                     <Checkbox
-                      value={selectedSessions.length === paginatedSessions.length && paginatedSessions.length > 0}
+                      checked={selectedSessions.length === paginatedSessions.length && paginatedSessions.length > 0}
                       onCheckedChange={handleSelectAll}
                     />
                   </Th>
@@ -787,7 +787,7 @@ const JWTSessions = () => {
                   <Tr key={session.id}>
                     <Td>
                       <Checkbox
-                        value={selectedSessions.includes(session.id)}
+                        checked={selectedSessions.includes(session.id)}
                         onCheckedChange={(checked) => handleSelectSession(session.id, checked)}
                       />
                     </Td>

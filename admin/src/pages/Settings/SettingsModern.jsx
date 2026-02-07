@@ -740,7 +740,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                           <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
                             <Toggle
                               checked={settings.enabled}
-                              onChange={(e) => updateSetting('enabled', e.target.checked)}
+                              onCheckedChange={(checked) => updateSetting('enabled', checked)}
                               size="L"
                             />
                           </Flex>
@@ -761,7 +761,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                           <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
                             <Toggle
                               checked={settings.createUserIfNotExists}
-                              onChange={(e) => updateSetting('createUserIfNotExists', e.target.checked)}
+                              onCheckedChange={(checked) => updateSetting('createUserIfNotExists', checked)}
                               size="L"
                             />
                           </Flex>
@@ -782,7 +782,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                           <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
                             <Toggle
                               checked={settings.stays_valid}
-                              onChange={(e) => updateSetting('stays_valid', e.target.checked)}
+                              onCheckedChange={(checked) => updateSetting('stays_valid', checked)}
                               size="L"
                             />
                           </Flex>
@@ -1085,7 +1085,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                       <ToggleCard $active={settings.whatsapp_debug} $statusLabel={settings.whatsapp_debug ? 'DEBUG' : 'OFF'} onClick={() => updateSetting('whatsapp_debug', !settings.whatsapp_debug)}>
                         <Flex gap={3} alignItems="center">
                           <GreenToggle $isActive={settings.whatsapp_debug}>
-                            <Toggle checked={settings.whatsapp_debug} onChange={() => updateSetting('whatsapp_debug', !settings.whatsapp_debug)} />
+                            <Toggle checked={settings.whatsapp_debug} onCheckedChange={(checked) => updateSetting('whatsapp_debug', checked)} />
                           </GreenToggle>
                           <Box>
                             <Typography variant="omega" fontWeight="bold">Debug Mode</Typography>
@@ -1172,7 +1172,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                           <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
                             <Toggle
                               checked={settings.verify_email}
-                              onChange={(e) => updateSetting('verify_email', e.target.checked)}
+                              onCheckedChange={(checked) => updateSetting('verify_email', checked)}
                               size="L"
                             />
                           </Flex>
@@ -1193,7 +1193,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                           <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
                             <Toggle
                               checked={settings.welcome_email}
-                              onChange={(e) => updateSetting('welcome_email', e.target.checked)}
+                              onCheckedChange={(checked) => updateSetting('welcome_email', checked)}
                               size="L"
                             />
                           </Flex>
@@ -1214,7 +1214,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                           <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
                             <Toggle
                               checked={settings.use_jwt_token}
-                              onChange={(e) => updateSetting('use_jwt_token', e.target.checked)}
+                              onCheckedChange={(checked) => updateSetting('use_jwt_token', checked)}
                               size="L"
                             />
                           </Flex>
@@ -1235,7 +1235,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                           <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
                             <Toggle
                               checked={settings.store_login_info}
-                              onChange={(e) => updateSetting('store_login_info', e.target.checked)}
+                              onCheckedChange={(checked) => updateSetting('store_login_info', checked)}
                               size="L"
                             />
                           </Flex>
@@ -1509,7 +1509,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                             <GreenToggle $isActive={settings.use_email_designer || false}>
                               <Toggle
                                 checked={settings.use_email_designer || false}
-                                onChange={() => updateSetting('use_email_designer', !settings.use_email_designer)}
+                                onCheckedChange={(checked) => updateSetting('use_email_designer', checked)}
                               />
                             </GreenToggle>
                           </Flex>
@@ -1660,7 +1660,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                             <GreenToggle $isActive={settings.use_magic_mail || false}>
                               <Toggle
                                 checked={settings.use_magic_mail || false}
-                                onChange={() => updateSetting('use_magic_mail', !settings.use_magic_mail)}
+                                onCheckedChange={(checked) => updateSetting('use_magic_mail', checked)}
                               />
                             </GreenToggle>
                           </Flex>
@@ -2145,7 +2145,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                         <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
                           <Toggle
                             checked={settings.allow_magic_links_on_public_registration}
-                            onChange={(e) => updateSetting('allow_magic_links_on_public_registration', e.target.checked)}
+                            onCheckedChange={(checked) => updateSetting('allow_magic_links_on_public_registration', checked)}
                             size="L"
                           />
                         </Flex>
@@ -2691,11 +2691,11 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                     <GreenToggle $isActive={settings.totp_as_primary_auth}>
                       <Toggle
                         checked={settings.totp_as_primary_auth || false}
-                        onChange={() => {
-                          if (!settings.totp_as_primary_auth && !checkLicenseAndSetMode('totp-primary')) {
+                        onCheckedChange={(checked) => {
+                          if (checked && !checkLicenseAndSetMode('totp-primary')) {
                             return;
                           }
-                          updateSetting('totp_as_primary_auth', !settings.totp_as_primary_auth);
+                          updateSetting('totp_as_primary_auth', checked);
                         }}
                       />
                     </GreenToggle>
@@ -2854,7 +2854,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                           <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
                             <Toggle
                               checked={settings.rate_limit_enabled}
-                              onChange={(e) => updateSetting('rate_limit_enabled', e.target.checked)}
+                              onCheckedChange={(checked) => updateSetting('rate_limit_enabled', checked)}
                               size="L"
                             />
                           </Flex>
@@ -3024,7 +3024,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                         <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
                           <Toggle
                             checked={settings.passwordlessCompatibility}
-                            onChange={(e) => updateSetting('passwordlessCompatibility', e.target.checked)}
+                            onCheckedChange={(checked) => updateSetting('passwordlessCompatibility', checked)}
                             size="L"
                           />
                         </Flex>
@@ -3063,7 +3063,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                         <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
                           <Toggle
                             checked={settings.emailDesignerCompatibility}
-                            onChange={(e) => updateSetting('emailDesignerCompatibility', e.target.checked)}
+                            onCheckedChange={(checked) => updateSetting('emailDesignerCompatibility', checked)}
                             size="L"
                           />
                         </Flex>

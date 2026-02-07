@@ -112,7 +112,8 @@ module.exports = {
                 ...(token.context || {}),
                 requiresTOTP: true,
                 totpVerified: false,
-                userId: user.id
+                userId: user.id,
+                userDocumentId: user.documentId
               }
             }
           });
@@ -451,11 +452,19 @@ module.exports = {
     await magicLink.updateTokenOnLogin(token, requestInfo);
     
     // Find user using Document Service API
-    const users = await strapi.documents('plugin::users-permissions.user').findMany({
-      filters: { id: context.userId },
-      limit: 1,
-    });
-    const user = users && users.length > 0 ? users[0] : null;
+    // Prefer documentId (Strapi v5), fallback to id for backward compatibility
+    let user = null;
+    if (context.userDocumentId) {
+      user = await strapi.documents('plugin::users-permissions.user').findOne({
+        documentId: context.userDocumentId,
+      });
+    } else if (context.userId) {
+      const users = await strapi.documents('plugin::users-permissions.user').findMany({
+        filters: { id: context.userId },
+        limit: 1,
+      });
+      user = users && users.length > 0 ? users[0] : null;
+    }
     
     if (!user) {
       return ctx.badRequest('User not found');

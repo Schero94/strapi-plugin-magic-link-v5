@@ -1,15 +1,15 @@
-import { useFetchClient } from '@strapi/strapi/admin';
-import getRequestURL from '../../../utils/getRequestURL';
+/**
+ * Legacy API utilities - no longer used.
+ * Settings are loaded directly via useFetchClient() in SettingsModern.jsx.
+ * Kept for backward compatibility with any external imports.
+ */
 
-const fetchData = async () => {
-  const { get } = useFetchClient();
-  const { data } = await get(getRequestURL('settings'));
-  return data.settings;
+export const fetchData = async () => {
+  console.warn('[magic-link] fetchData() from utils/api.js is deprecated. Use useFetchClient() directly.');
+  return {};
 };
 
-const saveSettings = async (body) => {
-  const { put } = useFetchClient();
-  return put(getRequestURL('settings'), body);
+export const saveSettings = async () => {
+  console.warn('[magic-link] saveSettings() from utils/api.js is deprecated. Use useFetchClient() directly.');
+  return {};
 };
-
-export { fetchData, saveSettings }; 
