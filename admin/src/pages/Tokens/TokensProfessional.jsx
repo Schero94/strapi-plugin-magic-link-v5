@@ -1751,12 +1751,14 @@ const TokensProfessional = () => {
                             <Typography 
                               variant="pi" 
                               fontWeight="semiBold"
+                              textColor="neutral800"
                               style={{ 
                                 fontFamily: 'monospace', 
                                 fontSize: '12px',
-                                background: theme.colors.neutral[100],
+                                background: 'rgba(128, 128, 128, 0.15)',
                                 padding: '2px 8px',
                                 borderRadius: '4px',
+                                color: 'var(--colors-neutral800, #32324d)',
                               }}
                             >
                               #{token.documentId ? token.documentId.slice(-8) : token.id}
