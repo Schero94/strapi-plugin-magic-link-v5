@@ -36,7 +36,7 @@ const Title = styled(Typography)`
   font-size: 2.5rem;
   font-weight: 700;
   margin-bottom: 8px;
-  background: linear-gradient(135deg, #0EA5E9, #A855F7);
+  background: linear-gradient(135deg, #4945ff, #7c3aed);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   display: block;
@@ -44,7 +44,7 @@ const Title = styled(Typography)`
 
 const Subtitle = styled(Typography)`
   font-size: 1.125rem;
-  color: #6B7280;
+  color: ${(p) => p.theme.colors.neutral600};
   line-height: 1.6;
   display: block;
 `;
@@ -64,19 +64,19 @@ const TierWrapper = styled(Box)`
 `;
 
 const TierCard = styled(Box)`
-  background: white;
+  background: ${(p) => p.theme.colors.neutral0};
   border-radius: 16px;
   padding: 32px;
-  border: 2px solid ${props => props.$featured ? '#0EA5E9' : '#E5E7EB'};
+  border: 2px solid ${props => props.$featured ? '#4945ff' : props.theme.colors.neutral200};
   position: relative;
   transition: all 0.3s ease;
   box-shadow: ${props => props.$featured
-    ? '0 20px 25px -5px rgba(14, 165, 233, 0.25), 0 8px 10px -6px rgba(14, 165, 233, 0.2)'
-    : '0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.05)'};
+    ? '0 20px 25px -5px rgba(73, 69, 255, 0.25), 0 8px 10px -6px rgba(73, 69, 255, 0.2)'
+    : '0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.05)'};
 
   &:hover {
     transform: translateY(-4px);
-    box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   }
 `;
 
@@ -84,7 +84,7 @@ const PopularBadge = styled(Badge)`
   position: absolute;
   top: -12px;
   right: 24px;
-  background: linear-gradient(135deg, #0EA5E9, #0284C7);
+  background: linear-gradient(135deg, #4945ff, #4338ca);
   color: white;
   padding: 4px 16px;
   font-size: 12px;
@@ -112,17 +112,41 @@ const TierName = styled(Typography)`
   font-size: 1.5rem;
   font-weight: 700;
   margin-bottom: 8px;
+  color: ${(p) => p.theme.colors.neutral800};
 `;
 
 const TierPrice = styled(Typography)`
   font-size: 2rem;
   font-weight: 800;
   margin-bottom: 4px;
+  color: ${(p) => p.theme.colors.neutral800};
 `;
 
 const TierDescription = styled(Typography)`
-  color: #6B7280;
+  color: ${(p) => p.theme.colors.neutral600};
   margin-bottom: 24px;
+`;
+
+const LimitsBox = styled(Box)`
+  background: ${(p) => p.theme.colors.neutral100};
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 20px;
+`;
+
+const LimitText = styled(Typography)`
+  font-size: 13px;
+  color: ${(p) => p.theme.colors.neutral800};
+`;
+
+const PeriodText = styled(Typography)`
+  color: ${(p) => p.theme.colors.neutral600};
+`;
+
+const FeatureText = styled(Typography)`
+  font-size: 14px;
+  color: ${(p) => p.$included ? p.theme.colors.neutral800 : p.theme.colors.neutral500};
+  text-decoration: ${(p) => p.$included ? 'none' : 'line-through'};
 `;
 
 const FeatureList = styled(Box)`
@@ -146,10 +170,10 @@ const FeatureIcon = styled(Box)`
   margin-top: 2px;
   
   ${props => props.$included ? `
-    background: #DCFCE7;
+    background: rgba(34, 197, 94, 0.15);
     svg { color: #16A34A; }
   ` : `
-    background: #FEE2E2;
+    background: rgba(220, 38, 38, 0.12);
     svg { color: #DC2626; }
   `}
 `;
@@ -175,8 +199,8 @@ const CurrentPlanBadge = styled(Badge)`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #F3F4F6;
-  color: #6B7280;
+  background: ${(p) => p.theme.colors.neutral100};
+  color: ${(p) => p.theme.colors.neutral600};
   font-weight: 600;
   font-size: 15px;
 `;
@@ -380,9 +404,9 @@ const LicensePage = () => {
               
               <Flex alignItems="baseline" gap={1}>
                 <TierPrice variant="alpha">{tier.price}</TierPrice>
-                <Typography variant="omega" style={{ color: '#6B7280' }}>
+                <PeriodText variant="omega">
                   {tier.period}
-                </Typography>
+                </PeriodText>
               </Flex>
               
               <TierDescription variant="omega">
@@ -390,24 +414,19 @@ const LicensePage = () => {
               </TierDescription>
               
               {/* Limits Summary */}
-              <Box style={{ 
-                background: '#F9FAFB', 
-                borderRadius: '8px', 
-                padding: '12px', 
-                marginBottom: '20px' 
-              }}>
+              <LimitsBox>
                 <Flex direction="column" gap={2}>
-                  <Typography variant="pi" style={{ fontSize: '13px' }}>
+                  <LimitText variant="pi">
                     <strong>Authentication:</strong> {tier.limits.authentication}
-                  </Typography>
-                  <Typography variant="pi" style={{ fontSize: '13px' }}>
+                  </LimitText>
+                  <LimitText variant="pi">
                     <strong>MFA:</strong> {tier.limits.mfa}
-                  </Typography>
-                  <Typography variant="pi" style={{ fontSize: '13px' }}>
+                  </LimitText>
+                  <LimitText variant="pi">
                     <strong>Support:</strong> {tier.limits.support}
-                  </Typography>
+                  </LimitText>
                 </Flex>
-              </Box>
+              </LimitsBox>
               
               <FeatureList>
                 {tier.features.map((feature, index) => (
@@ -419,16 +438,9 @@ const LicensePage = () => {
                         <XMarkIcon style={{ width: 14, height: 14 }} />
                       )}
                     </FeatureIcon>
-                    <Typography 
-                      variant="omega" 
-                      style={{ 
-                        fontSize: '14px',
-                        color: feature.included ? '#374151' : '#9CA3AF',
-                        textDecoration: feature.included ? 'none' : 'line-through'
-                      }}
-                    >
+                    <FeatureText variant="omega" $included={feature.included}>
                       {feature.name}
-                    </Typography>
+                    </FeatureText>
                   </Feature>
                 ))}
               </FeatureList>

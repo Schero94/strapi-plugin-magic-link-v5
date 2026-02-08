@@ -47,7 +47,7 @@ const ModalOverlay = styled.div`
 `;
 
 const ModalContent = styled(Box)`
-  background: white;
+  background: ${(p) => p.theme.colors.neutral0};
   border-radius: 16px;
   width: 100%;
   max-width: 580px;
@@ -57,7 +57,7 @@ const ModalContent = styled(Box)`
 `;
 
 const GradientHeader = styled(Box)`
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4945ff 0%, #7c3aed 100%);
   padding: 32px 40px;
   position: relative;
   overflow: hidden;
@@ -127,7 +127,7 @@ const CloseButton = styled.button`
 const ToggleButton = styled.button`
   background: none;
   border: none;
-  color: #667eea;
+  color: #4945ff;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -136,8 +136,46 @@ const ToggleButton = styled.button`
   transition: color 0.2s;
   
   &:hover {
-    color: #764ba2;
+    color: #7c3aed;
   }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const GradientButton = styled(Button)`
+  && {
+    background: linear-gradient(135deg, #4945ff 0%, #7c3aed 100%);
+    color: white;
+    font-weight: 600;
+    border: none;
+    box-shadow: 0 4px 12px rgba(73, 69, 255, 0.4);
+    
+    &:hover:not(:disabled) {
+      background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
+      box-shadow: 0 6px 16px rgba(73, 69, 255, 0.5);
+    }
+    
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+`;
+
+const InfoBox = styled(Box)`
+  background: rgba(73, 69, 255, 0.06);
+  border: 2px solid rgba(73, 69, 255, 0.3);
+  border-radius: 8px;
+  padding: 16px;
+`;
+
+const InfoText = styled(Typography)`
+  font-size: 13px;
+  line-height: 1.6;
+  color: ${(p) => p.theme.colors.neutral800};
 `;
 
 const LicenseGuard = ({ children }) => {
@@ -577,40 +615,26 @@ const LicenseGuard = ({ children }) => {
               <Flex gap={3} justifyContent="center" style={{ marginTop: '16px' }}>
                 {useExistingKey ? (
                   // Validate Button
-                  <Button
+                  <GradientButton
                     type="submit"
                     size="L"
                     startIcon={<Check />}
                     loading={isCreating}
                     disabled={isCreating || !existingLicenseKey.trim() || !existingEmail.trim()}
-                    style={{
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      color: 'white',
-                      fontWeight: '600',
-                      border: 'none',
-                      boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
-                    }}
                   >
                     Validate License
-                  </Button>
+                  </GradientButton>
                 ) : (
                   // Create/Auto-Create License Button
-                  <Button
+                  <GradientButton
                     type="submit"
                     size="L"
                     startIcon={<Check />}
                     loading={isCreating}
                     disabled={isCreating || (!useAutoCreate && (!formData.email || !formData.firstName || !formData.lastName))}
-                    style={{
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      color: 'white',
-                      fontWeight: '600',
-                      border: 'none',
-                      boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
-                    }}
                   >
                     {useAutoCreate ? 'Activate License' : 'Create License'}
-                  </Button>
+                  </GradientButton>
                 )}
               </Flex>
             </Flex>
