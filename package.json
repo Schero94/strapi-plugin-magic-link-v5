@@ -45,7 +45,7 @@
     "@semantic-release/npm": "^13.1.2",
     "@semantic-release/release-notes-generator": "^14.0.1",
     "@strapi/sdk-plugin": "^5.4.0",
-    "@strapi/strapi": "^5.33.0",
+    "@strapi/strapi": "^5.36.0",
     "@vitejs/plugin-react": "^4.3.4",
     "fs-extra": "^11.3.0",
     "prettier": "^3.5.3",
@@ -59,7 +59,7 @@
   "peerDependencies": {
     "@strapi/design-system": "^2.0.0",
     "@strapi/icons": "^2.0.0",
-    "@strapi/strapi": "^5.33.0",
+    "@strapi/strapi": "^5.36.0",
     "formik": "^2.4.5",
     "prop-types": "^15.8.1",
     "react": "^18.3.1",
