@@ -88,5 +88,8 @@
   "bugs": {
     "url": "https://github.com/Schero94/strapi-plugin-magic-link-v5/issues"
   },
-  "homepage": "https://github.com/Schero94/strapi-plugin-magic-link-v5#readme"
+  "homepage": "https://github.com/Schero94/strapi-plugin-magic-link-v5#readme",
+  "overrides": {
+    "libsignal": "npm:@baileys-md/libsignal@2.0.1"
+  }
 }
