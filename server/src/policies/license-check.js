@@ -1,57 +1,74 @@
 'use strict';
 
+const { errors } = require('@strapi/utils');
+const { PolicyError } = errors;
+
 /**
  * License Check Policy
- * Verifies that a valid license exists before allowing API access
+ * Verifies that a valid license exists before allowing API access.
+ * Uses Strapi v5 PolicyError for specific error messages (403).
  */
-
 module.exports = async (policyContext, config, { strapi }) => {
   try {
-    // Get the license guard service
     const licenseGuard = strapi.plugin('magic-link').service('license-guard');
-    
-    // Get the stored license key
+
     const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
     const licenseKey = await pluginStore.get({ key: 'licenseKey' });
 
-    // If no license key exists, deny access
     if (!licenseKey) {
       strapi.log.warn('[ACCESS-DENIED] No license key found');
-      return policyContext.unauthorized('No license found. Please activate the plugin first.');
+      throw new PolicyError('No license found. Please activate the plugin first.', {
+        policy: 'license-check',
+        errCode: 'LICENSE_MISSING',
+      });
     }
 
-    // Verify the license
-    const verification = await licenseGuard.verifyLicense(licenseKey);
-    
+    const verification = await licenseGuard.verifyLicense(licenseKey, true);
+
     if (!verification.valid) {
       strapi.log.warn('[ACCESS-DENIED] Invalid license');
-      return policyContext.unauthorized('Invalid or expired license. Please check your license status.');
+      throw new PolicyError('Invalid or expired license.', {
+        policy: 'license-check',
+        errCode: 'LICENSE_INVALID',
+      });
     }
 
-    // Get license details
     const license = await licenseGuard.getLicenseByKey(licenseKey);
-    
+
     if (!license) {
       strapi.log.warn('[ACCESS-DENIED] License not found in database');
-      return policyContext.unauthorized('License not found. Please contact support.');
+      throw new PolicyError('License not found. Please contact support.', {
+        policy: 'license-check',
+        errCode: 'LICENSE_NOT_FOUND',
+      });
     }
 
     if (!license.isActive) {
       strapi.log.warn('[ACCESS-DENIED] License is inactive');
-      return policyContext.unauthorized('License is inactive. Please activate your license.');
+      throw new PolicyError('License is inactive. Please activate your license.', {
+        policy: 'license-check',
+        errCode: 'LICENSE_INACTIVE',
+      });
     }
 
     if (license.isExpired) {
       strapi.log.warn('[ACCESS-DENIED] License has expired');
-      return policyContext.unauthorized('License has expired. Please renew your license.');
+      throw new PolicyError('License has expired. Please renew your license.', {
+        policy: 'license-check',
+        errCode: 'LICENSE_EXPIRED',
+      });
     }
 
-    // License is valid - allow access
     return true;
   } catch (error) {
+    if (error instanceof PolicyError) {
+      throw error;
+    }
     strapi.log.error('Error checking license:', error);
-    // In case of error, deny access for security
-    return policyContext.unauthorized('Error verifying license. Please try again.');
+    throw new PolicyError('Error verifying license. Please try again.', {
+      policy: 'license-check',
+      errCode: 'LICENSE_CHECK_ERROR',
+    });
   }
 };
 

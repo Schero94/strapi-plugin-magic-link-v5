@@ -365,19 +365,21 @@ module.exports = {
         }
       };
 
-      // Create the token using Document Service API
-      // Store HASHED token, not plaintext!
+      const tokenPrefix = tokenValue.substring(0, 8);
+
       const token = await strapi.documents('plugin::magic-link.token').create({
         data: {
-          token: tokenHash, // Store hashed token
-          token_salt: tokenSalt, // Store salt for verification
+          token: tokenHash,
+          token_salt: tokenSalt,
+          token_prefix: tokenPrefix,
           email: user.email,
           user_id: user.id,
           expires_at: expiresAt,
           is_active: true,
-          ip_address: null, // Wird beim Verwenden gesetzt
-          user_agent: null, // Wird beim Verwenden gesetzt
-          context: enrichedContext, // Verwende den angereicherten Kontext
+          is_used: false,
+          ip_address: null,
+          user_agent: null,
+          context: enrichedContext,
         },
       });
       

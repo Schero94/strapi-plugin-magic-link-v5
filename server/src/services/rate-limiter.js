@@ -1,191 +1,157 @@
 'use strict';
 
+const { RateLimiterMemory } = require('rate-limiter-flexible');
+
 /**
  * Rate Limiter Service
- * Prevents abuse by limiting token creation requests per IP and email
+ * Uses in-memory rate limiting via rate-limiter-flexible for atomic,
+ * race-condition-free, fail-closed rate limiting.
+ *
+ * Limiters are lazily initialized on first use so that settings
+ * from the plugin store are respected.
  */
+module.exports = ({ strapi }) => {
+  let limiters = null;
+  let cachedSettings = null;
+  let settingsCacheTime = 0;
+  const SETTINGS_CACHE_TTL_MS = 60_000;
 
-module.exports = ({ strapi }) => ({
   /**
-   * Check if request should be rate limited
-   * @param {string} identifier - IP address or email
-   * @param {string} type - 'ip' or 'email'
-   * @returns {Promise<{allowed: boolean, retryAfter: number}>}
+   * Loads rate-limit settings from the plugin store (cached for 60 s)
+   * @returns {Promise<object>} Merged settings with defaults
    */
-  async checkRateLimit(identifier, type = 'ip') {
-    try {
-      const pluginStore = strapi.store({
-        type: 'plugin',
-        name: 'magic-link',
-      });
-      
-      // Get settings for rate limit configuration
-      const settings = await pluginStore.get({ key: 'settings' });
-      
-      // Check if rate limiting is enabled
-      if (settings?.rate_limit_enabled === false) {
-        return { allowed: true, retryAfter: 0 };
-      }
-      
-      const maxAttempts = settings?.rate_limit_max_attempts || 5;
-      const windowMinutes = settings?.rate_limit_window_minutes || 15;
-      
-      // Get current rate limit data
-      const rateLimitData = (await pluginStore.get({ key: 'rate_limits' })) || { limits: {} };
-      
-      const key = `${type}_${identifier}`;
-      const now = Date.now();
-      const windowMs = windowMinutes * 60 * 1000;
-      
-      // Get or create limit entry
-      let limitEntry = rateLimitData.limits[key];
-      
-      if (!limitEntry) {
-        // First request
-        limitEntry = {
-          count: 1,
-          firstRequest: now,
-          lastRequest: now,
-        };
-        rateLimitData.limits[key] = limitEntry;
-        await pluginStore.set({ key: 'rate_limits', value: rateLimitData });
-        
-        return { allowed: true, retryAfter: 0 };
-      }
-      
-      // Check if window has expired
-      const timeSinceFirst = now - limitEntry.firstRequest;
-      
-      if (timeSinceFirst > windowMs) {
-        // Window expired, reset counter
-        limitEntry = {
-          count: 1,
-          firstRequest: now,
-          lastRequest: now,
-        };
-        rateLimitData.limits[key] = limitEntry;
-        await pluginStore.set({ key: 'rate_limits', value: rateLimitData });
-        
-        return { allowed: true, retryAfter: 0 };
-      }
-      
-      // Check if limit exceeded
-      if (limitEntry.count >= maxAttempts) {
-        const timeRemaining = windowMs - timeSinceFirst;
-        const retryAfterSeconds = Math.ceil(timeRemaining / 1000);
-        
-        strapi.log.warn(`[RATE-LIMIT] Limit exceeded for ${type}: ${identifier} (${limitEntry.count}/${maxAttempts} requests)`);
-        
-        return {
-          allowed: false,
-          retryAfter: retryAfterSeconds,
-        };
-      }
-      
-      // Increment counter
-      limitEntry.count++;
-      limitEntry.lastRequest = now;
-      rateLimitData.limits[key] = limitEntry;
-      await pluginStore.set({ key: 'rate_limits', value: rateLimitData });
-      
-      return { allowed: true, retryAfter: 0 };
-    } catch (error) {
-      strapi.log.error('Error checking rate limit:', error);
-      // On error, allow request (fail open for availability)
-      return { allowed: true, retryAfter: 0 };
+  async function getSettings() {
+    const now = Date.now();
+    if (cachedSettings && now - settingsCacheTime < SETTINGS_CACHE_TTL_MS) {
+      return cachedSettings;
     }
-  },
-  
+    const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
+    const raw = await pluginStore.get({ key: 'settings' });
+    cachedSettings = {
+      enabled: raw?.rate_limit_enabled !== false,
+      maxAttempts: raw?.rate_limit_max_attempts || 5,
+      windowMinutes: raw?.rate_limit_window_minutes || 15,
+      loginMaxAttempts: raw?.rate_limit_login_max_attempts || 10,
+      loginWindowMinutes: raw?.rate_limit_login_window_minutes || 15,
+      loginBlockMinutes: raw?.rate_limit_login_block_minutes || 30,
+    };
+    settingsCacheTime = now;
+    return cachedSettings;
+  }
+
   /**
-   * Clean up expired rate limit entries
-   * Uses the strapi instance from module closure (not global.strapi)
+   * Creates or re-creates the in-memory limiters based on current settings
+   * @param {object} s - Settings object from getSettings()
+   * @returns {object} Map of limiter instances keyed by purpose
    */
-  async cleanupExpired() {
-    try {
-      // Use strapi from module closure - more reliable than global.strapi
-      const pluginStore = strapi.store({
-        type: 'plugin',
-        name: 'magic-link',
-      });
-      
-      const settings = await pluginStore.get({ key: 'settings' });
-      const windowMinutes = settings?.rate_limit_window_minutes || 15;
-      const windowMs = windowMinutes * 60 * 1000;
-      
-      const rateLimitData = (await pluginStore.get({ key: 'rate_limits' })) || { limits: {} };
-      const now = Date.now();
-      
-      let cleaned = 0;
-      
-      // Remove expired entries
-      Object.keys(rateLimitData.limits).forEach(key => {
-        const entry = rateLimitData.limits[key];
-        const timeSinceFirst = now - entry.firstRequest;
-        
-        if (timeSinceFirst > windowMs) {
-          delete rateLimitData.limits[key];
-          cleaned++;
+  function buildLimiters(s) {
+    return {
+      ip: new RateLimiterMemory({
+        keyPrefix: 'ml_ip',
+        points: s.maxAttempts,
+        duration: s.windowMinutes * 60,
+      }),
+      email: new RateLimiterMemory({
+        keyPrefix: 'ml_email',
+        points: s.maxAttempts,
+        duration: s.windowMinutes * 60,
+      }),
+      otp: new RateLimiterMemory({
+        keyPrefix: 'ml_otp',
+        points: s.maxAttempts,
+        duration: s.windowMinutes * 60,
+      }),
+      login: new RateLimiterMemory({
+        keyPrefix: 'ml_login',
+        points: s.loginMaxAttempts,
+        duration: s.loginWindowMinutes * 60,
+        blockDuration: s.loginBlockMinutes * 60,
+      }),
+    };
+  }
+
+  /**
+   * Returns the current set of limiters, building them on first call
+   * @returns {Promise<object>} Limiter instances
+   */
+  async function getLimiters() {
+    if (!limiters) {
+      const s = await getSettings();
+      limiters = buildLimiters(s);
+    }
+    return limiters;
+  }
+
+  return {
+    /**
+     * Check if a request should be rate limited (fail-closed)
+     * @param {string} identifier - IP address, email, or other key
+     * @param {string} type - Limiter type: 'ip', 'email', 'otp', or 'login'
+     * @returns {Promise<{allowed: boolean, retryAfter: number}>}
+     */
+    async checkRateLimit(identifier, type = 'ip') {
+      const s = await getSettings();
+      if (!s.enabled) {
+        return { allowed: true, retryAfter: 0 };
+      }
+
+      try {
+        const lims = await getLimiters();
+        const limiter = lims[type] || lims.ip;
+        await limiter.consume(identifier);
+        return { allowed: true, retryAfter: 0 };
+      } catch (rlRejected) {
+        if (rlRejected instanceof Error) {
+          strapi.log.error('[RATE-LIMIT] Internal error (fail-closed):', rlRejected.message);
+          return { allowed: false, retryAfter: 60 };
         }
-      });
-      
-      if (cleaned > 0) {
-        await pluginStore.set({ key: 'rate_limits', value: rateLimitData });
-        strapi.log.info(`[CLEANUP] Cleaned up ${cleaned} expired rate limit entries`);
+        const retryAfter = Math.ceil(rlRejected.msBeforeNext / 1000) || 1;
+        strapi.log.warn(`[RATE-LIMIT] Blocked ${type}: ${identifier} (retry in ${retryAfter}s)`);
+        return { allowed: false, retryAfter };
       }
-      
-      return { cleaned };
-    } catch (error) {
-      // Silent fail - log only if strapi.log is available
-      if (strapi && strapi.log) {
-        strapi.log.debug('[CLEANUP] Rate limit cleanup skipped:', error.message);
-      }
-      return { cleaned: 0 };
-    }
-  },
-  
-  /**
-   * Get rate limit stats
-   */
-  async getStats() {
-    try {
-      const pluginStore = strapi.store({
-        type: 'plugin',
-        name: 'magic-link',
-      });
-      
-      const rateLimitData = (await pluginStore.get({ key: 'rate_limits' })) || { limits: {} };
-      const settings = await pluginStore.get({ key: 'settings' });
-      const maxAttempts = settings?.rate_limit_max_attempts || 5;
-      const windowMinutes = settings?.rate_limit_window_minutes || 15;
-      
-      const stats = {
-        totalEntries: Object.keys(rateLimitData.limits).length,
-        maxAttempts,
-        windowMinutes,
+    },
+
+    /**
+     * Cleans up rate limit state (resets all in-memory limiters)
+     * @returns {Promise<{cleaned: number}>}
+     */
+    async cleanupExpired() {
+      limiters = null;
+      cachedSettings = null;
+      settingsCacheTime = 0;
+      strapi.log.info('[CLEANUP] Rate limit state reset');
+      return { cleaned: 1 };
+    },
+
+    /**
+     * Rebuilds limiters after settings change
+     */
+    async reloadSettings() {
+      cachedSettings = null;
+      settingsCacheTime = 0;
+      const s = await getSettings();
+      limiters = buildLimiters(s);
+      strapi.log.info('[RATE-LIMIT] Limiters reloaded with new settings');
+    },
+
+    /**
+     * Returns current rate limit statistics
+     * @returns {Promise<object>} Stats overview
+     */
+    async getStats() {
+      const s = await getSettings();
+      return {
+        totalEntries: 0,
+        maxAttempts: s.maxAttempts,
+        windowMinutes: s.windowMinutes,
+        loginMaxAttempts: s.loginMaxAttempts,
+        loginWindowMinutes: s.loginWindowMinutes,
+        loginBlockMinutes: s.loginBlockMinutes,
         ipLimits: 0,
         emailLimits: 0,
         blocked: 0,
+        backend: 'in-memory (rate-limiter-flexible)',
       };
-      
-      Object.keys(rateLimitData.limits).forEach(key => {
-        const entry = rateLimitData.limits[key];
-        
-        if (key.startsWith('ip_')) {
-          stats.ipLimits++;
-        } else if (key.startsWith('email_')) {
-          stats.emailLimits++;
-        }
-        
-        if (entry.count >= maxAttempts) {
-          stats.blocked++;
-        }
-      });
-      
-      return stats;
-    } catch (error) {
-      strapi.log.error('Error getting rate limit stats:', error);
-      return null;
-    }
-  },
-});
-
+    },
+  };
+};

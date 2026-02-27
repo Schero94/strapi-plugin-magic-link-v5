@@ -211,7 +211,7 @@ module.exports = ({ strapi }) => ({
       const data = await response.json();
 
       if (data.success) {
-        strapi.log.debug(`📡 License ping successful: ${data.data?.isActive ? 'ACTIVE' : 'INACTIVE'} (Key: ${licenseKey?.substring(0, 8)}...)`);
+        strapi.log.debug(`[PING] License ping successful: ${data.data?.isActive ? 'ACTIVE' : 'INACTIVE'} (Key: ${licenseKey?.substring(0, 8)}...)`);
         return data.data;
       } else {
         strapi.log.debug(`[WARNING] License ping failed: ${data.message || 'Unknown error'} (Key: ${licenseKey?.substring(0, 8)}...)`);
@@ -391,7 +391,7 @@ module.exports = ({ strapi }) => ({
    */
   async storeLicenseKey(licenseKey) {
     try {
-      strapi.log.info(`[LICENSE] Storing license key: ${licenseKey}`);
+      strapi.log.info(`[LICENSE] Storing license key: ${licenseKey?.substring(0, 8)}...`);
       const pluginStore = strapi.store({ 
         type: 'plugin', 
         name: 'magic-link' 
@@ -423,7 +423,7 @@ module.exports = ({ strapi }) => ({
   cleanup() {
     if (strapi.licenseGuard && strapi.licenseGuard.pingInterval) {
       clearInterval(strapi.licenseGuard.pingInterval);
-      strapi.log.info('🛑 License pinging stopped');
+      strapi.log.info('[INFO] License pinging stopped');
     }
   },
 

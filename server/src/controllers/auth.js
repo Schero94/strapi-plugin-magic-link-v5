@@ -9,15 +9,19 @@ const { sanitize } = require('@strapi/utils');
 const _ = require('lodash');
 const { nanoid } = require('nanoid');
 const i18n = require('../utils/i18n');
+const cryptoUtils = require('../utils/crypto');
 
 // Email regex pattern - simplified to avoid ReDoS attacks
 const emailRegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 module.exports = {
+  /**
+   * Handles magic link login token verification with rate limiting
+   */
   async login(ctx) {
     const { loginToken } = ctx.query;
-    // Strapi v5 pattern für Service Zugriff
     const magicLink = strapi.plugin('magic-link').service('magic-link');
+    const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
     const userService = strapi.plugin('users-permissions').service('user');
     const jwtService = strapi.plugin('users-permissions').service('jwt');
     const isEnabled = await magicLink.isEnabled();
@@ -29,6 +33,14 @@ module.exports = {
     if (_.isEmpty(loginToken)) {
       return i18n.sendError(ctx, 'token.invalid', 400);
     }
+
+    const ipAddress = ctx.request.ip;
+    const loginCheck = await rateLimiter.checkRateLimit(ipAddress, 'login');
+    if (!loginCheck.allowed) {
+      ctx.set('Retry-After', String(loginCheck.retryAfter));
+      return ctx.tooManyRequests(`Too many login attempts. Please try again in ${loginCheck.retryAfter} seconds.`);
+    }
+
     const token = await magicLink.fetchToken(loginToken);
 
     if (!token || !token.is_active) {
@@ -246,13 +258,12 @@ module.exports = {
       // Erstelle eine neue Session mit einer eindeutigen ID (cryptographically secure)
       const sessionId = `session_${Date.now()}_${nanoid(12)}`;
       
-      // Füge neue Session zur Liste hinzu
       jwtSessions.sessions.push({
         id: sessionId,
         userId: user.id,
         userEmail: user.email,
         username: user.username || user.email.split('@')[0],
-        jwtToken: jwtToken,
+        jwtTokenHash: cryptoUtils.hashJwt(jwtToken),
         createdAt: new Date().toISOString(),
         expiresAt: expiresAt.toISOString(),
         isRevoked: false,
@@ -260,7 +271,7 @@ module.exports = {
         userAgent: requestInfo.userAgent,
         source: 'Magic Link Login',
         lastUsedAt: new Date().toISOString(),
-        context: sanitizedContext  // Speichere den sanitierten Context auch in der Session
+        context: sanitizedContext,
       });
       
       // Speichere aktualisierte Liste
@@ -541,7 +552,7 @@ module.exports = {
         userId: user.id,
         userEmail: user.email,
         username: user.username || user.email.split('@')[0],
-        jwtToken: jwtToken,
+        jwtTokenHash: cryptoUtils.hashJwt(jwtToken),
         createdAt: new Date().toISOString(),
         expiresAt: expiresAt.toISOString(),
         isRevoked: false,
@@ -550,7 +561,7 @@ module.exports = {
         source: 'Magic Link + TOTP (MFA)',
         lastUsedAt: new Date().toISOString(),
         mfaVerified: true,
-        context: mfaSanitizedContext
+        context: mfaSanitizedContext,
       });
       
       await pluginStore.set({ key: 'jwt_sessions', value: jwtSessions });
@@ -669,7 +680,7 @@ module.exports = {
         userId: user.id,
         userEmail: user.email,
         username: user.username || user.email.split('@')[0],
-        jwtToken: jwtToken,
+        jwtTokenHash: cryptoUtils.hashJwt(jwtToken),
         createdAt: new Date().toISOString(),
         expiresAt: expiresAt.toISOString(),
         isRevoked: false,
@@ -677,7 +688,7 @@ module.exports = {
         userAgent: ctx.request.header['user-agent'],
         source: 'TOTP Login (Primary)',
         lastUsedAt: new Date().toISOString(),
-        totpLogin: true
+        totpLogin: true,
       });
       
       await pluginStore.set({ key: 'jwt_sessions', value: jwtSessions });

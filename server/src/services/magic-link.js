@@ -118,57 +118,90 @@ module.exports = ({ strapi }) => ({
     return user;
   },
 
+  /**
+   * Creates a new magic link token with hashed storage and prefix for efficient lookup
+   * @param {string} email - User email address
+   * @param {object} context - Optional context data to attach to the token
+   * @returns {Promise<object>} Token object with _plaintextToken for email delivery
+   */
   async createToken(email, context = {}) {
     const settings = await this.settings();
     const tokenLength = settings?.token_length || 20;
     const token = nanoid(tokenLength);
     
-    // Use expire_period from settings (in seconds), default 3600 (1 hour)
     const expireSeconds = settings?.expire_period || 3600;
     const expires = new Date();
     expires.setSeconds(expires.getSeconds() + expireSeconds);
 
-    // Hash the token for secure storage
     const { hash: tokenHash, salt: tokenSalt } = cryptoUtils.hashToken(token);
+    const tokenPrefix = token.substring(0, 8);
 
-    // Using Document Service API
     const tokenObject = await strapi.documents('plugin::magic-link.token').create({
       data: {
         email,
-        token: tokenHash, // Store hashed token
-        token_salt: tokenSalt, // Store salt for verification
+        token: tokenHash,
+        token_salt: tokenSalt,
+        token_prefix: tokenPrefix,
         expires_at: expires,
         is_active: true,
+        is_used: false,
         context: typeof context === 'string' ? JSON.parse(context) : context,
       },
     });
 
-    // Return with plaintext token for URL (not stored in DB)
     return { ...tokenObject, token, _plaintextToken: token };
   },
 
+  /**
+   * Fetches a token by its plaintext value using prefix-based DB lookup.
+   * Uses token_prefix for O(1) DB narrowing, then hash verification on candidates.
+   * Falls back to email-scoped scan for legacy tokens without prefix.
+   * @param {string} token - Plaintext token value from the login URL
+   * @returns {Promise<object|null>} The matched token record or null
+   */
   async fetchToken(token) {
-    // Since tokens are now hashed, we need to find by comparing hashes
-    // Get active tokens and find the matching one
-    const tokens = await strapi.documents('plugin::magic-link.token').findMany({
-      filters: { is_active: true },
+    if (!token || token.length < 8) {
+      return null;
+    }
+
+    const prefix = token.substring(0, 8);
+
+    // Primary lookup: narrow by prefix (fast, O(1) DB index hit)
+    const candidates = await strapi.documents('plugin::magic-link.token').findMany({
+      filters: { is_active: true, token_prefix: prefix },
       sort: [{ createdAt: 'desc' }],
-      limit: 100, // Limit search for performance
+      limit: 10,
     });
-    
-    // Find token with matching hash (timing-safe comparison)
-    const matchedToken = tokens.find(t => {
-      // Handle both old (plaintext) and new (hashed) tokens
+
+    const matched = candidates.find(t => {
       if (t.token_salt) {
-        // New hashed token
         return cryptoUtils.verifyToken(token, t.token, t.token_salt);
-      } else {
-        // Legacy plaintext token (backwards compatibility)
-        return t.token === token;
       }
+      return t.token === token;
     });
-    
-    return matchedToken || null;
+
+    if (matched) {
+      return matched;
+    }
+
+    // Fallback: legacy tokens without token_prefix (backwards compatibility)
+    const legacyTokens = await strapi.documents('plugin::magic-link.token').findMany({
+      filters: {
+        is_active: true,
+        token_prefix: { $null: true },
+      },
+      sort: [{ createdAt: 'desc' }],
+      limit: 50,
+    });
+
+    const legacyMatch = legacyTokens.find(t => {
+      if (t.token_salt) {
+        return cryptoUtils.verifyToken(token, t.token, t.token_salt);
+      }
+      return t.token === token;
+    });
+
+    return legacyMatch || null;
   },
 
   async isTokenValid(token) {
@@ -505,37 +538,39 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Sperrt einen bestimmten JWT-Token vor seinem Ablauf
-   * @param {string} token - Der zu sperrende JWT-Token
-   * @param {string} userId - Die Benutzer-ID des Token-Inhabers
-   * @param {string} reason - Grund für die Sperrung (optional)
+   * Blocks a JWT by storing its hash in the blocklist
+   * @param {string} token - JWT to block (will be hashed before storage)
+   * @param {string} userId - Owner user ID
+   * @param {string} reason - Reason for blocking
    */
   async blockJwtToken(token, userId, reason = 'Manually revoked') {
+    const tokenHash = cryptoUtils.hashJwt(token);
+    return this.blockJwtTokenByHash(tokenHash, userId, reason);
+  },
+
+  /**
+   * Blocks a JWT by its pre-computed hash (used when plaintext is unavailable)
+   * @param {string} tokenHash - SHA256 hash of the JWT
+   * @param {string} userId - Owner user ID
+   * @param {string} reason - Reason for blocking
+   */
+  async blockJwtTokenByHash(tokenHash, userId, reason = 'Manually revoked') {
     try {
-      // Holen des aktuellen Sets gesperrter Tokens
-      const pluginStore = strapi.store({
-      type: 'plugin',
-        name: 'magic-link',
-      });
-      
+      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
       const blockedTokens = (await pluginStore.get({ key: 'blocked_jwt_tokens' })) || { tokens: [] };
-      
-      // Standardablaufdatum (30 Tage ab jetzt) - wir verzichten auf die Verifizierung
+
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30);
-      
-      // Hinzufügen des neuen Tokens zur Blacklist
+
       blockedTokens.tokens.push({
-        token: token,
-        userId: userId,
-        reason: reason,
+        tokenHash,
+        userId,
+        reason,
         blockedAt: new Date().toISOString(),
-        expiresAt: expiresAt.toISOString()
+        expiresAt: expiresAt.toISOString(),
       });
-      
-      // Speichern der aktualisierten Liste
+
       await pluginStore.set({ key: 'blocked_jwt_tokens', value: blockedTokens });
-      
       return { success: true };
     } catch (error) {
       strapi.log.error('Error blocking JWT token:', error);
@@ -544,28 +579,30 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Entsperrt einen bestimmten JWT-Token
-   * @param {string} token - Der zu entsperrende JWT-Token
-   * @param {string} userId - Die Benutzer-ID des Token-Inhabers
+   * Unblocks a JWT by removing its hash from the blocklist
+   * @param {string} token - JWT to unblock (will be hashed for comparison)
+   * @param {string} userId - Owner user ID
    */
   async unblockJwtToken(token, userId) {
+    const tokenHash = cryptoUtils.hashJwt(token);
+    return this.unblockJwtTokenByHash(tokenHash, userId);
+  },
+
+  /**
+   * Unblocks a JWT by its pre-computed hash
+   * @param {string} tokenHash - SHA256 hash of the JWT
+   * @param {string} userId - Owner user ID
+   */
+  async unblockJwtTokenByHash(tokenHash, userId) {
     try {
-      // Holen des aktuellen Sets gesperrter Tokens
-      const pluginStore = strapi.store({
-      type: 'plugin',
-        name: 'magic-link',
-      });
-      
+      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
       const blockedTokensData = (await pluginStore.get({ key: 'blocked_jwt_tokens' })) || { tokens: [] };
-      
-      // Entfernen des Token aus der Blacklist
-      blockedTokensData.tokens = blockedTokensData.tokens.filter(t => 
-        !(t.token === token && (t.userId === userId || !userId))
+
+      blockedTokensData.tokens = blockedTokensData.tokens.filter(t =>
+        !(t.tokenHash === tokenHash && (t.userId === userId || !userId))
       );
-      
-      // Speichern der aktualisierten Liste
+
       await pluginStore.set({ key: 'blocked_jwt_tokens', value: blockedTokensData });
-      
       return { success: true };
     } catch (error) {
       strapi.log.error('Error unblocking JWT token:', error);
@@ -574,52 +611,39 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Prüft, ob ein JWT-Token gesperrt ist
-   * @param {string} token - Der zu überprüfende JWT-Token
-   * @returns {boolean} - True, wenn der Token gesperrt ist
+   * Checks whether a JWT is on the blocklist (by hash comparison)
+   * @param {string} token - JWT to check
+   * @returns {Promise<boolean>} True if the token is blocked
    */
   async isJwtTokenBlocked(token) {
     try {
-      const pluginStore = strapi.store({
-      type: 'plugin',
-        name: 'magic-link',
-      });
-      
+      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
       const blockedTokens = (await pluginStore.get({ key: 'blocked_jwt_tokens' })) || { tokens: [] };
-      
-      // Prüfen, ob der Token in der Blocklist ist
-      return blockedTokens.tokens.some(blockedToken => blockedToken.token === token);
+
+      const tokenHash = cryptoUtils.hashJwt(token);
+      return blockedTokens.tokens.some(bt => bt.tokenHash === tokenHash);
     } catch (error) {
-      console.error('Error checking if JWT token is blocked:', error);
+      strapi.log.error('Error checking if JWT token is blocked:', error);
       return false;
     }
   },
 
   /**
-   * Gibt alle gesperrten JWT-Tokens zurück
-   * @returns {Array} - Liste aller gesperrten Tokens
+   * Returns all currently blocked JWT entries (with expired entries purged)
+   * @returns {Promise<Array>} Blocked token entries
    */
   async getBlockedJwtTokens() {
     try {
-      const pluginStore = strapi.store({
-      type: 'plugin',
-        name: 'magic-link',
-      });
-      
+      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
       const blockedTokens = (await pluginStore.get({ key: 'blocked_jwt_tokens' })) || { tokens: [] };
-      
-      // Aufräumen abgelaufener Tokens
+
       const now = new Date();
-      blockedTokens.tokens = blockedTokens.tokens.filter(token => 
-        new Date(token.expiresAt) > now
-      );
-      
-      // Aktualisierte Liste speichern
+      blockedTokens.tokens = blockedTokens.tokens.filter(t => new Date(t.expiresAt) > now);
+
       await pluginStore.set({ key: 'blocked_jwt_tokens', value: blockedTokens });
-      
       return blockedTokens.tokens;
     } catch (error) {
-      console.error('Error getting blocked JWT tokens:', error);
+      strapi.log.error('Error getting blocked JWT tokens:', error);
       return [];
     }
   },

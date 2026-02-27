@@ -31,6 +31,11 @@
       "type": "string",
       "private": true
     },
+    "token_prefix": {
+      "type": "string",
+      "maxLength": 16,
+      "description": "Non-sensitive prefix for efficient DB lookups (first 8 chars of plaintext token)"
+    },
     "expires_at": {
       "type": "datetime",
       "required": true
@@ -39,6 +44,15 @@
       "type": "boolean",
       "default": true,
       "required": true
+    },
+    "is_used": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether the token has been used at least once"
+    },
+    "used_at": {
+      "type": "datetime",
+      "description": "Timestamp of first use"
     },
     "context": {
       "type": "json"

@@ -177,6 +177,17 @@ const isEncrypted = (value) => {
   }
 };
 
+/**
+ * Hash a JWT for safe storage (one-way, non-reversible).
+ * Stored hashes allow revocation checks without keeping the real JWT in the DB.
+ * @param {string} jwt - The JWT string to hash
+ * @returns {string|null} SHA256 hex digest
+ */
+const hashJwt = (jwt) => {
+  if (!jwt) return null;
+  return crypto.createHash('sha256').update(jwt).digest('hex');
+};
+
 module.exports = {
   hash,
   hashToken,
@@ -187,5 +198,6 @@ module.exports = {
   hashOTP,
   verifyOTP,
   isEncrypted,
+  hashJwt,
 };
 
