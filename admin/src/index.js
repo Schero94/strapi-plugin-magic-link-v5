@@ -27,7 +27,7 @@ export default {
         defaultMessage: 'Magic Link Tokens',
       },
       Component: () => import(/* webpackChunkName: "magic-link-tokens" */ './pages/Tokens'),
-      permissions: [], // Leeres Array = keine Permission-Prüfung nötig
+      permissions: pluginPermissions.access,
     });
 
     // Settings Section erstellen
@@ -58,7 +58,7 @@ export default {
           id: 'magic-link-license',
           to: `${pluginId}/license`,
           Component: () => import(/* webpackChunkName: "magic-link-license" */ './pages/License'),
-          permissions: [],
+          permissions: pluginPermissions.access,
         },
         {
           intlLabel: {
@@ -68,7 +68,7 @@ export default {
           id: 'magic-link-upgrade',
           to: `${pluginId}/upgrade`,
           Component: () => import(/* webpackChunkName: "magic-link-upgrade" */ './pages/LicensePage'),
-          permissions: [],
+          permissions: pluginPermissions.access,
         },
         {
           intlLabel: {
@@ -78,7 +78,7 @@ export default {
           id: 'magic-link-whatsapp',
           to: `${pluginId}/whatsapp`,
           Component: () => import(/* webpackChunkName: "magic-link-whatsapp" */ './pages/WhatsApp'),
-          permissions: [],
+          permissions: pluginPermissions.access,
         },
       ]
     );

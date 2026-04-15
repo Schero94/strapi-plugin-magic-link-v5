@@ -11,7 +11,12 @@
 const magicLinkActions = {
   actions: [
     {
-      // Settings
+      section: 'plugins',
+      displayName: 'Access the Magic Link plugin',
+      uid: 'access',
+      pluginName: 'magic-link',
+    },
+    {
       section: 'plugins',
       displayName: 'Read',
       uid: 'settings.read',
@@ -19,7 +24,6 @@ const magicLinkActions = {
       pluginName: 'magic-link',
     },
     {
-      // Settings Update
       section: 'plugins',
       displayName: 'Edit',
       uid: 'settings.update',

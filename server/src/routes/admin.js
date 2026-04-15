@@ -13,7 +13,7 @@ module.exports = {
       path: '/settings',
       handler: 'controller.getSettings',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -21,7 +21,7 @@ module.exports = {
       path: '/settings',
       handler: 'controller.updateSettings',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -29,7 +29,7 @@ module.exports = {
       path: '/reset-data',
       handler: 'controller.resetData',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     
@@ -39,7 +39,7 @@ module.exports = {
       path: '/tokens',
       handler: 'tokens.find',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -47,7 +47,7 @@ module.exports = {
       path: '/security-score',
       handler: 'tokens.getSecurityScore',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -55,7 +55,7 @@ module.exports = {
       path: '/validate-email',
       handler: 'tokens.validateEmail',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -63,7 +63,7 @@ module.exports = {
       path: '/tokens/:id/block',
       handler: 'tokens.block',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -71,7 +71,7 @@ module.exports = {
       path: '/tokens/:id/activate',
       handler: 'tokens.activate',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -79,7 +79,7 @@ module.exports = {
       path: '/tokens/:id/extend',
       handler: 'tokens.extend',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -87,7 +87,7 @@ module.exports = {
       path: '/tokens/:id/resend',
       handler: 'tokens.resend',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -95,7 +95,7 @@ module.exports = {
       path: '/tokens/:id',
       handler: 'tokens.delete',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -103,7 +103,7 @@ module.exports = {
       path: '/ban-ip',
       handler: 'tokens.banIP',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -111,7 +111,7 @@ module.exports = {
       path: '/banned-ips',
       handler: 'tokens.getBannedIPs',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -119,7 +119,7 @@ module.exports = {
       path: '/unban-ip',
       handler: 'tokens.unbanIP',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -127,7 +127,7 @@ module.exports = {
       path: '/user-by-email',
       handler: 'tokens.findUserByEmail',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -135,7 +135,7 @@ module.exports = {
       path: '/tokens',
       handler: 'tokens.create',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
 
@@ -145,7 +145,7 @@ module.exports = {
       path: '/jwt-sessions',
       handler: 'jwt.getSessions',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -153,7 +153,7 @@ module.exports = {
       path: '/revoke-jwt',
       handler: 'jwt.revokeToken',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -161,7 +161,7 @@ module.exports = {
       path: '/unrevoke-jwt',
       handler: 'jwt.unrevokeToken',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -169,7 +169,7 @@ module.exports = {
       path: '/cleanup-sessions',
       handler: 'jwt.cleanupSessions',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
 
@@ -179,7 +179,7 @@ module.exports = {
       path: '/license/status',
       handler: 'license.getStatus',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -187,7 +187,7 @@ module.exports = {
       path: '/license/auto-create',
       handler: 'license.autoCreate',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -195,7 +195,7 @@ module.exports = {
       path: '/license/create',
       handler: 'license.createAndActivate',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -203,7 +203,7 @@ module.exports = {
       path: '/license/ping',
       handler: 'license.ping',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -211,7 +211,7 @@ module.exports = {
       path: '/license/store-key',
       handler: 'license.storeKey',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     
@@ -221,7 +221,7 @@ module.exports = {
       path: '/rate-limit/stats',
       handler: 'rateLimit.getStats',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -229,7 +229,7 @@ module.exports = {
       path: '/rate-limit/cleanup',
       handler: 'rateLimit.cleanup',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -237,7 +237,7 @@ module.exports = {
       path: '/rate-limit/cleanup',
       handler: 'rateLimit.cleanup',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -245,7 +245,7 @@ module.exports = {
       path: '/rate-limit/reset',
       handler: 'rateLimit.reset',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -253,7 +253,7 @@ module.exports = {
       path: '/rate-limit/reset',
       handler: 'rateLimit.reset',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     
@@ -263,7 +263,7 @@ module.exports = {
       path: '/otp/codes',
       handler: 'otp.listCodes',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -271,7 +271,7 @@ module.exports = {
       path: '/otp/codes/:id',
       handler: 'otp.deleteCode',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -279,7 +279,7 @@ module.exports = {
       path: '/otp/cleanup',
       handler: 'otp.cleanup',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     
@@ -289,7 +289,7 @@ module.exports = {
       path: '/otp/totp/setup',
       handler: 'otp.setupTOTP',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -297,7 +297,7 @@ module.exports = {
       path: '/otp/totp/verify',
       handler: 'otp.verifyTOTP',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -305,7 +305,7 @@ module.exports = {
       path: '/otp/totp/disable',
       handler: 'otp.disableTOTP',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -313,7 +313,7 @@ module.exports = {
       path: '/otp/totp/status',
       handler: 'otp.getTOTPStatus',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -321,7 +321,7 @@ module.exports = {
       path: '/otp/totp/backup-codes',
       handler: 'otp.generateBackupCodes',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     
@@ -331,7 +331,7 @@ module.exports = {
       path: '/whatsapp/status',
       handler: 'whatsapp.getStatus',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -339,7 +339,7 @@ module.exports = {
       path: '/whatsapp/connect',
       handler: 'whatsapp.connect',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -347,7 +347,7 @@ module.exports = {
       path: '/whatsapp/disconnect',
       handler: 'whatsapp.disconnect',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -355,7 +355,7 @@ module.exports = {
       path: '/whatsapp/qr',
       handler: 'whatsapp.getQRCode',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -363,7 +363,7 @@ module.exports = {
       path: '/whatsapp/check-number',
       handler: 'whatsapp.checkNumber',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
     {
@@ -371,7 +371,7 @@ module.exports = {
       path: '/whatsapp/test-message',
       handler: 'whatsapp.testMessage',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin', { name: 'admin::hasPermissions', config: { actions: ['plugin::magic-link.access'] } }],
       },
     },
   ],
