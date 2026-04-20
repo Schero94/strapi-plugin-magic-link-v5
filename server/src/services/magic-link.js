@@ -15,6 +15,7 @@ const { nanoid } = require('nanoid');
 const { sanitize } = require('@strapi/utils');
 const emailHelpers = require('../utils/email-helpers');
 const cryptoUtils = require('../utils/crypto');
+const { normalizeEmail } = require('../utils/email');
 
 // Helper to format expiry time in human-readable format
 const formatExpiryText = (minutes) => {
@@ -89,12 +90,16 @@ module.exports = ({ strapi }) => ({
   async user(email, username) {
     const settings = await this.settings();
     const createUserIfNotExists = settings?.createUserIfNotExists !== false;
-    
-    strapi.log.debug(`[MagicLink Service] Checking user: ${email || username}, createUserIfNotExists: ${createUserIfNotExists}`);
+
+    // Normalise email for case-insensitive lookup (fixes Postgres missing
+    // rows when the stored address was registered with different casing).
+    const normalizedEmail = normalizeEmail(email);
+
+    strapi.log.debug(`[MagicLink Service] Checking user: ${normalizedEmail || username}, createUserIfNotExists: ${createUserIfNotExists}`);
 
     // Using Document Service API
     const users = await strapi.documents('plugin::users-permissions.user').findMany({
-      filters: email ? { email } : { username },
+      filters: normalizedEmail ? { email: normalizedEmail } : { username },
       limit: 1,
     });
     const user = users && users.length > 0 ? users[0] : null;
@@ -107,10 +112,10 @@ module.exports = ({ strapi }) => ({
     }
 
     if (!user && createUserIfNotExists) {
-      strapi.log.info(`[MagicLink Service] Creating new user for: ${email}`);
+      strapi.log.info(`[MagicLink Service] Creating new user for: ${normalizedEmail}`);
       const newUser = await this.createUser({
-        email,
-        username: username || email.split('@')[0],
+        email: normalizedEmail,
+        username: username || normalizedEmail.split('@')[0],
       });
       return newUser;
     }
@@ -128,7 +133,15 @@ module.exports = ({ strapi }) => ({
     const settings = await this.settings();
     const tokenLength = settings?.token_length || 20;
     const token = nanoid(tokenLength);
-    
+
+    // Store email lower-cased so all downstream equality lookups
+    // (fetchToken, validateBindingForChallenge, user-lookup on login)
+    // match regardless of the casing the client sent.
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) {
+      throw new Error('createToken requires a non-empty email');
+    }
+
     const expireSeconds = settings?.expire_period || 3600;
     const expires = new Date();
     expires.setSeconds(expires.getSeconds() + expireSeconds);
@@ -138,7 +151,7 @@ module.exports = ({ strapi }) => ({
 
     const tokenObject = await strapi.documents('plugin::magic-link.token').create({
       data: {
-        email,
+        email: normalizedEmail,
         token: tokenHash,
         token_salt: tokenSalt,
         token_prefix: tokenPrefix,

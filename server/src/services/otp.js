@@ -354,19 +354,23 @@ If you didn't request this code, you can safely ignore this email.
       replyTo: settings.response_email
     });
 
-    // Check if MagicMail should be used
+    // Route through MagicMail when the admin opted in. The router exposes
+    // only `send()` (there is no `sendEmail()`), so call that directly —
+    // prior versions used the wrong method name, causing every attempt to
+    // throw silently and fall through to the default Strapi email provider.
     if (settings.use_magic_mail && activeStrapi.plugin('magic-mail')) {
       try {
-        await activeStrapi.plugin('magic-mail').service('email-router').sendEmail({
+        await activeStrapi.plugin('magic-mail').service('email-router').send({
           to: email,
           from: settings.from_email ? `${settings.from_name} <${settings.from_email}>` : undefined,
           replyTo: settings.response_email || undefined,
           subject,
           html,
           text: textContent,
-          headers
+          headers,
+          type: 'transactional',
         });
-        
+
         log.info(`OTP email sent via MagicMail to ${email}`);
         return true;
       } catch (error) {

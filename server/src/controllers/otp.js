@@ -27,6 +27,7 @@ const {
   totpTokenOnlySchema,
   parseBody,
 } = require('./validation');
+const { resolveJwt } = require('../utils/jwt');
 
 const GENERIC_FAILURE = 'Invalid or expired verification code';
 const GENERIC_OTP_RESPONSE = 'If the request is valid, a verification code will be sent.';
@@ -136,6 +137,17 @@ module.exports = {
       const strictBinding = settings.otp_strict_binding !== false;
 
       if (strictBinding) {
+        // Clear 400 when the client simply forgot to send the binding
+        // token (usually a frontend bug) so the user is not left waiting
+        // on an email that will never arrive. An INVALID binding — i.e.
+        // token sent but mismatched — still returns the generic success
+        // response below to prevent account enumeration.
+        if (!magicLinkToken) {
+          return ctx.badRequest(
+            'magicLinkToken is required. Call /magic-link/login first and pass the returned loginToken as magicLinkToken.'
+          );
+        }
+
         const magicLink = strapi.plugin('magic-link').service('magic-link');
         const boundToken = await magicLink.validateBindingForChallenge(
           magicLinkToken,
@@ -146,7 +158,6 @@ module.exports = {
           strapi.log.warn(
             `[OTP] Binding rejected for ${normalizedEmail} from ${ctx.request.ip} (send)`
           );
-          // Generic response to avoid leaking whether binding/email was the problem
           return ctx.send({ success: true, message: GENERIC_OTP_RESPONSE });
         }
       } else {
@@ -260,7 +271,9 @@ module.exports = {
       const sanitizedContext = sanitizeContext(tokenContext);
 
       const jwtService = strapi.plugin('users-permissions').service('jwt');
-      const jwt = jwtService.issue({ id: user.id, context: sanitizedContext });
+      // resolveJwt tolerates both sync-string and Promise return shapes so
+      // the controller stays consistent with auth.js (login / MFA / TOTP).
+      const jwt = await resolveJwt(jwtService.issue({ id: user.id, context: sanitizedContext }));
 
       if (settings.store_login_info) {
         await magicLinkService.storeLoginInfo?.({
@@ -313,6 +326,19 @@ module.exports = {
       const strictBinding = settings.otp_strict_binding !== false;
 
       if (strictBinding) {
+        // UX: distinguish between "client forgot to send the binding
+        // token" (a legitimate frontend bug that deserves a clear 400)
+        // and "token is present but invalid" (an enumeration-sensitive
+        // failure that must look identical to success). Without this
+        // split the resend endpoint used to silently pretend success
+        // while the user waited forever for an email that was never
+        // going to be generated.
+        if (!magicLinkToken) {
+          return ctx.badRequest(
+            'magicLinkToken is required for OTP resend. Call /magic-link/login first and pass the returned loginToken as magicLinkToken.'
+          );
+        }
+
         const magicLink = strapi.plugin('magic-link').service('magic-link');
         const boundToken = await magicLink.validateBindingForChallenge(
           magicLinkToken,

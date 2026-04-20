@@ -9,6 +9,8 @@ const _ = require('lodash');
 const { nanoid } = require('nanoid');
 const i18n = require('../utils/i18n');
 const cryptoUtils = require('../utils/crypto');
+const { normalizeEmail } = require('../utils/email');
+const { resolveJwt } = require('../utils/jwt');
 const { appendJwtSession } = require('../utils/jwt-session-store');
 const {
   sendLinkSchema,
@@ -64,42 +66,63 @@ module.exports = {
 
     // If OTP is enabled and available, require OTP verification
     if (settings.otp_enabled && hasOTPFeature) {
-      // Mark token as requiring OTP using Document Service API
+      // Mark token as requiring OTP using Document Service API.
+      // Keep this BEFORE generating the code so a concurrent login attempt
+      // with the same link cannot race past the flag.
       await strapi.documents('plugin::magic-link.token').update({
         documentId: token.documentId,
         data: {
-          // Store that this token requires OTP
           context: {
             ...(token.context || {}),
             requiresOTP: true,
-            otpVerified: false
-          }
-        }
+            otpVerified: false,
+          },
+        },
       });
 
-      // Generate and send OTP
       const otpService = strapi.plugin('magic-link').service('otp');
       const otpEntry = await otpService.createOTP(token.email, 'email', {
         magicLinkToken: token.token,
         expirySeconds: settings.otp_expiry || 300,
         codeLength: settings.otp_length || 6,
         ipAddress: ctx.request.ip,
-        userAgent: ctx.request.header['user-agent']
+        userAgent: ctx.request.header['user-agent'],
       });
 
-      // Send OTP email
-      await otpService.sendOTPEmail(token.email, otpEntry.code, {
-        subject: 'Your Verification Code',
-        expiryMinutes: Math.floor((settings.otp_expiry || 300) / 60)
-      });
+      // Surface mail-transport failures as an actionable 503 instead of
+      // a generic 500. The code row already exists so the frontend can
+      // prompt the user to hit /otp/resend without starting from scratch.
+      try {
+        await otpService.sendOTPEmail(token.email, otpEntry.code, {
+          subject: 'Your Verification Code',
+          expiryMinutes: Math.floor((settings.otp_expiry || 300) / 60),
+        });
+      } catch (mailErr) {
+        strapi.log.error(`[magic-link] OTP email delivery failed for ${token.email}: ${mailErr.message}`);
+        ctx.status = 503;
+        ctx.body = {
+          data: null,
+          error: {
+            status: 503,
+            name: 'OtpDeliveryError',
+            message: 'Verification code could not be sent. Please request a new code.',
+            details: {
+              code: 'OTP_EMAIL_FAILED',
+              resendEndpoint: '/api/magic-link/otp/resend',
+              email: token.email,
+              loginToken: token.token,
+            },
+          },
+        };
+        return;
+      }
 
-      // Return response indicating OTP is required
       return ctx.send({
         requiresOTP: true,
         message: 'OTP verification required',
         email: token.email,
         loginToken: token.token,
-        expiresIn: settings.otp_expiry || 300
+        expiresIn: settings.otp_expiry || 300,
       });
     }
 
@@ -120,8 +143,13 @@ module.exports = {
     if (mfaMode !== 'disabled') {
       const otpService = strapi.plugin('magic-link').service('otp');
 
+      // Lower-case the token email for the lookup so a legacy uppercase
+      // address in the DB still matches — createToken now writes lower-
+      // case, but tokens issued on older builds may still carry the
+      // original casing.
+      const lookupEmail = normalizeEmail(token.email);
       const users = await strapi.documents('plugin::users-permissions.user').findMany({
-        filters: { email: token.email },
+        filters: { email: lookupEmail },
         limit: 1,
       });
       const user = users && users.length > 0 ? users[0] : null;
@@ -173,9 +201,10 @@ module.exports = {
 
     await magicLink.updateTokenOnLogin(token, requestInfo);
 
-    // Find user using Document Service API
+    // Case-insensitive user lookup, same rationale as the MFA branch above.
+    const mainLookupEmail = normalizeEmail(token.email);
     const users = await strapi.documents('plugin::users-permissions.user').findMany({
-      filters: { email: token.email },
+      filters: { email: mainLookupEmail },
       limit: 1,
     });
     const user = users && users.length > 0 ? users[0] : null;
@@ -185,6 +214,10 @@ module.exports = {
     }
 
     if (user.blocked) {
+      // Kill the token before returning so the already-blocked user cannot
+      // hammer the endpoint from multiple IPs with the same link. The
+      // standard rate-limiter alone does not cover IP rotation.
+      await magicLink.deactivateToken(token);
       return i18n.sendError(ctx, 'blocked.user', 403);
     }
 
@@ -233,19 +266,12 @@ module.exports = {
       }
     }
     
-    // Generiere JWT-Token mit dem sanitierten Context
-    // In Strapi v5, jwtService.issue() might be async
-    let jwtToken = jwtService.issue({ 
+    // Generate JWT — resolveJwt handles sync/Promise return uniformly.
+    const jwtToken = await resolveJwt(jwtService.issue({
       id: user.id,
-      context: sanitizedContext
-    });
-    
-    // Handle if it's a Promise
-    if (jwtToken && typeof jwtToken.then === 'function') {
-      jwtToken = await jwtToken;
-    }
-    
-    // Debug logging
+      context: sanitizedContext,
+    }));
+
     strapi.log.debug('[magic-link] JWT Token generated:', typeof jwtToken, jwtToken ? 'has value' : 'empty');
     
     // Hole JWT-Konfiguration, um Ablaufzeit zu berechnen
@@ -351,13 +377,43 @@ module.exports = {
     const allowPublicRegistration = sendLinkSettings?.allow_magic_links_on_public_registration === true;
     const requireVerifiedEmail = sendLinkSettings?.verify_email === true;
 
+    // --------------------------------------------------------------------
+    //  USER ENUMERATION HARDENING
+    // --------------------------------------------------------------------
+    // Earlier versions returned different error messages for
+    //   (a) email unknown,
+    //   (b) email typo / casing mismatch,
+    //   (c) email known but not confirmed,
+    //   (d) user blocked.
+    // A client could therefore enumerate which addresses belong to real
+    // accounts. We now answer all of those cases with the SAME generic
+    // success envelope below. Internally we still short-circuit so no
+    // real token / mail is sent, and the admin can inspect the reason in
+    // the structured server log.
+    //
+    // The only non-generic failure we still surface is a downstream
+    // delivery error (SMTP/WhatsApp failed AFTER user/token creation) —
+    // see the WhatsApp branch further down where we must tell the caller
+    // that their delivery endpoint is not available.
+    const GENERIC_SEND_RESPONSE = {
+      email: email || null,
+      username: username || null,
+      sent: true,
+      delivery: phoneNumber ? 'whatsapp' : 'email',
+    };
+    const silentReject = (reason) => {
+      strapi.log.warn(`[magic-link] sendLink rejected silently: ${reason} (email=${email || '-'}, ip=${ipAddress})`);
+      return ctx.send(GENERIC_SEND_RESPONSE);
+    };
+
     // Remember whether the user existed BEFORE we potentially auto-create
     // them, so we can trigger the welcome email only on genuine first-time
-    // sign-ups.
+    // sign-ups. Always look up by normalised email to match the DB state.
+    const lookupEmail = normalizeEmail(email);
     let existingUser = null;
     try {
       const lookup = await strapi.documents('plugin::users-permissions.user').findMany({
-        filters: email ? { email } : { username },
+        filters: lookupEmail ? { email: lookupEmail } : { username },
         limit: 1,
       });
       existingUser = (lookup && lookup[0]) || null;
@@ -366,39 +422,36 @@ module.exports = {
     }
 
     // Gate on public registration: if the user does not exist yet and the
-    // admin did NOT opt in to public-registration via Magic Link, reject.
-    // The separate `createUserIfNotExists` setting decides whether the
-    // upstream `magicLink.user(...)` is even allowed to create one — this
-    // gate adds an extra anti-scrape layer for production installs that
-    // want to accept Magic Links only from pre-existing accounts.
+    // admin did NOT opt in to public-registration via Magic Link, answer
+    // with the generic response instead of revealing "unknown user".
     if (!existingUser && !allowPublicRegistration) {
-      return i18n.sendError(ctx, 'wrong.email', 400);
+      return silentReject('unknown_email_and_public_registration_disabled');
     }
 
     let user;
     try {
       user = await magicLink.user(email, username);
-    } catch (e) {
-      return i18n.sendError(ctx, 'wrong.user', 400);
+    } catch {
+      return silentReject('user_service_error');
     }
 
     if (!user) {
-      return i18n.sendError(ctx, 'wrong.email', 400);
+      return silentReject('user_not_found_or_created');
     }
 
-    if (email && user.email !== email) {
-      return i18n.sendError(ctx, 'wrong.user', 400);
+    if (lookupEmail && normalizeEmail(user.email) !== lookupEmail) {
+      return silentReject('email_mismatch_after_lookup');
     }
 
     if (user.blocked) {
-      return i18n.sendError(ctx, 'blocked.user', 403);
+      return silentReject('blocked_user');
     }
 
     // `verify_email`: only send Magic Links to accounts whose email has
     // been confirmed (e.g. via classic registration flow). Prevents
     // account takeover via typosquatted email addresses.
     if (requireVerifiedEmail && !user.confirmed && existingUser) {
-      return i18n.sendError(ctx, 'wrong.email', 400);
+      return silentReject('email_not_confirmed');
     }
 
     // `welcome_email`: if the user was just auto-created, fire a welcome
@@ -554,11 +607,14 @@ module.exports = {
     if (!user) {
       return ctx.badRequest('User not found');
     }
-    
+
     if (user.blocked) {
-      return ctx.badRequest('blocked.user');
+      // Match the main login() branch: kill the token and return the
+      // same i18n key + 403 status the rest of the plugin uses.
+      await magicLink.deactivateToken(token);
+      return i18n.sendError(ctx, 'blocked.user', 403);
     }
-    
+
     if (!user.confirmed) {
       await userService.edit(user.id, { confirmed: true });
     }
@@ -592,13 +648,15 @@ module.exports = {
       }
     }
     
-    // Generate JWT with context
+    // Generate JWT with context (resolveJwt tolerates sync-string and
+    // Promise return values from jwtService.issue, identical to the
+    // defensive handling in login()).
     const settings = await magicLink.settings();
-    const jwtToken = jwtService.issue({ 
+    const jwtToken = await resolveJwt(jwtService.issue({
       id: user.id,
       mfaVerified: true,
-      context: mfaSanitizedContext
-    });
+      context: mfaSanitizedContext,
+    }));
     
     // Calculate expiration
     let expirationTime = settings.jwt_token_expires_in || '30d';
@@ -718,11 +776,11 @@ module.exports = {
     delete sanitizedUser.confirmationToken;
     delete sanitizedUser.roles;
     
-    // Generate JWT
-    const jwtToken = jwtService.issue({ 
+    // Generate JWT — resolveJwt keeps sync/Promise handling uniform.
+    const jwtToken = await resolveJwt(jwtService.issue({
       id: user.id,
-      totpLogin: true
-    });
+      totpLogin: true,
+    }));
     
     // Calculate expiration
     let expirationTime = settings.jwt_token_expires_in || '30d';
