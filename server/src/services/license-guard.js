@@ -1,6 +1,13 @@
 /**
  * License Guard Service
- * Handles license creation, verification, and ping tracking
+ * Handles license creation, verification, and ping tracking.
+ *
+ * All outbound HTTP calls are wrapped in `fetchWithTimeout` which adds
+ * a hard timeout via AbortController plus one automatic retry. Without
+ * this guard a slow (or cold-starting) license server would block the
+ * plugin boot for the full default node-fetch timeout — producing
+ * spurious "This operation was aborted" warnings and stalling the
+ * admin panel.
  */
 
 const crypto = require('crypto');
@@ -10,6 +17,46 @@ const os = require('os');
 // This URL is hardcoded and cannot be overridden for security reasons.
 // Any attempt to modify this will break license validation.
 const LICENSE_SERVER_URL = 'https://magicapi.fitlex.me';
+
+// 12s default tolerates a cold-start on the license server (serverless
+// containers need 5–10s for the first TLS handshake). Configurable via
+// MAGIC_LICENSE_TIMEOUT_MS for unusually fast or slow networks.
+const envTimeout = Number(process.env.MAGIC_LICENSE_TIMEOUT_MS);
+const DEFAULT_FETCH_TIMEOUT_MS = Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : 12000;
+const FETCH_RETRIES = 1;
+const FETCH_RETRY_BACKOFF_MS = 750;
+
+/**
+ * Wraps `fetch` with a hard timeout via AbortController and one retry
+ * so a cold-start on the license server does not crash the call. Each
+ * attempt uses a fresh AbortController (a shared one would cancel the
+ * retry before it could connect).
+ *
+ * @param {string} url
+ * @param {object} [options]
+ * @param {number} [timeoutMs]
+ * @returns {Promise<Response>}
+ */
+async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS) {
+  let lastError;
+  for (let attempt = 0; attempt <= FETCH_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } catch (err) {
+      lastError = err;
+      if (attempt < FETCH_RETRIES) {
+        await new Promise((r) => setTimeout(r, FETCH_RETRY_BACKOFF_MS));
+        continue;
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastError;
+}
 
 module.exports = ({ strapi }) => ({
   /**
@@ -97,7 +144,7 @@ module.exports = ({ strapi }) => ({
       const userAgent = this.getUserAgent();
 
       const licenseServerUrl = this.getLicenseServerUrl();
-      const response = await fetch(`${licenseServerUrl}/api/licenses/create`, {
+      const response = await fetchWithTimeout(`${licenseServerUrl}/api/licenses/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -140,7 +187,7 @@ module.exports = ({ strapi }) => ({
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
       
       const licenseServerUrl = this.getLicenseServerUrl();
-      const response = await fetch(`${licenseServerUrl}/api/licenses/verify`, {
+      const response = await fetchWithTimeout(`${licenseServerUrl}/api/licenses/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -196,7 +243,7 @@ module.exports = ({ strapi }) => ({
   async pingLicense(licenseKey) {
     try {
       const licenseServerUrl = this.getLicenseServerUrl();
-      const response = await fetch(`${licenseServerUrl}/api/licenses/ping`, {
+      const response = await fetchWithTimeout(`${licenseServerUrl}/api/licenses/ping`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -229,7 +276,7 @@ module.exports = ({ strapi }) => ({
   async upgradeLicense(licenseId, features) {
     try {
       const licenseServerUrl = this.getLicenseServerUrl();
-      const response = await fetch(`${licenseServerUrl}/api/licenses/${licenseId}/upgrade`, {
+      const response = await fetchWithTimeout(`${licenseServerUrl}/api/licenses/${licenseId}/upgrade`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -258,7 +305,7 @@ module.exports = ({ strapi }) => ({
   async getLicenseByKey(licenseKey) {
     try {
       const licenseServerUrl = this.getLicenseServerUrl();
-      const response = await fetch(`${licenseServerUrl}/api/licenses/key/${licenseKey}`);
+      const response = await fetchWithTimeout(`${licenseServerUrl}/api/licenses/key/${licenseKey}`);
       const data = await response.json();
 
       if (data.success) {
@@ -277,7 +324,7 @@ module.exports = ({ strapi }) => ({
   async getLicensesByEmail(email) {
     try {
       const licenseServerUrl = this.getLicenseServerUrl();
-      const response = await fetch(`${licenseServerUrl}/api/licenses/email/${encodeURIComponent(email)}`);
+      const response = await fetchWithTimeout(`${licenseServerUrl}/api/licenses/email/${encodeURIComponent(email)}`);
       const data = await response.json();
 
       if (data.success) {
@@ -296,7 +343,7 @@ module.exports = ({ strapi }) => ({
   async getOnlineStats() {
     try {
       const licenseServerUrl = this.getLicenseServerUrl();
-      const response = await fetch(`${licenseServerUrl}/api/licenses/stats/online`);
+      const response = await fetchWithTimeout(`${licenseServerUrl}/api/licenses/stats/online`);
       const data = await response.json();
 
       if (data.success) {
