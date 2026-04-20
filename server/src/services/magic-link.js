@@ -238,6 +238,46 @@ module.exports = ({ strapi }) => ({
     });
   },
 
+  /**
+   * Validates that a magic-link token is the legitimate origin of an OTP
+   * or TOTP challenge. Used by the OTP endpoints to ensure every second-factor
+   * verification is tied to a prior, still-active magic-link flow.
+   *
+   * Checks performed:
+   * 1. token exists and is the one originally hashed from the plaintext
+   * 2. is_active
+   * 3. not expired
+   * 4. email on the token matches the email the OTP is being sent to
+   * 5. the stored context contains the expected flag (requiresOTP or requiresTOTP)
+   *
+   * Returns the token record on success so callers can reuse its context.
+   * Returns null on any failure. Never leaks the specific failure reason.
+   *
+   * @param {string} plaintextToken - The magic-link login token
+   * @param {string} email - The email the caller claims to act for
+   * @param {'otp'|'totp'} expectedChallenge - Which flag must be set in token.context
+   * @returns {Promise<object|null>}
+   */
+  async validateBindingForChallenge(plaintextToken, email, expectedChallenge = 'otp') {
+    if (!plaintextToken || !email) return null;
+
+    const token = await this.fetchToken(plaintextToken);
+    if (!token || !token.is_active) return null;
+
+    const isValid = await this.isTokenValid(token);
+    if (!isValid) return null;
+
+    const tokenEmail = String(token.email || '').toLowerCase();
+    const claimedEmail = String(email).toLowerCase();
+    if (tokenEmail !== claimedEmail) return null;
+
+    const ctx = token.context || {};
+    if (expectedChallenge === 'otp' && ctx.requiresOTP !== true) return null;
+    if (expectedChallenge === 'totp' && ctx.requiresTOTP !== true) return null;
+
+    return token;
+  },
+
   async updateTokenOnLogin(token, requestInfo = null) {
     const settings = await this.settings();
     const staysValid = settings?.stays_valid || false;

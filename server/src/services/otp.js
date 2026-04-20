@@ -86,36 +86,41 @@ module.exports = ({ strapi }) => {
   },
 
   /**
-   * Create and store an OTP code
+   * Create and store an OTP code.
+   *
+   * SECURITY: Before creating the new code, every still-unused OTP of the
+   * same (email, type) pair is invalidated (`used=true`). This prevents an
+   * attacker from inflating the brute-force success probability by spamming
+   * `/otp/send` to accumulate N concurrently-valid codes.
+   *
    * @param {string} email - User email
    * @param {string} type - OTP type ('email', 'sms', 'totp')
    * @param {Object} options - Additional options
-   * @returns {Object} The created OTP code entry
+   * @returns {Object} The created OTP code entry (with plaintext code)
    */
   async createOTP(email, type = 'email', options = {}) {
     const {
       magicLinkToken = null,
       phoneNumber = null,
-      expirySeconds = 300, // 5 minutes default
+      expirySeconds = 300,
       codeLength = 6
     } = options;
 
-    // Generate OTP code
-    const code = this.generateCode(codeLength);
-    
-    // Hash the OTP code before storage for security
-    const hashedCode = cryptoUtils.hashOTP(code);
+    const normalizedEmail = email.toLowerCase();
+    const activeStrapi = getStrapi();
 
-    // Calculate expiry time
+    // Invalidate ALL previously-issued unused OTPs for this email+type
+    // so only the newest code is valid at any time.
+    await this.invalidateActiveOTPs(normalizedEmail, type);
+
+    const code = this.generateCode(codeLength);
+    const hashedCode = cryptoUtils.hashOTP(code);
     const expiresAt = new Date(Date.now() + (expirySeconds * 1000));
 
-    // Create OTP entry using Document Service API
-    // Store HASHED code, not plaintext!
-    const activeStrapi = getStrapi();
     const otpEntry = await activeStrapi.documents('plugin::magic-link.otp-code').create({
       data: {
-        code: hashedCode, // Store hashed, not plaintext
-        email: email.toLowerCase(),
+        code: hashedCode,
+        email: normalizedEmail,
         type,
         used: false,
         attempts: 0,
@@ -130,121 +135,151 @@ module.exports = ({ strapi }) => {
       }
     });
 
-    log.info(`OTP code created for ${email} (type: ${type}, expires in ${expirySeconds}s)`);
-    
-    // Return entry with plaintext code for sending (not stored in DB)
+    log.info(`OTP code created for ${normalizedEmail} (type: ${type}, expires in ${expirySeconds}s)`);
+
     return { ...otpEntry, code };
   },
 
   /**
-   * Verify an OTP code
-   * @param {string} email - User email
-   * @param {string} code - OTP code to verify
+   * Invalidates all currently unused OTPs for a given (email, type) pair.
+   * Used by createOTP to enforce a single-active-code policy.
+   *
+   * @param {string} email - Lower-cased email
    * @param {string} type - OTP type
-   * @returns {Object} Verification result
+   * @returns {Promise<number>} Count of invalidated entries
+   */
+  async invalidateActiveOTPs(email, type) {
+    const activeStrapi = getStrapi();
+    const PAGE_SIZE = 100;
+    let total = 0;
+
+    while (true) {
+      const batch = await activeStrapi.documents('plugin::magic-link.otp-code').findMany({
+        filters: { email, type, used: false },
+        limit: PAGE_SIZE,
+      });
+      if (!batch || batch.length === 0) break;
+
+      for (const entry of batch) {
+        await activeStrapi.documents('plugin::magic-link.otp-code').update({
+          documentId: entry.documentId,
+          data: { used: true },
+        });
+        total++;
+      }
+      if (batch.length < PAGE_SIZE) break;
+    }
+
+    if (total > 0) {
+      log.debug(`[OTP] Invalidated ${total} prior unused OTP(s) for ${email}`);
+    }
+    return total;
+  },
+
+  /**
+   * Verifies an OTP code against the active pool for an (email, type) pair.
+   *
+   * Security model:
+   * 1. Load all unused, non-expired OTPs for the email+type
+   * 2. Increment `attempts` on ALL candidates (any attempt counts)
+   * 3. If aggregate attempts ≥ maxAttempts, burn the entire pool
+   * 4. Try a timing-safe hash match only if attempts are still within budget
+   * 5. On match: mark matched entry as used. All other entries stay as-is
+   *    (already invalidated by createOTP's single-active-code policy).
+   *
+   * This closes the previous bug where `attempts` was never incremented on
+   * mismatched codes, letting attackers brute-force within the rate-limit
+   * window without tripping the per-code max-attempts counter.
+   *
+   * @param {string} email - User email
+   * @param {string} code - Plaintext OTP code to verify
+   * @param {string} type - OTP type
+   * @returns {Promise<{valid: boolean, error?: string, message?: string, otpEntry?: object}>}
    */
   async verifyOTP(email, code, type = 'email') {
     const activeStrapi = getStrapi();
-    const pluginStore = activeStrapi.store({
-      type: 'plugin',
-      name: 'magic-link',
-    });
-    const settings = await pluginStore.get({ key: 'settings' }) || {};
+    const pluginStore = activeStrapi.store({ type: 'plugin', name: 'magic-link' });
+    const settings = (await pluginStore.get({ key: 'settings' })) || {};
     const maxAttempts = settings.otp_max_attempts || 3;
+    const normalizedEmail = String(email || '').toLowerCase();
+
+    if (!normalizedEmail || !code) {
+      return { valid: false, error: 'invalid_code', message: 'Invalid or expired OTP code' };
+    }
 
     try {
-      // Hash the provided code for comparison
-      const hashedCode = cryptoUtils.hashOTP(code);
-      
-      // Find the OTP code using Document Service API
-      // We search by hashed code now
-      const otpEntries = await activeStrapi.documents('plugin::magic-link.otp-code').findMany({
+      const now = new Date();
+
+      const candidates = await activeStrapi.documents('plugin::magic-link.otp-code').findMany({
         filters: {
-          email: email.toLowerCase(),
+          email: normalizedEmail,
           type,
-          used: false
+          used: false,
+          expiresAt: { $gt: now },
         },
         sort: [{ createdAt: 'desc' }],
-        limit: 10 // Get recent entries to find matching hash
+        limit: 10,
       });
 
-      if (!otpEntries || otpEntries.length === 0) {
-        return {
-          valid: false,
-          error: 'invalid_code',
-          message: 'Invalid or expired OTP code'
-        };
+      if (!candidates || candidates.length === 0) {
+        return { valid: false, error: 'invalid_code', message: 'Invalid or expired OTP code' };
       }
 
-      // Find entry with matching hash (timing-safe comparison)
-      const otpEntry = otpEntries.find(entry => 
-        cryptoUtils.verifyOTP(code, entry.code)
-      );
-      
-      if (!otpEntry) {
-        return {
-          valid: false,
-          error: 'invalid_code',
-          message: 'Invalid or expired OTP code'
-        };
-      }
+      // Check the attempts budget BEFORE attempting a match.
+      // We take the highest attempt count across all active candidates;
+      // once it reaches maxAttempts, the whole pool is burned.
+      const currentMax = candidates.reduce((m, c) => Math.max(m, c.attempts || 0), 0);
 
-      // Check if expired
-      const now = new Date();
-      const expiresAt = new Date(otpEntry.expiresAt);
-      
-      if (now > expiresAt) {
-        // Mark as used to prevent reuse
-        await activeStrapi.documents('plugin::magic-link.otp-code').update({
-          documentId: otpEntry.documentId,
-          data: { used: true }
-        });
-        
-        return {
-          valid: false,
-          error: 'expired',
-          message: 'OTP code has expired'
-        };
-      }
-
-      // Check attempts
-      if (otpEntry.attempts >= maxAttempts) {
-        // Mark as used after max attempts
-        await activeStrapi.documents('plugin::magic-link.otp-code').update({
-          documentId: otpEntry.documentId,
-          data: { used: true }
-        });
-        
-        return {
-          valid: false,
-          error: 'max_attempts',
-          message: 'Maximum verification attempts exceeded'
-        };
-      }
-
-      // Code is valid!
-      // Mark as used
-      await activeStrapi.documents('plugin::magic-link.otp-code').update({
-        documentId: otpEntry.documentId,
-        data: { 
-          used: true,
-          attempts: otpEntry.attempts + 1
+      if (currentMax >= maxAttempts) {
+        // Burn the pool (mark every candidate as used).
+        for (const entry of candidates) {
+          await activeStrapi.documents('plugin::magic-link.otp-code').update({
+            documentId: entry.documentId,
+            data: { used: true },
+          });
         }
+        log.warn(`[OTP] Max attempts exceeded for ${normalizedEmail}, burned pool`);
+        return { valid: false, error: 'max_attempts', message: 'Maximum verification attempts exceeded' };
+      }
+
+      // Increment attempts on ALL candidates for every try (correct or not).
+      // This is the fix for the previous bug where only matching entries got incremented.
+      const nextAttempts = currentMax + 1;
+      for (const entry of candidates) {
+        await activeStrapi.documents('plugin::magic-link.otp-code').update({
+          documentId: entry.documentId,
+          data: { attempts: (entry.attempts || 0) + 1 },
+        });
+      }
+
+      // Timing-safe search for a matching entry.
+      const matched = candidates.find((entry) => cryptoUtils.verifyOTP(code, entry.code));
+
+      if (!matched) {
+        // If this attempt exhausted the budget, burn the pool now.
+        if (nextAttempts >= maxAttempts) {
+          for (const entry of candidates) {
+            await activeStrapi.documents('plugin::magic-link.otp-code').update({
+              documentId: entry.documentId,
+              data: { used: true },
+            });
+          }
+          log.warn(`[OTP] Attempts exhausted on failed verification for ${normalizedEmail}, burned pool`);
+        }
+        return { valid: false, error: 'invalid_code', message: 'Invalid or expired OTP code' };
+      }
+
+      // Match found — mark only the matched entry as used.
+      await activeStrapi.documents('plugin::magic-link.otp-code').update({
+        documentId: matched.documentId,
+        data: { used: true },
       });
 
-      log.info(`OTP verified successfully for ${email}`);
-
-      return {
-        valid: true,
-        otpEntry
-      };
+      log.info(`OTP verified successfully for ${normalizedEmail}`);
+      return { valid: true, otpEntry: matched };
     } catch (error) {
       log.error('Error verifying OTP:', error);
-      return {
-        valid: false,
-        error: 'server_error',
-        message: 'Error verifying OTP code'
-      };
+      return { valid: false, error: 'server_error', message: 'Error verifying OTP code' };
     }
   },
 
@@ -376,40 +411,55 @@ If you didn't request this code, you can safely ignore this email.
   },
 
   /**
-   * Clean up expired OTP codes
-   * Uses strapiInstance from module closure for reliability in bundled plugins
+   * Deletes expired OTP codes in bounded batches.
+   *
+   * Called every 5 minutes from bootstrap. Operates in pages so a very
+   * large backlog (e.g. after a long period without cleanups) can never
+   * block the event loop on a single monster query / delete sweep.
+   *
+   * Hard stop after MAX_TOTAL per run to keep each run short; the next
+   * interval tick will continue where this one left off.
+   *
+   * @returns {Promise<number>} Total entries deleted in this run
    */
   async cleanupExpiredCodes() {
+    if (!strapiInstance) return 0;
+
+    const PAGE_SIZE = 200;
+    const MAX_TOTAL = 5000;
+    let total = 0;
+
     try {
-      // Use strapiInstance directly (more reliable than getStrapi() in intervals)
-      if (!strapiInstance) {
-        // Silently skip if strapi not available yet
-        return;
-      }
-      
-      const now = new Date();
-      
-      const expiredCodes = await strapiInstance.documents('plugin::magic-link.otp-code').findMany({
-        filters: {
-          expiresAt: { $lt: now }
-        }
-      });
-
-      for (const code of expiredCodes) {
-        await strapiInstance.documents('plugin::magic-link.otp-code').delete({
-          documentId: code.documentId
+      while (total < MAX_TOTAL) {
+        const batch = await strapiInstance.documents('plugin::magic-link.otp-code').findMany({
+          filters: { expiresAt: { $lt: new Date() } },
+          sort: [{ createdAt: 'asc' }],
+          limit: PAGE_SIZE,
         });
+
+        if (!batch || batch.length === 0) break;
+
+        for (const code of batch) {
+          await strapiInstance.documents('plugin::magic-link.otp-code').delete({
+            documentId: code.documentId,
+          });
+          total++;
+          if (total >= MAX_TOTAL) break;
+        }
+
+        if (batch.length < PAGE_SIZE) break;
       }
 
-      if (expiredCodes.length > 0) {
-        strapiInstance.log.info(`[CLEANUP] Cleaned up ${expiredCodes.length} expired OTP codes`);
+      if (total > 0) {
+        strapiInstance.log.info(`[CLEANUP] Deleted ${total} expired OTP codes`);
       }
     } catch (error) {
-      // Silent fail with debug log - don't spam error logs
-      if (strapiInstance && strapiInstance.log) {
+      if (strapiInstance.log) {
         strapiInstance.log.debug('[CLEANUP] OTP cleanup skipped:', error.message);
       }
     }
+
+    return total;
   },
 
   /**
@@ -434,9 +484,21 @@ If you didn't request this code, you can safely ignore this email.
   },
 
   /**
-   * Setup TOTP for a user
-   * @param {number} userId - User ID
-   * @param {string} email - User email
+   * Setup TOTP for a user.
+   *
+   * Reads the admin-controlled TOTP parameters from plugin settings and
+   * encodes them into the otpauth URL so authenticator apps (Google
+   * Authenticator, 1Password, Authy, …) pick up the desired algorithm,
+   * digit count and period. Previously these settings lived only in the
+   * UI — now they actually travel into the QR code.
+   *
+   * Accepted values:
+   *   totp_algorithm: 'SHA1' | 'SHA256' | 'SHA512'   (default 'SHA1')
+   *   totp_digits:    6 | 8                           (default 6)
+   *   totp_period:    15–300 seconds                  (default 30)
+   *
+   * @param {number} userId
+   * @param {string} email
    * @returns {Object} TOTP setup data with QR code
    */
   async setupTOTP(userId, email) {
@@ -446,15 +508,30 @@ If you didn't request this code, you can safely ignore this email.
         type: 'plugin',
         name: 'magic-link',
       });
-      const settings = await pluginStore.get({ key: 'settings' }) || {};
-      
+      const settings = (await pluginStore.get({ key: 'settings' })) || {};
+
       const issuer = settings.totp_issuer || 'Magic Link';
-      
-      // Generate secret
+      const algorithm = ['SHA1', 'SHA256', 'SHA512'].includes(settings.totp_algorithm)
+        ? settings.totp_algorithm
+        : 'SHA1';
+      const digits = [6, 8].includes(Number(settings.totp_digits))
+        ? Number(settings.totp_digits)
+        : 6;
+      const period = (() => {
+        const raw = Number(settings.totp_period);
+        if (!Number.isFinite(raw)) return 30;
+        return Math.min(Math.max(Math.round(raw), 15), 300);
+      })();
+
+      // Generate secret with the admin-configured parameters. speakeasy
+      // encodes `algorithm`, `digits` and `period` into the otpauth URL.
       const secret = speakeasy.generateSecret({
         name: `${issuer} (${email})`,
-        issuer: issuer,
-        length: 32
+        issuer,
+        length: 32,
+        algorithm,
+        digits,
+        period,
       });
 
       // Encrypt the TOTP secret before storage
@@ -493,11 +570,14 @@ If you didn't request this code, you can safely ignore this email.
 
       log.info(`TOTP setup initiated for user ${userId} (${email})`);
 
+      // The plaintext secret is returned ONCE so the user can add it to their
+      // authenticator app. Callers must display it ephemerally (no logs, no
+      // local storage, no analytics). We return it under a single key to
+      // minimize accidental duplication in logs.
       return {
         secret: secret.base32,
         qrCode: qrCodeDataURL,
         otpauthUrl: secret.otpauth_url,
-        manualEntryKey: secret.base32
       };
     } catch (error) {
       log.error('Error setting up TOTP:', error);
@@ -529,16 +609,36 @@ If you didn't request this code, you can safely ignore this email.
       }
 
       const config = configs[0];
-      
+
       // Decrypt the secret before verification
       const decryptedSecret = cryptoUtils.decrypt(config.secret);
 
-      // Verify the token
+      // Pull the TOTP parameters from plugin settings so the verify side
+      // matches whatever setupTOTP wrote into the QR code. Without this,
+      // a user enabling SHA256/8-digit TOTP at setup time would be unable
+      // to log in because the verify step still used SHA1/6-digit.
+      const pluginStore = activeStrapi.store({ type: 'plugin', name: 'magic-link' });
+      const settings = (await pluginStore.get({ key: 'settings' })) || {};
+      const algorithm = ['SHA1', 'SHA256', 'SHA512'].includes(settings.totp_algorithm)
+        ? settings.totp_algorithm
+        : 'SHA1';
+      const digits = [6, 8].includes(Number(settings.totp_digits))
+        ? Number(settings.totp_digits)
+        : 6;
+      const period = (() => {
+        const raw = Number(settings.totp_period);
+        if (!Number.isFinite(raw)) return 30;
+        return Math.min(Math.max(Math.round(raw), 15), 300);
+      })();
+
       const verified = speakeasy.totp.verify({
         secret: decryptedSecret,
         encoding: 'base32',
-        token: token,
-        window: 1 // Allow 1 step before/after for time sync issues
+        token,
+        algorithm,
+        digits,
+        step: period,
+        window: 1, // ±1 step tolerance for clock drift
       });
 
       if (!verified) {

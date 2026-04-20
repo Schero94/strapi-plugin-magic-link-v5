@@ -2,7 +2,7 @@
 
 const service = require('./service');
 const magicLink = require('./magic-link');
-const store = require('../../services/store');
+const store = require('./store');
 const licenseGuard = require('./license-guard');
 const rateLimiter = require('./rate-limiter');
 const otp = require('./otp');

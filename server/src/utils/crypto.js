@@ -2,21 +2,97 @@
 
 /**
  * Crypto Utility for Magic Link Plugin
- * Provides secure hashing and encryption functions
+ *
+ * SECURITY POLICY
+ * ---------------
+ * Two secrets are required at runtime:
+ *
+ *   MAGIC_LINK_ENCRYPTION_KEY  — AES-256 key for reversible secrets (TOTP)
+ *   MAGIC_LINK_OTP_PEPPER      — pepper mixed into OTP code hashes
+ *
+ * In production NODE_ENV these MUST be set via env (or the plugin refuses
+ * to boot). In non-production they fall back to a derived value so local
+ * dev setups keep working — but a prominent WARN is emitted once.
+ *
+ * NEVER rotate the encryption key: it is NOT `APP_KEYS`, because Strapi's
+ * APP_KEYS are meant to be rotatable. Rotating the encryption key would
+ * make every existing TOTP secret undecryptable.
  */
 
 const crypto = require('crypto');
 
-// Use environment variable or fallback to a derived key
+let warnedMissingKey = false;
+let warnedMissingPepper = false;
+
+const isProduction = () => process.env.NODE_ENV === 'production';
+
+/**
+ * Derives a dev-mode fallback value from the strongest available secret.
+ * Order matches what Strapi guarantees: ADMIN_JWT_SECRET > APP_KEYS > none.
+ */
+const devFallbackMaterial = () =>
+  process.env.ADMIN_JWT_SECRET ||
+  (Array.isArray(process.env.APP_KEYS) ? process.env.APP_KEYS[0] : process.env.APP_KEYS) ||
+  'magic-link-dev-fallback-DO-NOT-USE-IN-PRODUCTION';
+
+/**
+ * Returns the 32-byte AES-256 key derived from MAGIC_LINK_ENCRYPTION_KEY.
+ *
+ * @throws {Error} When the env var is missing in production
+ */
 const getEncryptionKey = () => {
-  const envKey = process.env.MAGIC_LINK_ENCRYPTION_KEY || process.env.APP_KEYS || process.env.API_TOKEN_SALT;
-  if (!envKey) {
-    // Fallback: derive key from Strapi's admin JWT secret (always available)
-    const fallback = process.env.ADMIN_JWT_SECRET || 'magic-link-default-key-change-me';
-    return crypto.createHash('sha256').update(fallback).digest();
+  const raw = process.env.MAGIC_LINK_ENCRYPTION_KEY;
+  if (raw && raw.length > 0) {
+    return crypto.createHash('sha256').update(raw).digest();
   }
-  // Ensure key is exactly 32 bytes for AES-256
-  return crypto.createHash('sha256').update(envKey).digest();
+
+  if (isProduction()) {
+    throw new Error(
+      '[magic-link] MAGIC_LINK_ENCRYPTION_KEY env var is required in production. ' +
+      'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+    );
+  }
+
+  if (!warnedMissingKey) {
+    warnedMissingKey = true;
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[magic-link] MAGIC_LINK_ENCRYPTION_KEY not set — using dev fallback. ' +
+      'Set this env var before going to production (it is NOT rotatable).'
+    );
+  }
+  return crypto.createHash('sha256').update(devFallbackMaterial()).digest();
+};
+
+/**
+ * Returns the pepper used to salt OTP code hashes.
+ * The pepper is public-by-design among plugin users, but must not be
+ * the published default, otherwise anyone who dumps the DB can rainbow-
+ * attack the 10^6 OTP space in seconds.
+ */
+const getOtpPepper = () => {
+  const raw = process.env.MAGIC_LINK_OTP_PEPPER || process.env.OTP_PEPPER;
+  if (raw && raw.length >= 16) {
+    return raw;
+  }
+
+  if (isProduction()) {
+    throw new Error(
+      '[magic-link] MAGIC_LINK_OTP_PEPPER env var is required in production ' +
+      '(min 16 characters). Generate one with: ' +
+      'node -e "console.log(require(\'crypto\').randomBytes(24).toString(\'hex\'))"'
+    );
+  }
+
+  if (!warnedMissingPepper) {
+    warnedMissingPepper = true;
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[magic-link] MAGIC_LINK_OTP_PEPPER not set — using dev fallback. ' +
+      'Set this before deploying to production.'
+    );
+  }
+  return 'magic-link-otp-dev-pepper-DO-NOT-USE-IN-PRODUCTION';
 };
 
 /**
@@ -85,38 +161,45 @@ const encrypt = (value) => {
 };
 
 /**
- * Decrypt a value encrypted with encrypt()
- * @param {string} encryptedValue - Encrypted value (base64)
- * @returns {string} - Decrypted value
+ * Decrypt a value encrypted with encrypt().
+ *
+ * SECURITY: This function is strict. If the ciphertext is malformed,
+ * truncated, or the auth tag does not verify, an Error is thrown. We never
+ * return the raw input on failure — doing so would allow an attacker with
+ * DB write access to downgrade an encrypted secret to plaintext by simply
+ * corrupting the base64 wrapper.
+ *
+ * @param {string} encryptedValue - Encrypted value (base64 from encrypt())
+ * @returns {string|null} Decrypted UTF-8 string, or null if input was null
+ * @throws {Error} If the value is not in the expected iv:tag:ct format
+ *                 or if authenticated decryption fails.
  */
 const decrypt = (encryptedValue) => {
   if (!encryptedValue) return null;
-  
-  try {
-    const key = getEncryptionKey();
-    const data = Buffer.from(encryptedValue, 'base64').toString('utf8');
-    const [ivHex, authTagHex, encryptedHex] = data.split(':');
-    
-    if (!ivHex || !authTagHex || !encryptedHex) {
-      // Not encrypted format, return as-is (for backwards compatibility)
-      return encryptedValue;
-    }
-    
-    const iv = Buffer.from(ivHex, 'hex');
-    const authTag = Buffer.from(authTagHex, 'hex');
-    
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-    decipher.setAuthTag(authTag);
-    
-    let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    
-    return decrypted;
-  } catch (error) {
-    // If decryption fails, assume it's not encrypted (backwards compatibility)
-    console.warn('[Crypto] Decryption failed, returning original value');
-    return encryptedValue;
+
+  const key = getEncryptionKey();
+  const data = Buffer.from(encryptedValue, 'base64').toString('utf8');
+  const parts = data.split(':');
+
+  if (parts.length !== 3) {
+    throw new Error('[Crypto] decrypt: malformed ciphertext (expected iv:tag:ct)');
   }
+
+  const [ivHex, authTagHex, encryptedHex] = parts;
+  if (!ivHex || !authTagHex || !encryptedHex) {
+    throw new Error('[Crypto] decrypt: missing ciphertext components');
+  }
+
+  const iv = Buffer.from(ivHex, 'hex');
+  const authTag = Buffer.from(authTagHex, 'hex');
+
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(authTag);
+
+  let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+
+  return decrypted;
 };
 
 /**
@@ -129,14 +212,14 @@ const generateSecureRandom = (length = 32) => {
 };
 
 /**
- * Hash OTP code for secure storage (with timing-safe comparison)
+ * Hash OTP code for secure storage (with timing-safe comparison).
+ * Uses getOtpPepper() which enforces env presence in production.
  * @param {string} code - OTP code to hash
- * @returns {string} - Hashed code
+ * @returns {string|null} - Hex SHA-256 digest, or null if code is empty
  */
 const hashOTP = (code) => {
   if (!code) return null;
-  // OTP codes are short, so we add pepper for additional security
-  const pepper = process.env.OTP_PEPPER || 'magic-link-otp-pepper';
+  const pepper = getOtpPepper();
   return crypto.createHash('sha256')
     .update(code + pepper)
     .digest('hex');

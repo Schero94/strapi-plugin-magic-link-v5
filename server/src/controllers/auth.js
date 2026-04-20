@@ -5,14 +5,17 @@
  * @description: A set of functions called "actions" for managing `Auth`.
  */
 
-const { sanitize } = require('@strapi/utils');
 const _ = require('lodash');
 const { nanoid } = require('nanoid');
 const i18n = require('../utils/i18n');
 const cryptoUtils = require('../utils/crypto');
-
-// Email regex pattern - simplified to avoid ReDoS attacks
-const emailRegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const { appendJwtSession } = require('../utils/jwt-session-store');
+const {
+  sendLinkSchema,
+  mfaVerifyTotpSchema,
+  loginWithTotpSchema,
+  parseBody,
+} = require('./validation');
 
 module.exports = {
   /**
@@ -100,21 +103,40 @@ module.exports = {
       });
     }
 
-    // Check if MFA with TOTP is required (Szenario 1: Magic Link + TOTP)
-    if (settings.mfa_require_totp) {
+    // Check whether Magic Link must be followed by a TOTP challenge.
+    //
+    // `mfa_mode` is the authoritative switch:
+    //   'disabled' → TOTP step always skipped
+    //   'optional' → only prompted when the user has TOTP configured+enabled
+    //   'required' → every user MUST configure TOTP; logins without it fail
+    //
+    // The legacy `mfa_require_totp` flag maps to 'required' for
+    // backwards compatibility with existing installs. If both are set,
+    // mfa_mode wins.
+    const mfaMode = ['disabled', 'optional', 'required'].includes(settings.mfa_mode)
+      ? settings.mfa_mode
+      : (settings.mfa_require_totp ? 'required' : 'disabled');
+
+    if (mfaMode !== 'disabled') {
       const otpService = strapi.plugin('magic-link').service('otp');
-      
-      // Check if user has TOTP enabled using Document Service API
+
       const users = await strapi.documents('plugin::users-permissions.user').findMany({
         filters: { email: token.email },
         limit: 1,
       });
       const user = users && users.length > 0 ? users[0] : null;
-      
+
       if (user) {
         const totpStatus = await otpService.getTOTPStatus(user.id);
-        
-        // If user has TOTP configured and enabled, require verification
+
+        // Mode: required — user MUST have TOTP configured. Block otherwise.
+        if (mfaMode === 'required' && !(totpStatus.configured && totpStatus.enabled)) {
+          return ctx.badRequest(
+            'TOTP is required but not yet configured for this account. Please set up TOTP in your profile and try again.'
+          );
+        }
+
+        // Mode: optional/required — if TOTP is enabled, force the challenge.
         if (totpStatus.configured && totpStatus.enabled) {
           // Mark token as requiring TOTP verification using Document Service API
           await strapi.documents('plugin::magic-link.token').update({
@@ -245,55 +267,47 @@ module.exports = {
       expiresAt.setDate(expiresAt.getDate() + 30);
     }
     
-    try {
-      // Speichere die JWT-Session im Plugin-Store
-      const pluginStore = strapi.store({
-        type: 'plugin',
-        name: 'magic-link',
-      });
-      
-      // Hole aktuelle JWT-Sessions oder initialisiere leere Liste
-      const jwtSessions = (await pluginStore.get({ key: 'jwt_sessions' })) || { sessions: [] };
-      
-      // Erstelle eine neue Session mit einer eindeutigen ID (cryptographically secure)
-      const sessionId = `session_${Date.now()}_${nanoid(12)}`;
-      
-      jwtSessions.sessions.push({
-        id: sessionId,
-        userId: user.id,
-        userEmail: user.email,
-        username: user.username || user.email.split('@')[0],
-        jwtTokenHash: cryptoUtils.hashJwt(jwtToken),
-        createdAt: new Date().toISOString(),
-        expiresAt: expiresAt.toISOString(),
-        isRevoked: false,
-        ipAddress: requestInfo.ipAddress,
-        userAgent: requestInfo.userAgent,
-        source: 'Magic Link Login',
-        lastUsedAt: new Date().toISOString(),
-        context: sanitizedContext,
-      });
-      
-      // Speichere aktualisierte Liste
-      await pluginStore.set({ key: 'jwt_sessions', value: jwtSessions });
-    } catch (error) {
-      console.error("Fehler beim Speichern der JWT-Session:", error);
-      // Hier nicht abbrechen, damit der Login trotzdem funktioniert
-    }
+    await appendJwtSession(strapi, {
+      id: `session_${Date.now()}_${nanoid(12)}`,
+      userId: user.id,
+      userEmail: user.email,
+      username: user.username || user.email.split('@')[0],
+      jwtTokenHash: cryptoUtils.hashJwt(jwtToken),
+      createdAt: new Date().toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      isRevoked: false,
+      ipAddress: requestInfo.ipAddress,
+      userAgent: requestInfo.userAgent,
+      source: 'Magic Link Login',
+      lastUsedAt: new Date().toISOString(),
+      context: sanitizedContext,
+    });
     
-    ctx.send({
-      jwt: jwtToken,
+    // `use_jwt_token` lets the admin suppress the JWT in the response
+    // body. This is useful for SSO-style integrations where an external
+    // system (e.g. a reverse proxy or session broker) issues the real
+    // token AFTER Magic-Link validation. In that case the response only
+    // confirms "this user clicked a valid link".
+    const issueJwtInResponse = settings?.use_jwt_token !== false;
+
+    const responseBody = {
       user: sanitizedUser,
       context: sanitizedContext,
       expires_at: expiresAt.toISOString(),
       expiry_formatted: new Intl.DateTimeFormat('de-DE', {
-        year: 'numeric', 
-        month: '2-digit', 
+        year: 'numeric',
+        month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
-        minute: '2-digit'
-      }).format(expiresAt)
-    });
+        minute: '2-digit',
+      }).format(expiresAt),
+    };
+    if (issueJwtInResponse) {
+      responseBody.jwt = jwtToken;
+    } else {
+      responseBody.tokenIssued = true; // hint for clients that a session exists server-side
+    }
+    ctx.send(responseBody);
   },
 
   async sendLink(ctx) {
@@ -308,24 +322,13 @@ module.exports = {
       return i18n.sendError(ctx, 'plugin.disabled', 400);
     }
 
-    const params = _.assign(ctx.request.body);
+    const params = parseBody(sendLinkSchema, ctx.request.body);
 
-    const email = params.email ? params.email.trim().toLowerCase() : null;
+    const email = params.email || null;
     const phoneNumber = params.phoneNumber || params.phone || null;
     const context = params.context || {};
     const username = params.username || null;
-    const deliveryMethod = params.delivery || params.via || 'email'; // 'email' or 'whatsapp'
-
-    const isEmail = emailRegExp.test(email);
-
-    if (email && !isEmail) {
-      return i18n.sendError(ctx, 'wrong.email', 400);
-    }
-
-    // Validate that we have either email or phone
-    if (!email && !phoneNumber) {
-      return ctx.badRequest('Either email or phoneNumber is required');
-    }
+    const deliveryMethod = params.delivery || params.via || 'email';
     
     // Rate limiting check - both IP and email/phone
     const ipAddress = ctx.request.ip;
@@ -341,6 +344,35 @@ module.exports = {
       if (!emailCheck.allowed) {
         return ctx.tooManyRequests(`Too many requests for this email. Please try again in ${emailCheck.retryAfter} seconds.`);
       }
+    }
+
+    // Load settings once for the user-lookup / policy block.
+    const sendLinkSettings = await magicLink.settings();
+    const allowPublicRegistration = sendLinkSettings?.allow_magic_links_on_public_registration === true;
+    const requireVerifiedEmail = sendLinkSettings?.verify_email === true;
+
+    // Remember whether the user existed BEFORE we potentially auto-create
+    // them, so we can trigger the welcome email only on genuine first-time
+    // sign-ups.
+    let existingUser = null;
+    try {
+      const lookup = await strapi.documents('plugin::users-permissions.user').findMany({
+        filters: email ? { email } : { username },
+        limit: 1,
+      });
+      existingUser = (lookup && lookup[0]) || null;
+    } catch {
+      existingUser = null;
+    }
+
+    // Gate on public registration: if the user does not exist yet and the
+    // admin did NOT opt in to public-registration via Magic Link, reject.
+    // The separate `createUserIfNotExists` setting decides whether the
+    // upstream `magicLink.user(...)` is even allowed to create one — this
+    // gate adds an extra anti-scrape layer for production installs that
+    // want to accept Magic Links only from pre-existing accounts.
+    if (!existingUser && !allowPublicRegistration) {
+      return i18n.sendError(ctx, 'wrong.email', 400);
     }
 
     let user;
@@ -360,6 +392,35 @@ module.exports = {
 
     if (user.blocked) {
       return i18n.sendError(ctx, 'blocked.user', 403);
+    }
+
+    // `verify_email`: only send Magic Links to accounts whose email has
+    // been confirmed (e.g. via classic registration flow). Prevents
+    // account takeover via typosquatted email addresses.
+    if (requireVerifiedEmail && !user.confirmed && existingUser) {
+      return i18n.sendError(ctx, 'wrong.email', 400);
+    }
+
+    // `welcome_email`: if the user was just auto-created, fire a welcome
+    // mail in the background. We never block the Magic-Link flow on the
+    // welcome mail succeeding.
+    if (!existingUser && sendLinkSettings?.welcome_email === true) {
+      setImmediate(async () => {
+        try {
+          await strapi.plugin('email').service('email').send({
+            to: user.email,
+            from: sendLinkSettings?.from_email
+              ? `${sendLinkSettings.from_name || ''} <${sendLinkSettings.from_email}>`.trim()
+              : undefined,
+            replyTo: sendLinkSettings?.response_email || undefined,
+            subject: `Welcome${sendLinkSettings?.from_name ? ' to ' + sendLinkSettings.from_name : ''}!`,
+            text: `Hi ${user.username || user.email},\n\nThanks for joining. Your Magic Link is on the way.`,
+            html: `<p>Hi ${user.username || user.email},</p><p>Thanks for joining. Your Magic Link is on the way.</p>`,
+          });
+        } catch (welcomeErr) {
+          strapi.log.warn(`[magic-link] Welcome email failed for ${user.email}: ${welcomeErr.message}`);
+        }
+      });
     }
 
     try {
@@ -408,22 +469,35 @@ module.exports = {
   },
 
   /**
-   * Verify TOTP after Magic Link (MFA Flow - Szenario 1)
-   * User has clicked Magic Link and now needs to provide TOTP code
+   * Verifies a TOTP code after a successful Magic Link click (MFA scenario 1).
+   * Rate-limited per-IP and per-token to prevent brute-force against the
+   * 6-digit TOTP space.
+   *
+   * @route POST /api/magic-link/verify-mfa-totp
+   * @throws {BadRequestError} When the token/code is invalid or expired
    */
   async verifyMFATOTP(ctx) {
-    const { loginToken, totpCode } = ctx.request.body;
-    
-    if (!loginToken || !totpCode) {
-      return ctx.badRequest('Missing loginToken or totpCode');
+    const { loginToken, totpCode } = parseBody(mfaVerifyTotpSchema, ctx.request.body);
+
+    const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
+    const ipAddress = ctx.request.ip;
+    const ipCheck = await rateLimiter.checkRateLimit(ipAddress, 'otp');
+    if (!ipCheck.allowed) {
+      ctx.set('Retry-After', String(ipCheck.retryAfter));
+      return ctx.tooManyRequests(`Too many TOTP attempts. Please try again in ${ipCheck.retryAfter} seconds.`);
+    }
+    const tokenKey = `totp:${loginToken.substring(0, 32)}`;
+    const tokenCheck = await rateLimiter.checkRateLimit(tokenKey, 'otp');
+    if (!tokenCheck.allowed) {
+      ctx.set('Retry-After', String(tokenCheck.retryAfter));
+      return ctx.tooManyRequests(`Too many TOTP attempts for this login. Please try again in ${tokenCheck.retryAfter} seconds.`);
     }
 
     const magicLink = strapi.plugin('magic-link').service('magic-link');
     const otpService = strapi.plugin('magic-link').service('otp');
     const userService = strapi.plugin('users-permissions').service('user');
     const jwtService = strapi.plugin('users-permissions').service('jwt');
-    
-    // Fetch the magic link token
+
     const token = await magicLink.fetchToken(loginToken);
     
     if (!token || !token.is_active) {
@@ -537,37 +611,22 @@ module.exports = {
       expiresAt.setHours(expiresAt.getHours() + hours);
     }
     
-    // Store JWT session
-    try {
-      const pluginStore = strapi.store({
-        type: 'plugin',
-        name: 'magic-link',
-      });
-      
-      const jwtSessions = (await pluginStore.get({ key: 'jwt_sessions' })) || { sessions: [] };
-      const sessionId = `session_${Date.now()}_${nanoid(12)}`;
-      
-      jwtSessions.sessions.push({
-        id: sessionId,
-        userId: user.id,
-        userEmail: user.email,
-        username: user.username || user.email.split('@')[0],
-        jwtTokenHash: cryptoUtils.hashJwt(jwtToken),
-        createdAt: new Date().toISOString(),
-        expiresAt: expiresAt.toISOString(),
-        isRevoked: false,
-        ipAddress: requestInfo.ipAddress,
-        userAgent: requestInfo.userAgent,
-        source: 'Magic Link + TOTP (MFA)',
-        lastUsedAt: new Date().toISOString(),
-        mfaVerified: true,
-        context: mfaSanitizedContext,
-      });
-      
-      await pluginStore.set({ key: 'jwt_sessions', value: jwtSessions });
-    } catch (error) {
-      strapi.log.error('Error storing JWT session:', error);
-    }
+    await appendJwtSession(strapi, {
+      id: `session_${Date.now()}_${nanoid(12)}`,
+      userId: user.id,
+      userEmail: user.email,
+      username: user.username || user.email.split('@')[0],
+      jwtTokenHash: cryptoUtils.hashJwt(jwtToken),
+      createdAt: new Date().toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      isRevoked: false,
+      ipAddress: requestInfo.ipAddress,
+      userAgent: requestInfo.userAgent,
+      source: 'Magic Link + TOTP (MFA)',
+      lastUsedAt: new Date().toISOString(),
+      mfaVerified: true,
+      context: mfaSanitizedContext,
+    });
     
     ctx.send({
       jwt: jwtToken,
@@ -579,61 +638,72 @@ module.exports = {
   },
 
   /**
-   * Login with Email + TOTP Code directly (Szenario 2: TOTP as primary)
-   * Requires Advanced license and totp_as_primary_auth setting
+   * Passwordless login using Email + TOTP code (primary factor, scenario 2).
+   * Rate-limited per-IP and per-email. Responds with a generic error message
+   * for non-existent users or incorrect codes to prevent user enumeration.
+   *
+   * @route POST /api/magic-link/login-totp
+   * @throws {ForbiddenError} When the feature/license is not available
+   * @throws {BadRequestError} When email/code is invalid (generic message)
    */
   async loginWithTOTP(ctx) {
-    const { email, totpCode } = ctx.request.body;
-    
-    if (!email || !totpCode) {
-      return ctx.badRequest('Email and TOTP code are required');
-    }
-    
+    const { email: normalizedEmail, totpCode } = parseBody(loginWithTotpSchema, ctx.request.body);
+
     const magicLink = strapi.plugin('magic-link').service('magic-link');
     const otpService = strapi.plugin('magic-link').service('otp');
     const licenseGuard = strapi.plugin('magic-link').service('license-guard');
+    const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
     const userService = strapi.plugin('users-permissions').service('user');
     const jwtService = strapi.plugin('users-permissions').service('jwt');
-    
-    // Check if feature is enabled
+
+    const ipAddress = ctx.request.ip;
+    const ipCheck = await rateLimiter.checkRateLimit(ipAddress, 'login');
+    if (!ipCheck.allowed) {
+      ctx.set('Retry-After', String(ipCheck.retryAfter));
+      return ctx.tooManyRequests(`Too many login attempts. Please try again in ${ipCheck.retryAfter} seconds.`);
+    }
+    const emailCheck = await rateLimiter.checkRateLimit(`totp:${normalizedEmail}`, 'otp');
+    if (!emailCheck.allowed) {
+      ctx.set('Retry-After', String(emailCheck.retryAfter));
+      return ctx.tooManyRequests(`Too many TOTP attempts. Please try again in ${emailCheck.retryAfter} seconds.`);
+    }
+
     const settings = await magicLink.settings();
     if (!settings.totp_as_primary_auth) {
       return ctx.forbidden('TOTP login is not enabled');
     }
-    
-    // Check license (Advanced feature)
+
     const hasFeature = await licenseGuard.hasFeature('otp-totp');
     if (!hasFeature) {
       return ctx.forbidden('TOTP login requires Advanced license');
     }
-    
-    // Find user by email using Document Service API
+
+    const GENERIC_INVALID = 'Invalid credentials';
+
     const users = await strapi.documents('plugin::users-permissions.user').findMany({
-      filters: { email: email.trim().toLowerCase() },
+      filters: { email: normalizedEmail },
       limit: 1,
     });
     const user = users && users.length > 0 ? users[0] : null;
-    
+
     if (!user) {
-      return ctx.badRequest('User not found');
+      return ctx.badRequest(GENERIC_INVALID);
     }
-    
+
     if (user.blocked) {
-      return ctx.badRequest('blocked.user');
+      return ctx.badRequest(GENERIC_INVALID);
     }
-    
-    // Check if user has TOTP enabled
+
     const totpStatus = await otpService.getTOTPStatus(user.id);
-    
+
     if (!totpStatus.configured || !totpStatus.enabled) {
-      return ctx.badRequest('TOTP is not configured for this user');
+      return ctx.badRequest(GENERIC_INVALID);
     }
-    
-    // Verify TOTP code
+
     const verificationResult = await otpService.verifyTOTP(user.id, totpCode, false);
-    
+
     if (!verificationResult.valid) {
-      return ctx.badRequest(verificationResult.message || 'Invalid TOTP code');
+      return ctx.badRequest(GENERIC_INVALID);
     }
     
     // User is verified, proceed with login
@@ -665,36 +735,21 @@ module.exports = {
       expiresAt.setHours(expiresAt.getHours() + hours);
     }
     
-    // Store JWT session
-    try {
-      const pluginStore = strapi.store({
-        type: 'plugin',
-        name: 'magic-link',
-      });
-      
-      const jwtSessions = (await pluginStore.get({ key: 'jwt_sessions' })) || { sessions: [] };
-      const sessionId = `session_${Date.now()}_${nanoid(12)}`;
-      
-      jwtSessions.sessions.push({
-        id: sessionId,
-        userId: user.id,
-        userEmail: user.email,
-        username: user.username || user.email.split('@')[0],
-        jwtTokenHash: cryptoUtils.hashJwt(jwtToken),
-        createdAt: new Date().toISOString(),
-        expiresAt: expiresAt.toISOString(),
-        isRevoked: false,
-        ipAddress: ctx.request.ip,
-        userAgent: ctx.request.header['user-agent'],
-        source: 'TOTP Login (Primary)',
-        lastUsedAt: new Date().toISOString(),
-        totpLogin: true,
-      });
-      
-      await pluginStore.set({ key: 'jwt_sessions', value: jwtSessions });
-    } catch (error) {
-      strapi.log.error('Error storing JWT session:', error);
-    }
+    await appendJwtSession(strapi, {
+      id: `session_${Date.now()}_${nanoid(12)}`,
+      userId: user.id,
+      userEmail: user.email,
+      username: user.username || user.email.split('@')[0],
+      jwtTokenHash: cryptoUtils.hashJwt(jwtToken),
+      createdAt: new Date().toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      isRevoked: false,
+      ipAddress: ctx.request.ip,
+      userAgent: ctx.request.header['user-agent'],
+      source: 'TOTP Login (Primary)',
+      lastUsedAt: new Date().toISOString(),
+      totpLogin: true,
+    });
     
     ctx.send({
       jwt: jwtToken,

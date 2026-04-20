@@ -34,6 +34,19 @@ const magicLinkActions = {
 };
 
 module.exports = async ({ strapi }) => {
+  // Fail fast on missing production secrets. getEncryptionKey() and
+  // getOtpPepper() throw when NODE_ENV=production and their env vars are
+  // not set — eager check here turns that into a clear boot-time error
+  // instead of a runtime error on the first OTP request.
+  try {
+    const cryptoUtils = require('../utils/crypto');
+    cryptoUtils.encrypt('self-test');
+    cryptoUtils.hashOTP('000000');
+  } catch (e) {
+    strapi.log.error(`[magic-link] ${e.message}`);
+    throw e;
+  }
+
   const pluginStore = strapi.store({
     type: 'plugin',
     name: 'magic-link',
@@ -68,13 +81,19 @@ Please click on the link below to login.
 <%= URL %>?loginToken=<%= CODE %>
 Thanks.`,
       // Additional settings from passwordless-plugin
-      max_login_attempts: 3,
+      // NOTE: `max_login_attempts` is superseded by the rate_limit_* group.
+      // It remains in the UI for backwards compatibility but has no effect;
+      // brute-force protection is exclusively handled by rate_limit_enabled
+      // + rate_limit_max_attempts + rate_limit_window_minutes.
       login_path: '/magic-link/login',
       user_creation_strategy: 'email',
       verify_email: false,
       welcome_email: false,
       use_jwt_token: true,
       jwt_token_expires_in: '30d',
+      // Legacy. Use confirmationUrl (backend redirect target) and
+      // frontend_url + frontend_login_path (SPA deep-link target) instead.
+      // Kept for schema stability; the backend never reads it.
       callback_url: serverUrl,
       allow_magic_links_on_public_registration: false,
       // Rate Limiting Settings
@@ -88,7 +107,17 @@ Thanks.`,
       otp_expiry: 300,
       otp_max_attempts: 3,
       otp_resend_cooldown: 60,
-      // SMS Provider Settings (Advanced Feature)
+      // When true (recommended, default), every /otp/send and /otp/verify
+      // call MUST carry a valid magicLinkToken that originated the challenge.
+      // Set to false only for legacy integrations that expose OTP as a
+      // standalone flow. Disabling this weakens authentication significantly.
+      otp_strict_binding: true,
+      // SMS Provider Settings — reserved for a future release.
+      // The SMS-OTP path in services/otp.js currently only logs the
+      // outgoing code; wiring these values into a real provider
+      // (Twilio / Vonage) is tracked as future work. The settings are
+      // kept so that integrators can pre-fill values without losing
+      // them on upgrade.
       sms_provider: null,
       sms_api_key: '',
       sms_api_secret: '',
@@ -98,9 +127,11 @@ Thanks.`,
       totp_algorithm: 'SHA1',
       totp_digits: 6,
       totp_period: 30,
-      // MFA Settings (Premium/Advanced Feature)
-      mfa_mode: 'disabled', // 'disabled', 'optional', 'required'
-      mfa_require_totp: false, // Require TOTP after Magic Link (2FA)
+      // MFA Settings (Premium/Advanced Feature).
+      // mfa_mode is the authoritative switch; mfa_require_totp is a legacy
+      // alias that maps to mfa_mode='required' for backwards compat.
+      mfa_mode: 'disabled', // 'disabled' | 'optional' | 'required'
+      mfa_require_totp: false,
       totp_as_primary_auth: false, // Allow login with Email + TOTP only (Advanced)
       // WhatsApp Settings
       whatsapp_enabled: false,

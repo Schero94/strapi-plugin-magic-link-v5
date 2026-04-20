@@ -36,7 +36,8 @@
     "pino": "^9.5.0",
     "qrcode": "^1.5.4",
     "rate-limiter-flexible": "^5.0.5",
-    "speakeasy": "^2.0.0"
+    "speakeasy": "^2.0.0",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",

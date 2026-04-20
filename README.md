@@ -783,6 +783,71 @@ npm install strapi-plugin-email-designer-5
 
 ---
 
+## 🔑 Required Environment Variables
+
+The plugin stores secrets that must be protected across restarts and should
+not be rotated with the rest of your Strapi key material. Two env vars are
+**mandatory in production** (the plugin refuses to boot without them):
+
+```bash
+# 32+ random bytes — used as AES-256 key for TOTP secrets.
+# DO NOT ROTATE: existing TOTP secrets would become undecryptable.
+MAGIC_LINK_ENCRYPTION_KEY=<hex from: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
+
+# 16+ random bytes — pepper mixed into OTP code hashes to defeat
+# rainbow-table attacks on stored 6-digit codes if the DB is ever leaked.
+MAGIC_LINK_OTP_PEPPER=<hex from: node -e "console.log(require('crypto').randomBytes(24).toString('hex'))">
+```
+
+In non-production environments (`NODE_ENV !== 'production'`) the plugin
+falls back to derived values so local dev setups keep working — but a WARN
+is logged once per process.
+
+---
+
+## 🌐 Reverse Proxy / Rate-Limit Trust
+
+Rate limits and all audit logs identify the caller by `ctx.request.ip`,
+which Koa derives from the TCP connection by default. If your Strapi is
+behind a reverse proxy (nginx, Caddy, Cloudflare, ALB, …) you MUST:
+
+1. Enable proxy trust in `config/server.{js,ts}`:
+
+   ```js
+   module.exports = ({ env }) => ({
+     proxy: true,   // Trust X-Forwarded-For from the proxy
+     // ... rest of config
+   });
+   ```
+
+2. Configure the proxy to **strip any incoming `X-Forwarded-For`** and
+   emit only its own value. Without this, an attacker can spoof the
+   header, defeating per-IP rate limits.
+
+3. If you have multiple proxy hops, pin trust to the outermost ones via
+   Koa's `app.proxyIpHeader` / `app.maxIpsCount` (see Koa docs).
+
+A misconfigured deployment will either:
+- **Count all requests as the proxy's single IP** (everyone rate-limited together), or
+- **Trust spoofed client IPs** (per-IP rate limit effectively disabled).
+
+---
+
+## 🔐 OTP Strict Binding
+
+Starting with this release, `/otp/send`, `/otp/verify` and `/otp/resend`
+require the client to present the `magicLinkToken` they received from
+`/magic-link/login` when it returned `{ requiresOTP: true }`. This prevents
+`/otp/send` from being abused as a standalone email-bombing vector against
+arbitrary addresses and prevents `/otp/verify` from being a first-factor
+login on its own.
+
+If you have legacy integrations that must keep the old behaviour, disable
+it via settings: `otp_strict_binding: false`. Doing so emits a WARN on
+every request and is **not recommended**.
+
+---
+
 ## 🎨 Email Templates
 
 Customize your magic link emails using template variables:
