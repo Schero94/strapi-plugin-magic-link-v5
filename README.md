@@ -1073,6 +1073,49 @@ If this plugin saves you time and you'd like to support development:
 
 ---
 
+## Security Advisories & Dependency Overrides
+
+This plugin ships with a first-party dependency tree audited on every
+release, but two transitive paths are governed by upstream packages we
+do not control. If your own `npm audit` flags any of the following,
+add the matching entry to your **Strapi project's** `package.json`
+(not this plugin's — npm `overrides` only take effect on the
+root project):
+
+```jsonc
+{
+  "overrides": {
+    // GHSA-xq3m-2v4x-88gg — protobufjs <7.5.5 arbitrary code execution.
+    // Reaches us via @whiskeysockets/baileys → libsignal → protobufjs.
+    // We already ship this override for local development; apply it in
+    // your Strapi project so the fix propagates to the installed tree.
+    "protobufjs": "^7.5.5",
+
+    // Optional: if you do not use the WhatsApp delivery feature, you
+    // can also skip installing @whiskeysockets/baileys altogether:
+    //   npm install --omit=optional
+    // (The Magic-Link code path detects the missing module and
+    // disables the WhatsApp controller at runtime — the rest of the
+    // plugin keeps working.)
+  }
+}
+```
+
+After editing `package.json`, run:
+
+```bash
+rm -rf node_modules package-lock.json
+npm install
+npm audit
+```
+
+The critical `protobufjs` advisory disappears once the override is in
+place. The remaining `@strapi/design-system → lodash` advisory is a
+Strapi-core issue and will clear up automatically when you upgrade
+`@strapi/strapi` to the latest patch release.
+
+---
+
 <div align="center">
 
 **Made with ❤️ by [Schero94](https://github.com/Schero94)**
