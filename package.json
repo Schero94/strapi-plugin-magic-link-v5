@@ -54,27 +54,29 @@
   },
   "dependencies": {
     "@fortawesome/react-fontawesome": "^0.2.2",
-    "@whiskeysockets/baileys": "^7.0.0-rc.9",
-    "lodash": "^4.17.21",
-    "nanoid": "^3.3.4",
-    "pino": "^9.5.0",
+    "lodash": "^4.18.1",
+    "nanoid": "^3.3.11",
+    "pino": "^9.14.0",
     "qrcode": "^1.5.4",
     "rate-limiter-flexible": "^5.0.5",
     "speakeasy": "^2.0.0",
     "zod": "^3.25.0"
   },
+  "optionalDependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc.9"
+  },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.0",
     "@semantic-release/git": "^10.0.1",
-    "@semantic-release/github": "^11.0.2",
+    "@semantic-release/github": "^12.0.6",
     "@semantic-release/npm": "^13.1.2",
     "@semantic-release/release-notes-generator": "^14.0.1",
-    "@strapi/sdk-plugin": "^5.4.0",
+    "@strapi/sdk-plugin": "^6.0.1",
     "@strapi/strapi": "^5.36.0",
     "@vitejs/plugin-react": "^4.3.4",
     "fs-extra": "^11.3.0",
-    "prettier": "^3.5.3",
+    "prettier": "^3.8.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.0",
@@ -116,6 +118,7 @@
   },
   "homepage": "https://github.com/Schero94/strapi-plugin-magic-link-v5#readme",
   "overrides": {
-    "libsignal": "npm:@baileys-md/libsignal@2.0.1"
+    "libsignal": "npm:@baileys-md/libsignal@2.0.1",
+    "protobufjs": "^7.5.5"
   }
 }
