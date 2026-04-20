@@ -1,6 +1,22 @@
 {
   "version": "5.4.0",
-  "keywords": [],
+  "keywords": [
+    "strapi",
+    "plugin",
+    "strapi-plugin",
+    "strapi-v5",
+    "authentication",
+    "passwordless",
+    "magic-link",
+    "magic-links",
+    "email-auth",
+    "otp",
+    "totp",
+    "mfa",
+    "two-factor",
+    "users-permissions",
+    "login"
+  ],
   "type": "commonjs",
   "exports": {
     "./strapi-admin": {
@@ -19,8 +35,16 @@
   },
   "files": [
     "dist/",
-    "strapi-server.js"
+    "strapi-admin.js",
+    "strapi-server.js",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
   ],
+  "engines": {
+    "node": ">=18.0.0 <=22.x.x",
+    "npm": ">=6.0.0"
+  },
   "scripts": {
     "build": "strapi-plugin build && npm run copy:i18n",
     "copy:i18n": "mkdir -p dist/server/i18n && cp -r server/src/i18n/*.json dist/server/i18n/",
