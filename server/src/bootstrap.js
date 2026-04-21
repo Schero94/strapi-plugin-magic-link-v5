@@ -8,12 +8,21 @@
  * run jobs, or perform some special logic.
  */
 
+// IMPORTANT: every action needs `subCategory` set, otherwise Strapi 5's
+// role editor simply does not render its checkbox. Before adding the
+// explicit 'General' subCategory here, the `plugin::magic-link.access`
+// permission was invisible in Settings → Roles → Plugins → Magic Link,
+// so an admin could neither grant it to nor revoke it from a role —
+// they only saw the two Settings checkboxes (Read / Edit) and had no
+// way to control whether the plugin menu link and the License / Upgrade
+// / WhatsApp settings pages were reachable for the role.
 const magicLinkActions = {
   actions: [
     {
       section: 'plugins',
       displayName: 'Access the Magic Link plugin',
       uid: 'access',
+      subCategory: 'General',
       pluginName: 'magic-link',
     },
     {
