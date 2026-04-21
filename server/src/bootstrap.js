@@ -42,15 +42,29 @@ const magicLinkActions = {
   ],
 };
 
+// Top-level import so pack-up inlines this into the bundle.
+//
+// This used to live inside the bootstrap function below, but pack-up
+// only inlines requires declared at module top-level — a dynamic
+// require() inside a function is preserved as-is in dist/server/index.js
+// and then fails at runtime because relative paths resolve from
+// dist/server/ not from server/src/.
+//
+// The previous path was `../utils/crypto` which was always wrong even in
+// source mode (from server/src/bootstrap.js that resolves to
+// server/utils/crypto, which does not exist — the file lives at
+// server/src/utils/crypto.js). The correct relative path is
+// `./utils/crypto`.
+const cryptoUtilsSelfTest = require('./utils/crypto');
+
 module.exports = async ({ strapi }) => {
   // Fail fast on missing production secrets. getEncryptionKey() and
   // getOtpPepper() throw when NODE_ENV=production and their env vars are
   // not set — eager check here turns that into a clear boot-time error
   // instead of a runtime error on the first OTP request.
   try {
-    const cryptoUtils = require('../utils/crypto');
-    cryptoUtils.encrypt('self-test');
-    cryptoUtils.hashOTP('000000');
+    cryptoUtilsSelfTest.encrypt('self-test');
+    cryptoUtilsSelfTest.hashOTP('000000');
   } catch (e) {
     strapi.log.error(`[magic-link] ${e.message}`);
     throw e;
