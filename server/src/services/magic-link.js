@@ -12,7 +12,10 @@
 
 const _ = require('lodash');
 const { nanoid } = require('nanoid');
-const { sanitize } = require('@strapi/utils');
+// See comment in controllers/validation.js — avoid destructuring @strapi/utils
+// so the pack-up bundler does not rewrite the import into a form that
+// resolves to undefined at runtime.
+const sanitize = require('@strapi/utils').sanitize;
 const emailHelpers = require('../utils/email-helpers');
 const cryptoUtils = require('../utils/crypto');
 const { normalizeEmail } = require('../utils/email');

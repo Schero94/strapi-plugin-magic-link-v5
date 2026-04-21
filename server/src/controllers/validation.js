@@ -14,10 +14,15 @@
  *    additional fields into downstream services.
  */
 
-const { z } = require('zod');
-const { errors } = require('@strapi/utils');
-
-const { ValidationError } = errors;
+// NOTE: Do not destructure `z` / `errors` at require-time.
+// @strapi/sdk-plugin's bundler (pack-up → @rollup/plugin-commonjs) treats
+// `const { z } = require('zod')` as an ESM-style named import and rewrites it
+// to `_interopDefault(require('zod')).default.z` — which resolves to
+// `undefined` because zod 3.25+ ships as a dual ESM/CJS package whose `.default`
+// branch does NOT expose the `z` namespace object. Plain `require('zod')` and
+// subsequent property access on `z` / `errors` sidesteps the rewrite.
+const z = require('zod');
+const { ValidationError } = require('@strapi/utils').errors;
 
 // Permissive email regex matching the one used in auth.js (avoids ReDoS).
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

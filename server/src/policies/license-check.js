@@ -1,7 +1,9 @@
 'use strict';
 
-const { errors } = require('@strapi/utils');
-const { PolicyError } = errors;
+// See comment in controllers/validation.js — avoid destructuring
+// `@strapi/utils` at require time so pack-up does not rewrite the import
+// into `_interopDefault(...).default` which resolves to undefined.
+const { PolicyError } = require('@strapi/utils').errors;
 
 /**
  * License Check Policy
