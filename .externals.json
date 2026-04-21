@@ -10,6 +10,7 @@
     "prop-types",
     "yup",
     "@strapi/strapi",
+    "@strapi/utils",
     "@strapi/design-system",
     "@strapi/icons"
   ],
@@ -21,6 +22,7 @@
       "react-intl": "ReactIntl",
       "styled-components": "styled",
       "@strapi/strapi": "Strapi",
+      "@strapi/utils": "StrapiUtils",
       "@strapi/design-system": "StrapiDesignSystem",
       "@strapi/icons": "StrapiIcons"
     }
