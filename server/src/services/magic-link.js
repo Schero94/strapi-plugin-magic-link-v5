@@ -532,6 +532,71 @@ module.exports = ({ strapi }) => ({
       }
     }
 
+    // Email Designer 5: render & send via the email-designer-5 plugin's own
+    // delivery service. This mirrors the admin controller (`tokens.js#create`)
+    // so the public POST /api/magic-link/send-link endpoint behaves the same
+    // way as creating a token from the admin panel — fixes the follow-up
+    // reported in #17 where the public path silently fell back to plain email.
+    //
+    // Precedence: magic-mail wins if enabled (handled above), otherwise
+    // email-designer-5 wins, otherwise default provider. This preserves
+    // existing magic-mail user behaviour.
+    const wantsEmailDesigner = settings?.use_email_designer && settings?.email_designer_template_id;
+    const hasEmailDesignerPlugin = Boolean(strapi.plugin('email-designer-5'));
+
+    if (wantsEmailDesigner && hasEmailDesignerPlugin) {
+      const templateId = parseInt(settings.email_designer_template_id, 10);
+
+      if (!Number.isNaN(templateId) && templateId > 0) {
+        try {
+          await strapi
+            .plugin('email-designer-5')
+            .service('email')
+            .sendTemplatedEmail(
+              {
+                to: token.email,
+                from: settings.from_email
+                  ? `${settings.from_name || 'Magic Link'} <${settings.from_email}>`
+                  : undefined,
+                replyTo: settings.response_email || undefined,
+              },
+              {
+                templateReferenceId: templateId,
+                subject: settings.object || emailConfig.object,
+              },
+              {
+                ...templatePayload,
+                user: { email: token.email },
+                magicLink: loginUrl,
+                expiresAt: token.expires_at
+                  ? new Date(token.expires_at).toISOString()
+                  : undefined,
+                expiryText: expiryTextForTemplate,
+              }
+            );
+
+          strapi.log.info(
+            `Magic Link email sent via Email Designer 5 (template ${templateId}) to ${token.email}`
+          );
+          return token;
+        } catch (emailDesignerError) {
+          strapi.log.error(
+            'Email Designer 5 send failed, falling back to default provider:',
+            emailDesignerError
+          );
+          // Continue to default provider below
+        }
+      } else {
+        strapi.log.warn(
+          `Invalid Email Designer template ID: '${settings.email_designer_template_id}', falling back to default email`
+        );
+      }
+    } else if (wantsEmailDesigner && !hasEmailDesignerPlugin) {
+      strapi.log.debug(
+        'Email Designer enabled but plugin not installed — falling back to default email'
+      );
+    }
+
     // Send the email via default provider
     await strapi.plugin('email').service('email').send({
       to: token.email,
