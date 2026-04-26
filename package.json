@@ -46,11 +46,13 @@
     "npm": ">=6.0.0"
   },
   "scripts": {
+    "prebuild": "npm run lint",
     "build": "strapi-plugin build && npm run copy:i18n",
     "copy:i18n": "mkdir -p dist/server/i18n && cp -r server/src/i18n/*.json dist/server/i18n/",
     "watch": "strapi-plugin watch",
     "watch:link": "strapi-plugin watch:link",
-    "verify": "strapi-plugin verify"
+    "verify": "strapi-plugin verify",
+    "lint": "eslint \"admin/**/*.{js,jsx}\" \"server/**/*.js\" \"strapi-server.js\" \"strapi-admin.js\""
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
@@ -71,6 +73,10 @@
     "@semantic-release/release-notes-generator": "^14.0.1",
     "@strapi/sdk-plugin": "^5.4.0",
     "@strapi/strapi": "^5.36.0",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^15.15.0",
     "prettier": "^3.8.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

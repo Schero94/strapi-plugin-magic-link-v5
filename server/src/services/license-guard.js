@@ -12,6 +12,11 @@
 
 const crypto = require('crypto');
 const os = require('os');
+// Hoisted so it's reachable from `catch` blocks (the fallback paths in
+// getMaxTokens/getMaxSessions/getMaxIPBans returned `features.free.*`,
+// which would itself throw a ReferenceError if the `try` had errored
+// before the in-block `require` ran).
+const features = require('../config/features');
 
 // FIXED LICENSE SERVER URL - DO NOT MODIFY!
 // This URL is hardcoded and cannot be overridden for security reasons.
@@ -481,7 +486,6 @@ module.exports = ({ strapi }) => ({
    */
   async hasFeature(featureName) {
     try {
-      const features = require('../config/features');
       const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
       const licenseKey = await pluginStore.get({ key: 'licenseKey' });
       
@@ -503,7 +507,6 @@ module.exports = ({ strapi }) => ({
    */
   async getMaxTokens() {
     try {
-      const features = require('../config/features');
       const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
       const licenseKey = await pluginStore.get({ key: 'licenseKey' });
       
@@ -525,7 +528,6 @@ module.exports = ({ strapi }) => ({
    */
   async getMaxSessions() {
     try {
-      const features = require('../config/features');
       const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
       const licenseKey = await pluginStore.get({ key: 'licenseKey' });
       
@@ -547,7 +549,6 @@ module.exports = ({ strapi }) => ({
    */
   async getMaxIPBans() {
     try {
-      const features = require('../config/features');
       const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
       const licenseKey = await pluginStore.get({ key: 'licenseKey' });
       
@@ -569,7 +570,6 @@ module.exports = ({ strapi }) => ({
    */
   async getAvailableOTPTypes() {
     try {
-      const features = require('../config/features');
       const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
       const licenseKey = await pluginStore.get({ key: 'licenseKey' });
       

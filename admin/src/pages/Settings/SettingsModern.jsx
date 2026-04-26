@@ -280,6 +280,10 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
   const [textEditorHeight, setTextEditorHeight] = useState(300);
   const [licenseInfo, setLicenseInfo] = useState(null);
   const [magicMailTemplates, setMagicMailTemplates] = useState([]);
+  // Templates from strapi-plugin-email-designer-5 (only loaded when that plugin is installed).
+  // Always defaulted to [] so .map/.length on the JSX side are safe even if the fetch fails
+  // or the plugin is not installed.
+  const [emailTemplates, setEmailTemplates] = useState([]);
 
   const placeholderList = useMemo(() => ([
     {
@@ -400,21 +404,29 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
     }
   }, [get, toggleNotification, formatMessage]);
   
-  // Load email templates when Email Designer is installed
+  // Load email templates when Email Designer 5 is installed.
+  // The /email-designer-5/templates endpoint may return either a raw array or a wrapped
+  // { data: [...] } / { templates: [...] } payload depending on the installed version,
+  // so we normalise defensively and always fall back to [] on any error.
   useEffect(() => {
     const fetchEmailTemplates = async () => {
-      if (emailDesignerInstalled) {
-        try {
-          const response = await get('/email-designer-5/templates');
-          if (response && response.data) {
-            setEmailTemplates(response.data);
-          }
-        } catch (error) {
-          console.error('Error fetching email templates:', error);
-        }
+      if (!emailDesignerInstalled) return;
+
+      try {
+        const response = await get('/email-designer-5/templates');
+        const payload = response?.data;
+        const templates = Array.isArray(payload)
+          ? payload
+          : payload?.data || payload?.templates || [];
+
+        setEmailTemplates(templates);
+        console.log(`✅ Email Designer templates loaded: ${templates.length}`);
+      } catch (error) {
+        console.error('❌ Error fetching email templates:', error);
+        setEmailTemplates([]);
       }
     };
-    
+
     fetchEmailTemplates();
   }, [emailDesignerInstalled, get]);
 
