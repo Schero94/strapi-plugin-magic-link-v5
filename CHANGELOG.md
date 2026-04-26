@@ -1,3 +1,10 @@
+## [5.5.6](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v5.5.5...v5.5.6) (2026-04-26)
+
+
+### Bug Fixes
+
+* **settings:** declare emailTemplates state and harden email-designer integration ([d9e6240](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/d9e62405942ca6432c006b863d0c7a3a9eedba42)), closes [#17](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/17) [#17](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/17) [#17](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/17)
+
 ## [5.5.5](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v5.5.4...v5.5.5) (2026-04-21)
 
 
