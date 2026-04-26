@@ -1,3 +1,10 @@
+## [5.5.7](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v5.5.6...v5.5.7) (2026-04-26)
+
+
+### Bug Fixes
+
+* **send-link:** use Email Designer 5 template on public endpoint ([8e0abbc](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/8e0abbc3f479b5a41d5a56c081592c2a2f4daffa)), closes [#17](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/17) [#17](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/17)
+
 ## [5.5.6](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v5.5.5...v5.5.6) (2026-04-26)
 
 
