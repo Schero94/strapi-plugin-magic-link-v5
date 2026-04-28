@@ -280,9 +280,14 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
   const [textEditorHeight, setTextEditorHeight] = useState(300);
   const [licenseInfo, setLicenseInfo] = useState(null);
   const [magicMailTemplates, setMagicMailTemplates] = useState([]);
-  // Templates from strapi-plugin-email-designer-5 (only loaded when that plugin is installed).
-  // Always defaulted to [] so .map/.length on the JSX side are safe even if the fetch fails
-  // or the plugin is not installed.
+  // Templates from the optional 3rd-party `strapi-plugin-email-designer-5`.
+  // Kept separate from `magicMailTemplates` because the API shapes differ.
+  // Was missing in a previous refactor and crashed the entire Settings page
+  // on render whenever both `Compatibility → Designer` and
+  // `Email Settings → Use Email Templates` were enabled
+  // (ReferenceError: emailTemplates is not defined). See issue #17.
+  // Always defaulted to [] so .map/.length on the JSX side are safe even
+  // if the fetch fails or the plugin is not installed.
   const [emailTemplates, setEmailTemplates] = useState([]);
 
   const placeholderList = useMemo(() => ([
@@ -414,6 +419,12 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
 
       try {
         const response = await get('/email-designer-5/templates');
+        // Different versions of strapi-plugin-email-designer-5 return
+        // either a bare array, a Strapi v4-style `{ data: [...] }`, or a
+        // wrapped `{ templates: [...] }`. Be defensive against all three
+        // so a schema drift in the upstream plugin can't crash the
+        // Settings page (which then locks the admin out of every other
+        // setting in this UI).
         const payload = response?.data;
         const templates = Array.isArray(payload)
           ? payload
