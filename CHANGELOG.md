@@ -1,3 +1,10 @@
+## [5.5.9](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v5.5.8...v5.5.9) (2026-05-03)
+
+
+### Bug Fixes
+
+* trigger release for plugin always-on refactor ([2ed54eb](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/2ed54eb228bccc84f1cd013741f98de69edf2268))
+
 ## [5.5.8](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v5.5.7...v5.5.8) (2026-05-03)
 
 
