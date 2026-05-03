@@ -1,3 +1,10 @@
+## [5.5.8](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v5.5.7...v5.5.8) (2026-05-03)
+
+
+### Bug Fixes
+
+* **settings:** declare missing emailTemplates state — closes [#17](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/17) ([6ee2740](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/6ee2740c62e7772e5cfa8904416ab64be84bab5e))
+
 ## [5.5.7](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v5.5.6...v5.5.7) (2026-04-26)
 
 
