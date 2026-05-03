@@ -1,33 +1,37 @@
 /**
  * License Guard Service
- * Handles license creation, verification, and ping tracking.
  *
- * All outbound HTTP calls are wrapped in `fetchWithTimeout` which adds
- * a hard timeout via AbortController plus one automatic retry. Without
- * this guard a slow (or cold-starting) license server would block the
- * plugin boot for the full default node-fetch timeout — producing
- * spurious "This operation was aborted" warnings and stalling the
- * admin panel.
+ * Marketplace refactor (Strategy B):
+ * - All user-facing features are unconditionally available — this service
+ *   no longer gates anything in the runtime path.
+ * - The license-key activation flow in the admin UI is preserved as a
+ *   cosmetic / branding step. When the admin enters a key it is still
+ *   verified once against the upstream license server, but no periodic
+ *   ping is started and no feature is unlocked or locked based on the
+ *   result.
+ * - All "feature gate" helpers (`hasFeature`, `getMax*`,
+ *   `getAvailableOTPTypes`, `getLicenseTierInfo`) now return permissive
+ *   constants. They are kept so callers in legacy code paths keep working
+ *   without TypeError, but they always permit.
+ *
+ * Outbound HTTP is wrapped in `fetchWithTimeout` (AbortController + 1
+ * retry) so a slow license server cannot stall plugin boot or the
+ * admin-side key save.
  */
+
+'use strict';
 
 const crypto = require('crypto');
 const os = require('os');
-// Hoisted so it's reachable from `catch` blocks (the fallback paths in
-// getMaxTokens/getMaxSessions/getMaxIPBans returned `features.free.*`,
-// which would itself throw a ReferenceError if the `try` had errored
-// before the in-block `require` ran).
-const features = require('../config/features');
 
-// FIXED LICENSE SERVER URL - DO NOT MODIFY!
-// This URL is hardcoded and cannot be overridden for security reasons.
-// Any attempt to modify this will break license validation.
 const LICENSE_SERVER_URL = 'https://magicapi.fitlex.me';
 
 // 12s default tolerates a cold-start on the license server (serverless
 // containers need 5–10s for the first TLS handshake). Configurable via
 // MAGIC_LICENSE_TIMEOUT_MS for unusually fast or slow networks.
 const envTimeout = Number(process.env.MAGIC_LICENSE_TIMEOUT_MS);
-const DEFAULT_FETCH_TIMEOUT_MS = Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : 12000;
+const DEFAULT_FETCH_TIMEOUT_MS =
+  Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : 12000;
 const FETCH_RETRIES = 1;
 const FETCH_RETRY_BACKOFF_MS = 750;
 
@@ -44,14 +48,16 @@ const FETCH_RETRY_BACKOFF_MS = 750;
  */
 async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS) {
   let lastError;
-  for (let attempt = 0; attempt <= FETCH_RETRIES; attempt++) {
+  for (let attempt = 0; attempt <= FETCH_RETRIES; attempt += 1) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
+      // eslint-disable-next-line no-await-in-loop
       return await fetch(url, { ...options, signal: controller.signal });
     } catch (err) {
       lastError = err;
       if (attempt < FETCH_RETRIES) {
+        // eslint-disable-next-line no-await-in-loop
         await new Promise((r) => setTimeout(r, FETCH_RETRY_BACKOFF_MS));
         continue;
       }
@@ -64,44 +70,47 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_FETCH_TIM
 }
 
 module.exports = ({ strapi }) => ({
+  // ======================================================================
+  // Network helpers (used only during admin-side key activation)
+  // ======================================================================
+
   /**
-   * Get license server URL (hardcoded and immutable for security)
-   * @returns {string} The fixed license server URL
+   * License server URL. Hard-coded — kept simple because the only call
+   * site is the admin-side activation form. Not user-configurable.
+   * @returns {string}
    */
   getLicenseServerUrl() {
-    // Always return the hardcoded URL - no environment variable override allowed
     return LICENSE_SERVER_URL;
   },
 
   /**
-   * Generate a unique device ID based on machine identifiers
+   * Hashed device identifier used by the upstream activation server to
+   * de-duplicate seats. Hash of MAC addresses + hostname; the raw values
+   * never leave the host.
+   * @returns {string}
    */
   generateDeviceId() {
     try {
       const networkInterfaces = os.networkInterfaces();
       const macAddresses = [];
-      
-      // Collect MAC addresses
-      Object.values(networkInterfaces).forEach(interfaces => {
-        interfaces.forEach(iface => {
+      Object.values(networkInterfaces).forEach((interfaces) => {
+        interfaces.forEach((iface) => {
           if (iface.mac && iface.mac !== '00:00:00:00:00:00') {
             macAddresses.push(iface.mac);
           }
         });
       });
-      
-      // Create hash from MAC addresses and hostname
       const identifier = `${macAddresses.join('-')}-${os.hostname()}`;
       return crypto.createHash('sha256').update(identifier).digest('hex').substring(0, 32);
     } catch (error) {
       strapi.log.error('Error generating device ID:', error);
-      // Fallback to random ID
-      return crypto.randomBytes(16).digest('hex');
+      return crypto.randomBytes(16).toString('hex');
     }
   },
 
   /**
-   * Get device name
+   * Friendly device name for the activation payload.
+   * @returns {string}
    */
   getDeviceName() {
     try {
@@ -112,14 +121,15 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Get server IP address
+   * First non-internal IPv4 address. Best-effort, used in the activation
+   * payload only.
+   * @returns {string}
    */
   getIpAddress() {
     try {
       const networkInterfaces = os.networkInterfaces();
       for (const name of Object.keys(networkInterfaces)) {
         for (const iface of networkInterfaces[name]) {
-          // Skip internal and non-IPv4 addresses
           if (iface.family === 'IPv4' && !iface.internal) {
             return iface.address;
           }
@@ -132,14 +142,24 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Get user agent (server context)
+   * Server-side user-agent string for the activation payload.
+   * @returns {string}
    */
   getUserAgent() {
     return `Strapi/${strapi.config.info.strapi} Node/${process.version} ${os.platform()}/${os.release()}`;
   },
 
+  // ======================================================================
+  // License creation / verification (admin activation path only)
+  // ======================================================================
+
   /**
-   * Create a license
+   * Create a license on the upstream activation server. Used by the
+   * admin "auto-create" / "create" flows. Failure to create is non-fatal
+   * — the plugin keeps working, the user just doesn't get a key.
+   *
+   * @param {{ email: string, firstName?: string, lastName?: string }} args
+   * @returns {Promise<object|null>} Upstream license payload, or null on failure
    */
   async createLicense({ email, firstName, lastName }) {
     try {
@@ -151,9 +171,7 @@ module.exports = ({ strapi }) => ({
       const licenseServerUrl = this.getLicenseServerUrl();
       const response = await fetchWithTimeout(`${licenseServerUrl}/api/licenses/create`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
           firstName,
@@ -168,464 +186,226 @@ module.exports = ({ strapi }) => ({
       });
 
       const data = await response.json();
-
       if (data.success) {
-        strapi.log.info('[SUCCESS] License created successfully:', data.data.licenseKey);
+        strapi.log.info('[SUCCESS] License created:', data.data.licenseKey);
         return data.data;
-      } else {
-        strapi.log.error('[ERROR] License creation failed:', data);
-        return null;
       }
+      strapi.log.warn('[WARNING] License creation rejected by server:', data.message || 'unknown');
+      return null;
     } catch (error) {
-      strapi.log.error('[ERROR] Error creating license:', error);
+      strapi.log.error('[ERROR] Error creating license:', error.message);
       return null;
     }
   },
 
   /**
-   * Verify a license (with grace period support)
+   * Verify a license against the upstream activation server.
+   * Called once when the admin saves a license key — never during
+   * runtime feature checks, never on a schedule.
+   *
+   * @param {string} licenseKey
+   * @returns {Promise<{valid: boolean, data: object|null}>}
    */
-  async verifyLicense(licenseKey, allowGracePeriod = false) {
+  async verifyLicense(licenseKey) {
     try {
-      // Create timeout for fetch
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-      
       const licenseServerUrl = this.getLicenseServerUrl();
       const response = await fetchWithTimeout(`${licenseServerUrl}/api/licenses/verify`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           licenseKey,
           pluginName: 'magic-link',
           productName: 'Magic Link - Passwordless Authentication',
         }),
-        signal: controller.signal,
       });
-      
-      clearTimeout(timeoutId);
 
       const data = await response.json();
-
       if (data.success) {
-        const isValid = data.data.isActive && !data.data.isExpired;
-        
-        // Store last validation timestamp
+        const isValid = !!(data.data && data.data.isActive && !data.data.isExpired);
         if (isValid) {
-          const pluginStore = strapi.store({ 
-            type: 'plugin', 
-            name: 'magic-link' 
-          });
+          const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
           await pluginStore.set({ key: 'lastValidated', value: new Date().toISOString() });
         }
-        
-        return {
-          valid: isValid,
-          data: data.data,
-        };
-      } else {
-        strapi.log.warn(`[WARNING] License verification failed: ${data.message || 'Unknown error'} (Key: ${licenseKey?.substring(0, 8)}...)`);
-        return { valid: false, data: null };
+        return { valid: isValid, data: data.data };
       }
-    } catch (error) {
-      // If grace period is allowed, accept the key anyway
-      if (allowGracePeriod) {
-        strapi.log.warn(`[WARNING] Cannot verify license online: ${error.message} (Key: ${licenseKey?.substring(0, 8)}...)`);
-        strapi.log.info(`[INFO] Grace period active - accepting stored license key`);
-        return { valid: true, data: null, gracePeriod: true };
-      }
-      
-      strapi.log.error(`[ERROR] Error verifying license: ${error.message} (Key: ${licenseKey?.substring(0, 8)}...)`);
+      strapi.log.warn(
+        `[WARNING] License verification failed: ${data.message || 'Unknown error'} (Key: ${licenseKey?.substring(0, 8)}...)`
+      );
       return { valid: false, data: null };
-    }
-  },
-
-  /**
-   * Ping a license (lightweight check)
-   */
-  async pingLicense(licenseKey) {
-    try {
-      const licenseServerUrl = this.getLicenseServerUrl();
-      const response = await fetchWithTimeout(`${licenseServerUrl}/api/licenses/ping`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          licenseKey,
-          pluginName: 'magic-link',
-          productName: 'Magic Link - Passwordless Authentication',
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        strapi.log.debug(`[PING] License ping successful: ${data.data?.isActive ? 'ACTIVE' : 'INACTIVE'} (Key: ${licenseKey?.substring(0, 8)}...)`);
-        return data.data;
-      } else {
-        strapi.log.debug(`[WARNING] License ping failed: ${data.message || 'Unknown error'} (Key: ${licenseKey?.substring(0, 8)}...)`);
-        return null;
-      }
     } catch (error) {
-      strapi.log.debug(`License ping error: ${error.message} (Key: ${licenseKey?.substring(0, 8)}...)`);
-      return null;
+      strapi.log.warn(
+        `[WARNING] License server unreachable during activation: ${error.message} ` +
+          `(Key: ${licenseKey?.substring(0, 8)}...). Activation will not block this install.`
+      );
+      // We intentionally do NOT block on a network error here. The plugin
+      // is fully functional without a key, so a temporarily unreachable
+      // license server should not prevent the admin from saving one.
+      return { valid: false, data: null, networkError: true };
     }
   },
 
   /**
-   * Upgrade a license
-   */
-  async upgradeLicense(licenseId, features) {
-    try {
-      const licenseServerUrl = this.getLicenseServerUrl();
-      const response = await fetchWithTimeout(`${licenseServerUrl}/api/licenses/${licenseId}/upgrade`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(features),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        strapi.log.info('[SUCCESS] License upgraded:', licenseId);
-        return data.data;
-      } else {
-        strapi.log.error('[ERROR] License upgrade failed:', licenseId);
-        return null;
-      }
-    } catch (error) {
-      strapi.log.error('[ERROR] Error upgrading license:', error);
-      return null;
-    }
-  },
-
-  /**
-   * Get license by key
+   * Look up a license by key on the upstream server. Used by the admin
+   * License page to display details. Network failures yield null.
+   *
+   * @param {string} licenseKey
+   * @returns {Promise<object|null>}
    */
   async getLicenseByKey(licenseKey) {
     try {
       const licenseServerUrl = this.getLicenseServerUrl();
       const response = await fetchWithTimeout(`${licenseServerUrl}/api/licenses/key/${licenseKey}`);
       const data = await response.json();
-
-      if (data.success) {
-        return data.data;
-      }
+      if (data.success) return data.data;
       return null;
     } catch (error) {
-      strapi.log.error('[ERROR] Error fetching license by key:', error);
+      strapi.log.warn('[WARNING] Could not fetch license by key:', error.message);
       return null;
     }
   },
 
   /**
-   * Get licenses by email
+   * Look up licenses by user email. Used by admin "auto-create" to
+   * decide whether to reuse an existing key.
+   *
+   * @param {string} email
+   * @returns {Promise<Array>}
    */
   async getLicensesByEmail(email) {
     try {
       const licenseServerUrl = this.getLicenseServerUrl();
-      const response = await fetchWithTimeout(`${licenseServerUrl}/api/licenses/email/${encodeURIComponent(email)}`);
+      const response = await fetchWithTimeout(
+        `${licenseServerUrl}/api/licenses/email/${encodeURIComponent(email)}`
+      );
       const data = await response.json();
-
-      if (data.success) {
-        return data.data;
-      }
+      if (data.success) return data.data;
       return [];
     } catch (error) {
-      strapi.log.error('[ERROR] Error fetching licenses by email:', error);
+      strapi.log.warn('[WARNING] Could not fetch licenses by email:', error.message);
       return [];
     }
   },
 
-  /**
-   * Get online statistics
-   */
-  async getOnlineStats() {
-    try {
-      const licenseServerUrl = this.getLicenseServerUrl();
-      const response = await fetchWithTimeout(`${licenseServerUrl}/api/licenses/stats/online`);
-      const data = await response.json();
-
-      if (data.success) {
-        return data.data;
-      }
-      return null;
-    } catch (error) {
-      strapi.log.error('[ERROR] Error fetching online stats:', error);
-      return null;
-    }
-  },
+  // ======================================================================
+  // Storage (plugin store)
+  // ======================================================================
 
   /**
-   * Start periodic pinging for a license
-   */
-  startPinging(licenseKey, intervalMinutes = 15) {
-    const intervalMs = intervalMinutes * 60 * 1000;
-    
-    // Immediate ping
-    this.pingLicense(licenseKey);
-    
-    // Setup interval
-    const pingInterval = setInterval(async () => {
-      await this.pingLicense(licenseKey);
-    }, intervalMs);
-    
-    return pingInterval;
-  },
-
-  /**
-   * Initialize license guard
-   * Checks for existing license or prompts for creation
-   */
-  async initialize() {
-    try {
-      // Check if license key exists in plugin store
-      const pluginStore = strapi.store({ 
-        type: 'plugin', 
-        name: 'magic-link' 
-      });
-      let licenseKey = await pluginStore.get({ key: 'licenseKey' });
-
-      // Check last validation timestamp
-      const lastValidated = await pluginStore.get({ key: 'lastValidated' });
-      const now = new Date();
-      const gracePeriodHours = 24;
-      let withinGracePeriod = false;
-      
-      if (lastValidated) {
-        const lastValidatedDate = new Date(lastValidated);
-        const hoursSinceValidation = (now - lastValidatedDate) / (1000 * 60 * 60);
-        withinGracePeriod = hoursSinceValidation < gracePeriodHours;
-      }
-
-      if (licenseKey) {
-        // Always allow grace period during initialization (server might not be ready yet)
-        const verification = await this.verifyLicense(licenseKey, true);
-        
-        if (verification.valid) {
-          // Start pinging
-          const pingInterval = this.startPinging(licenseKey, 15);
-          
-          // Store interval for cleanup
-          strapi.licenseGuard = {
-            licenseKey,
-            pingInterval,
-            data: verification.data,
-          };
-          
-          return { valid: true, data: verification.data };
-        } else {
-          strapi.log.warn('[WARNING] Stored license is invalid or expired');
-          // Only clear if we got a definitive rejection (not a network error during grace period)
-          if (!withinGracePeriod) {
-            await pluginStore.delete({ key: 'licenseKey' });
-            await pluginStore.delete({ key: 'lastValidated' });
-          }
-        }
-      }
-
-      strapi.log.warn('[WARNING] No valid license found. Plugin will run in demo mode.');
-      
-      return { valid: false, demo: true };
-    } catch (error) {
-      strapi.log.error('[ERROR] Error initializing license guard:', error);
-      return { valid: false, error: error.message };
-    }
-  },
-
-  /**
-   * Store license key after creation
+   * Persist a license key to the plugin store. Used by the admin
+   * activation form.
+   *
+   * @param {string} licenseKey
+   * @returns {Promise<boolean>}
    */
   async storeLicenseKey(licenseKey) {
     try {
-      strapi.log.info(`[LICENSE] Storing license key: ${licenseKey?.substring(0, 8)}...`);
-      const pluginStore = strapi.store({ 
-        type: 'plugin', 
-        name: 'magic-link' 
-      });
-      
+      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
       await pluginStore.set({ key: 'licenseKey', value: licenseKey });
-      // Store initial validation timestamp
       await pluginStore.set({ key: 'lastValidated', value: new Date().toISOString() });
-      
-      // Verify it was stored
-      const stored = await pluginStore.get({ key: 'licenseKey' });
-      if (stored === licenseKey) {
-        strapi.log.info('[SUCCESS] License key stored and verified successfully');
-        return true;
-      } else {
-        strapi.log.error('[ERROR] License key storage verification failed');
-        return false;
-      }
+      strapi.log.info('[SUCCESS] License key stored');
+      return true;
     } catch (error) {
-      strapi.log.error('[ERROR] Error storing license key:', error);
+      strapi.log.error('[ERROR] Error storing license key:', error.message);
       return false;
     }
   },
 
+  // ======================================================================
+  // Lifecycle (no-ops in the marketplace build)
+  // ======================================================================
 
   /**
-   * Cleanup on plugin destroy
+   * Boot-time initializer. In the marketplace build this is a no-op:
+   * we do not auto-verify the stored key and we do not start a periodic
+   * ping. Kept as a stable export so bootstrap.js continues to work.
+   *
+   * @returns {Promise<{valid: boolean}>}
+   */
+  async initialize() {
+    // No remote validation, no periodic ping. The license key is
+    // persisted purely so the admin UI can echo it back to the user.
+    return { valid: true };
+  },
+
+  /**
+   * Plugin destroy hook. No-op (no interval to clear in the marketplace
+   * build).
    */
   cleanup() {
-    if (strapi.licenseGuard && strapi.licenseGuard.pingInterval) {
-      clearInterval(strapi.licenseGuard.pingInterval);
-      strapi.log.info('[INFO] License pinging stopped');
-    }
+    /* intentional no-op */
   },
 
+  // ======================================================================
+  // Permissive feature stubs (kept for backward compatibility with any
+  // legacy caller — they always permit, never gate)
+  // ======================================================================
+
   /**
-   * Check if a feature is available
-   * @param {string} featureName - Feature name to check
-   * @returns {boolean}
+   * Always-permissive feature check. Kept so any legacy `if (await
+   * licenseGuard.hasFeature(...))` site continues to compile and runs
+   * the gated branch.
+   *
+   * @returns {Promise<boolean>} always true
    */
-  async hasFeature(featureName) {
-    try {
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const licenseKey = await pluginStore.get({ key: 'licenseKey' });
-      
-      if (!licenseKey) {
-        return features.hasFeature(null, featureName);
-      }
-
-      const licenseData = await this.getLicenseByKey(licenseKey);
-      return features.hasFeature(licenseData, featureName);
-    } catch (error) {
-      strapi.log.error('Error checking feature:', error);
-      return false;
-    }
+  // eslint-disable-next-line no-unused-vars
+  async hasFeature(_featureName) {
+    return true;
   },
 
   /**
-   * Get max allowed tokens
-   * @returns {number} Max tokens (-1 = unlimited)
+   * @returns {Promise<number>} -1 (unlimited)
    */
   async getMaxTokens() {
-    try {
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const licenseKey = await pluginStore.get({ key: 'licenseKey' });
-      
-      if (!licenseKey) {
-        return features.getMaxTokens(null);
-      }
-
-      const licenseData = await this.getLicenseByKey(licenseKey);
-      return features.getMaxTokens(licenseData);
-    } catch (error) {
-      strapi.log.error('Error getting max tokens:', error);
-      return features.free.maxTokens;
-    }
+    return -1;
   },
 
   /**
-   * Get max allowed sessions
-   * @returns {number} Max sessions (-1 = unlimited)
+   * @returns {Promise<number>} -1 (unlimited)
    */
   async getMaxSessions() {
-    try {
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const licenseKey = await pluginStore.get({ key: 'licenseKey' });
-      
-      if (!licenseKey) {
-        return features.getMaxSessions(null);
-      }
-
-      const licenseData = await this.getLicenseByKey(licenseKey);
-      return features.getMaxSessions(licenseData);
-    } catch (error) {
-      strapi.log.error('Error getting max sessions:', error);
-      return features.free.maxSessions;
-    }
+    return -1;
   },
 
   /**
-   * Get max allowed IP bans
-   * @returns {number} Max IP bans (-1 = unlimited)
+   * @returns {Promise<number>} -1 (unlimited)
    */
   async getMaxIPBans() {
-    try {
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const licenseKey = await pluginStore.get({ key: 'licenseKey' });
-      
-      if (!licenseKey) {
-        return features.getMaxIPBans(null);
-      }
-
-      const licenseData = await this.getLicenseByKey(licenseKey);
-      return features.getMaxIPBans(licenseData);
-    } catch (error) {
-      strapi.log.error('Error getting max IP bans:', error);
-      return features.free.maxIPBans;
-    }
+    return -1;
   },
 
   /**
-   * Get available OTP types
-   * @returns {Array} Available OTP types
+   * @returns {Promise<string[]>} every supported OTP type
    */
   async getAvailableOTPTypes() {
-    try {
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const licenseKey = await pluginStore.get({ key: 'licenseKey' });
-      
-      if (!licenseKey) {
-        return features.getAvailableOTPTypes(null);
-      }
-
-      const licenseData = await this.getLicenseByKey(licenseKey);
-      return features.getAvailableOTPTypes(licenseData);
-    } catch (error) {
-      strapi.log.error('Error getting available OTP types:', error);
-      return [];
-    }
+    return ['email', 'totp', 'backup-codes'];
   },
 
   /**
-   * Get license tier info
-   * @returns {Object} License tier information
+   * Tier info for UI display. Reports `pro` when a key is stored,
+   * `free` otherwise. Pure information — no behavior depends on this.
+   *
+   * @returns {Promise<{tier: string, features: object, hasKey: boolean}>}
    */
   async getLicenseTierInfo() {
     try {
       const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
       const licenseKey = await pluginStore.get({ key: 'licenseKey' });
-      
-      if (!licenseKey) {
-        return {
-          tier: 'free',
-          features: {
-            premium: false,
-            advanced: false,
-            enterprise: false
-          }
-        };
-      }
-
-      const licenseData = await this.getLicenseByKey(licenseKey);
-      
+      const hasKey = !!licenseKey;
       return {
-        tier: licenseData?.tier || 'free',
+        tier: hasKey ? 'pro' : 'free',
+        hasKey,
         features: {
-          premium: licenseData?.featurePremium || licenseData?.features?.premium || false,
-          advanced: licenseData?.featureAdvanced || licenseData?.features?.advanced || false,
-          enterprise: licenseData?.featureEnterprise || licenseData?.features?.enterprise || false
-        }
+          premium: hasKey,
+          advanced: hasKey,
+          enterprise: hasKey,
+        },
       };
     } catch (error) {
-      strapi.log.error('Error getting license tier info:', error);
       return {
         tier: 'free',
-        features: {
-          premium: false,
-          advanced: false,
-          enterprise: false
-        }
+        hasKey: false,
+        features: { premium: false, advanced: false, enterprise: false },
       };
     }
-  }
+  },
 });
-

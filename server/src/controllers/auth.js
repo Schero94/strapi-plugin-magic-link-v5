@@ -59,13 +59,13 @@ module.exports = {
       return i18n.sendError(ctx, 'token.invalid', 400);
     }
 
-    // Check if OTP is enabled
+    // Check if OTP is enabled. License gating was removed in the
+    // marketplace refactor — OTP-email is part of the free tier and is
+    // available to every install, conditional only on the admin's
+    // `otp_enabled` setting.
     const settings = await magicLink.settings();
-    const licenseGuard = strapi.plugin('magic-link').service('license-guard');
-    const hasOTPFeature = await licenseGuard.hasFeature('otp-email');
 
-    // If OTP is enabled and available, require OTP verification
-    if (settings.otp_enabled && hasOTPFeature) {
+    if (settings.otp_enabled) {
       // Mark token as requiring OTP using Document Service API.
       // Keep this BEFORE generating the code so a concurrent login attempt
       // with the same link cannot race past the flag.
@@ -709,7 +709,6 @@ module.exports = {
 
     const magicLink = strapi.plugin('magic-link').service('magic-link');
     const otpService = strapi.plugin('magic-link').service('otp');
-    const licenseGuard = strapi.plugin('magic-link').service('license-guard');
     const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
     const userService = strapi.plugin('users-permissions').service('user');
     const jwtService = strapi.plugin('users-permissions').service('jwt');
@@ -731,10 +730,8 @@ module.exports = {
       return ctx.forbidden('TOTP login is not enabled');
     }
 
-    const hasFeature = await licenseGuard.hasFeature('otp-totp');
-    if (!hasFeature) {
-      return ctx.forbidden('TOTP login requires Advanced license');
-    }
+    // License gating removed in the marketplace refactor: TOTP login is
+    // available whenever the admin has enabled `totp_as_primary_auth`.
 
     const GENERIC_INVALID = 'Invalid credentials';
 

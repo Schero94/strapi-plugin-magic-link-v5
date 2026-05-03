@@ -123,12 +123,6 @@ module.exports = {
         return ctx.badRequest('OTP is not enabled');
       }
 
-      const licenseGuard = strapi.plugin('magic-link').service('license-guard');
-      const hasOTPFeature = await licenseGuard.hasFeature('otp-email');
-      if (!hasOTPFeature) {
-        return ctx.forbidden('OTP feature requires Premium license or higher');
-      }
-
       const rlFail = await enforceOtpRateLimits(ctx, normalizedEmail, 'send');
       if (rlFail) return ctx.tooManyRequests(rlFail.message);
 
@@ -479,13 +473,6 @@ module.exports = {
    */
   async setupTOTP(ctx) {
     try {
-      const licenseGuard = strapi.plugin('magic-link').service('license-guard');
-      const hasFeature = await licenseGuard.hasFeature('otp-totp');
-
-      if (!hasFeature) {
-        return ctx.forbidden('TOTP feature requires Advanced or Enterprise license');
-      }
-
       const { email, id: userId } = ctx.state.user;
       const otpService = strapi.plugin('magic-link').service('otp');
       const setupData = await otpService.setupTOTP(userId, email);
@@ -563,13 +550,6 @@ module.exports = {
    */
   async generateBackupCodes(ctx) {
     try {
-      const licenseGuard = strapi.plugin('magic-link').service('license-guard');
-      const hasFeature = await licenseGuard.hasFeature('otp-backup-codes');
-
-      if (!hasFeature) {
-        return ctx.forbidden('Backup codes feature requires Enterprise license');
-      }
-
       const { id: userId } = ctx.state.user;
       const otpService = strapi.plugin('magic-link').service('otp');
       const backupCodes = await otpService.generateBackupCodes(userId);

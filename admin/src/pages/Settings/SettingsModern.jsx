@@ -365,36 +365,28 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
         console.error('Error loading rate limit stats:', error);
       }
       
-      // Load license info
+      // Load license info — purely for the License Status card. The
+      // marketplace build does not gate any feature; the tier is hard-
+      // pinned to 'enterprise' so every UI-side `[…].includes(tier)`
+      // check resolves true and no "LOCKED" badge / "Premium Required"
+      // banner ever renders. The data block (key, email, etc.) is still
+      // shown on the License page if the admin activated a key.
       try {
         const licenseRes = await get('/magic-link/license/status');
         if (licenseRes?.data) {
-          // Convert features to tier for UI compatibility
-          let tier = 'free';
-          const licenseData = licenseRes.data.data || licenseRes.data;
-          
-          if (licenseData.features) {
-            if (licenseData.features.enterprise) {
-              tier = 'enterprise';
-            } else if (licenseData.features.advanced) {
-              tier = 'advanced';
-            } else if (licenseData.features.premium) {
-              tier = 'premium';
-            }
-          }
-          
+          const licenseData = licenseRes.data.data || {};
           const enrichedLicenseInfo = {
             ...licenseData,
-            tier,
+            tier: 'enterprise',
             valid: licenseRes.data.valid !== false,
-            demo: licenseRes.data.demo === true
+            hasKey: licenseRes.data.hasKey === true,
           };
-          
           setLicenseInfo(enrichedLicenseInfo);
-          console.log('💎 License Info:', enrichedLicenseInfo);
         }
       } catch (error) {
         console.error('Error loading license info:', error);
+        // Even on a status-fetch error, treat the plugin as fully unlocked.
+        setLicenseInfo({ tier: 'enterprise', valid: true, hasKey: false });
       }
     } catch (error) {
       if (error.name !== 'AbortError') {
@@ -481,36 +473,9 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
     }
   }, [settings.message_html, settings.message_text, selectedTemplateKey]);
 
-  // Auto-disable premium features if license doesn't support them
-  useEffect(() => {
-    if (!licenseInfo) return;
-    
-    const currentTier = licenseInfo.tier || 'free';
-    let needsUpdate = false;
-    let newSettings = { ...settings };
-    
-    // Disable Email OTP if not premium/advanced/enterprise
-    if (settings.otp_enabled && !['premium', 'advanced', 'enterprise'].includes(currentTier)) {
-      newSettings.otp_enabled = false;
-      needsUpdate = true;
-    }
-    
-    // Disable TOTP MFA if not advanced/enterprise
-    if (settings.mfa_require_totp && !['advanced', 'enterprise'].includes(currentTier)) {
-      newSettings.mfa_require_totp = false;
-      needsUpdate = true;
-    }
-    
-    // Disable TOTP-only login if not advanced/enterprise
-    if (settings.totp_as_primary_auth && !['advanced', 'enterprise'].includes(currentTier)) {
-      newSettings.totp_as_primary_auth = false;
-      needsUpdate = true;
-    }
-    
-    if (needsUpdate) {
-      setSettings(newSettings);
-    }
-  }, [licenseInfo, settings]);
+  // Auto-disable-by-tier removed in the marketplace refactor: the
+  // plugin no longer downgrades the user's saved settings based on a
+  // license tier. All toggles remain in the state the admin saved them.
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -546,38 +511,11 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
     setSettings({ ...settings, [key]: value });
   };
   
-  // Check license before enabling premium/advanced features
-  const checkLicenseAndSetMode = (mode) => {
-    const currentTier = licenseInfo?.tier || 'free';
-    
-    // Check license requirements
-    if (mode === 'otp-email' && !['premium', 'advanced', 'enterprise'].includes(currentTier)) {
-      toggleNotification({
-        type: 'warning',
-        message: '💎 Premium License Required: Email OTP requires at least Premium license. Please upgrade your license.'
-      });
-      return false;
-    }
-    
-    if (mode === 'mfa-totp' && !['advanced', 'enterprise'].includes(currentTier)) {
-      toggleNotification({
-        type: 'warning',
-        message: '⚡ Advanced License Required: MFA with TOTP requires at least Advanced license. Please upgrade your license.'
-      });
-      return false;
-    }
-    
-    if (mode === 'totp-primary' && !['advanced', 'enterprise'].includes(currentTier)) {
-      toggleNotification({
-        type: 'warning',
-        message: '⚡ Advanced License Required: TOTP-only login requires at least Advanced license. Please upgrade your license.'
-      });
-      return false;
-    }
-    
-    // License check passed
-    return true;
-  };
+  // Tier-gating helper retained for backward compatibility with existing
+  // call sites in the JSX below. In the marketplace build it always
+  // permits — every feature is available without a license.
+  // eslint-disable-next-line no-unused-vars
+  const checkLicenseAndSetMode = (_mode) => true;
 
   const handleLanguageChange = (newLang) => {
     changeLanguage(newLang);
@@ -2194,32 +2132,24 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
             </Accordion.Header>
             <Accordion.Content>
               <Box padding={6}>
-                {/* License Status & Feature Info */}
-                <Box 
-                  background="neutral100" 
-                  padding={4} 
-                  style={{ 
-                    borderRadius: theme.borderRadius.md, 
-                    marginBottom: '24px', 
-                    border: '2px solid rgba(128, 128, 128, 0.2)'
+                {/* Mode-selection helper. The earlier "Current License /
+                    All Features Unlocked / Premium / Basic" badge was
+                    removed in the marketplace refactor — every mode is
+                    available without a license. */}
+                <Box
+                  background="neutral100"
+                  padding={4}
+                  style={{
+                    borderRadius: theme.borderRadius.md,
+                    marginBottom: '24px',
+                    border: '2px solid rgba(128, 128, 128, 0.2)',
                   }}
                 >
-                  <Flex justifyContent="space-between" alignItems="center" style={{ marginBottom: '12px' }}>
-                    <Flex alignItems="center" gap={2}>
-                      <Shield width="20px" height="20px" style={{ color: licenseInfo?.tier === 'advanced' || licenseInfo?.tier === 'enterprise' ? '#16A34A' : '#9CA3AF' }} />
-                      <Typography variant="pi" fontWeight="bold" style={{ fontSize: '14px' }}>
-                        Current License: {licenseInfo?.tier ? licenseInfo.tier.charAt(0).toUpperCase() + licenseInfo.tier.slice(1) : 'Free'}
-                      </Typography>
-                    </Flex>
-                    <Badge style={{ 
-                      backgroundColor: licenseInfo?.tier === 'advanced' || licenseInfo?.tier === 'enterprise' ? '#16A34A' : licenseInfo?.tier === 'premium' ? '#7C3AED' : '#9CA3AF',
-                      color: 'white',
-                      fontWeight: '600',
-                      fontSize: '11px',
-                      padding: '4px 12px'
-                    }}>
-                      {licenseInfo?.tier === 'advanced' || licenseInfo?.tier === 'enterprise' ? '✓ All Features Unlocked' : licenseInfo?.tier === 'premium' ? 'Email OTP Available' : 'Basic Features Only'}
-                    </Badge>
+                  <Flex alignItems="center" gap={2} style={{ marginBottom: '8px' }}>
+                    <Shield width="20px" height="20px" style={{ color: '#16A34A' }} />
+                    <Typography variant="pi" fontWeight="bold" style={{ fontSize: '14px' }}>
+                      All authentication modes are available
+                    </Typography>
                   </Flex>
                   <Typography variant="pi" textColor="neutral600" style={{ fontSize: '12px', lineHeight: '1.5' }}>
                     💡 <strong>Wähle deinen Login-Modus:</strong> Magic Link (schnell), Email OTP (sicherer) oder TOTP Authenticator (höchste Sicherheit)
@@ -2336,28 +2266,8 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                         position: 'relative'
                       }}
                     >
-                      {!['premium', 'advanced', 'enterprise'].includes(licenseInfo?.tier) && (
-                        <div
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            zIndex: 10,
-                            flexDirection: 'column',
-                            gap: '8px'
-                          }}
-                        >
-                          <Lock width="40px" height="40px" style={{ color: '#7C3AED' }} />
-                          <Typography variant="pi" fontWeight="bold" style={{ color: '#7C3AED', fontSize: '13px' }}>
-                            Premium Required
-                          </Typography>
-                        </div>
-                      )}
+                      {/* "Premium Required" lock overlay removed in the
+                          marketplace refactor — every mode is available. */}
                       <IconWrapper $bgColor="rgba(124, 58, 237, 0.1)" $iconColor="#7C3AED">
                         <Mail />
                       </IconWrapper>
@@ -2443,28 +2353,9 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                         position: 'relative'
                       }}
                     >
-                      {!['advanced', 'enterprise'].includes(licenseInfo?.tier) && (
-                        <div
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            zIndex: 10,
-                            flexDirection: 'column',
-                            gap: '8px'
-                          }}
-                        >
-                          <Lightning width="40px" height="40px" style={{ color: '#D97706' }} />
-                          <Typography variant="pi" fontWeight="bold" style={{ color: '#D97706', fontSize: '13px' }}>
-                            Advanced Required
-                          </Typography>
-                        </div>
-                      )}
+                      {/* "Advanced Required" lock overlay removed in
+                          the marketplace refactor — every mode is
+                          available. */}
                       <IconWrapper $bgColor="rgba(217, 119, 6, 0.1)" $iconColor="#D97706">
                         <Lock />
                       </IconWrapper>

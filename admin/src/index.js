@@ -62,16 +62,6 @@ export default {
         },
         {
           intlLabel: {
-            id: getTrad('Form.title.Upgrade'),
-            defaultMessage: 'Upgrade',
-          },
-          id: 'magic-link-upgrade',
-          to: `${pluginId}/upgrade`,
-          Component: () => import(/* webpackChunkName: "magic-link-upgrade" */ './pages/LicensePage'),
-          permissions: pluginPermissions.access,
-        },
-        {
-          intlLabel: {
             id: getTrad('Form.title.WhatsApp'),
             defaultMessage: 'WhatsApp',
           },

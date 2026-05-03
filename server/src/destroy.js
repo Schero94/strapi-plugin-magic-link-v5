@@ -1,14 +1,15 @@
 'use strict';
 
 module.exports = ({ strapi }) => {
-  // Cleanup License Guard ping interval
+  // license-guard.cleanup() is a no-op in the marketplace build (no
+  // ping interval to clear). We still call it so any future hook on the
+  // service runs at shutdown.
   try {
     const licenseGuardService = strapi.plugin('magic-link')?.service('license-guard');
-    if (licenseGuardService) {
+    if (licenseGuardService && typeof licenseGuardService.cleanup === 'function') {
       licenseGuardService.cleanup();
-      strapi.log.info('[SUCCESS] License Guard cleanup completed');
     }
   } catch (error) {
-    strapi.log.error('[ERROR] Error during License Guard cleanup:', error);
+    strapi.log.debug('[magic-link] license-guard cleanup warning:', error.message);
   }
 };

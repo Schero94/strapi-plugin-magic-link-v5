@@ -23,12 +23,9 @@ module.exports = {
       handler: 'auth.login',
       config: {
         auth: false,
-        policies: [
-          'plugin::magic-link.compatibility-check',
-          'plugin::magic-link.license-check'
-        ],
-        description: 'Compatibility route for strapi-plugin-passwordless'
-      }
+        policies: ['plugin::magic-link.compatibility-check'],
+        description: 'Compatibility route for strapi-plugin-passwordless',
+      },
     },
     // Passwordless compatibility: Send magic link
     {
@@ -37,12 +34,9 @@ module.exports = {
       handler: 'auth.sendLink',
       config: {
         auth: false,
-        policies: [
-          'plugin::magic-link.compatibility-check',
-          'plugin::magic-link.license-check'
-        ],
-        description: 'Compatibility route for strapi-plugin-passwordless'
-      }
+        policies: ['plugin::magic-link.compatibility-check'],
+        description: 'Compatibility route for strapi-plugin-passwordless',
+      },
     },
   ],
 };

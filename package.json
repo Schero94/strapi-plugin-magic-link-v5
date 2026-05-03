@@ -103,10 +103,10 @@
     "kind": "plugin",
     "name": "magic-link",
     "displayName": "Magic Link Authentication",
-    "description": "This plugin provides passwordless authentication via magic links sent to email"
+    "description": "Passwordless authentication for Strapi v5 via magic links, email OTP and TOTP-based MFA. Drop-in replacement for password login that works with the Users & Permissions plugin."
   },
   "name": "strapi-plugin-magic-link-v5",
-  "description": "This plugin provides passwordless authentication via magic links sent to email",
+  "description": "Passwordless authentication for Strapi v5 via magic links, email OTP and TOTP-based MFA. Drop-in replacement for password login.",
   "license": "MIT",
   "private": false,
   "author": "Schero A. <schero@magicdx.dev>",

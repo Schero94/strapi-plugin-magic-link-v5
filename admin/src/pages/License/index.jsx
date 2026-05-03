@@ -10,12 +10,11 @@ import {
   Accordion,
 } from '@strapi/design-system';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
-import { 
-  ArrowClockwise, 
-  Key, 
-  User, 
+import {
+  ArrowClockwise,
+  Key,
+  User,
   Shield,
-  Sparkle,
   ChartBubble,
   Duplicate,
   Download,
@@ -231,8 +230,11 @@ Generated:   ${new Date().toLocaleString()}
     );
   }
 
-  const isValid = licenseData?.valid;
-  const isDemo = licenseData?.demo;
+  // The plugin always reports `valid: true` in the marketplace build.
+  // `hasKey` reflects whether the admin has activated an optional key
+  // (cosmetic — does not gate any feature).
+  const isValid = licenseData?.valid !== false;
+  const hasKey = !!licenseData?.hasKey;
   const data = licenseData?.data || {};
 
   return (
@@ -266,18 +268,22 @@ Generated:   ${new Date().toLocaleString()}
 
       {/* Content */}
       <Box paddingTop={6} paddingLeft={6} paddingRight={6} paddingBottom={10}>
-        {/* Status Alert */}
-        {isDemo ? (
-          <Alert variant="warning" title="Demo Mode">
-            You're using the demo version. Upgrade to unlock all features.
-          </Alert>
-        ) : isValid ? (
+        {/* Status Alert — license-key activation is cosmetic; the plugin
+            is always fully usable. */}
+        {hasKey && isValid ? (
           <Alert variant="success" title="License Active">
-            Your license is active and all features are unlocked.
+            License key registered. Thanks for supporting the plugin!
+          </Alert>
+        ) : hasKey && !isValid ? (
+          <Alert variant="warning" title="License Verification">
+            We couldn't reach the license server right now. The plugin keeps
+            working — try Refresh Status later.
           </Alert>
         ) : (
-          <Alert variant="danger" title="License Issue">
-            There's an issue with your license.
+          <Alert variant="default" title="No license key registered">
+            All Magic Link features are available without activation. If you
+            want to register a license key, use the form below or run
+            "Auto-Activate" to generate one for your admin email.
           </Alert>
         )}
 
@@ -418,46 +424,12 @@ Generated:   ${new Date().toLocaleString()}
               </Accordion.Content>
             </Accordion.Item>
 
-            {/* Features */}
-            <Accordion.Item value="features">
-              <Accordion.Header>
-                <Accordion.Trigger icon={Sparkle}>
-                  Features & Capabilities
-                </Accordion.Trigger>
-              </Accordion.Header>
-              <Accordion.Content>
-                <Box padding={6}>
-                  <Flex gap={8} wrap="wrap">
-                    <Box style={{ flex: '1', minWidth: '180px' }}>
-                      <Typography variant="sigma" textColor="neutral600" textTransform="uppercase" style={{ marginBottom: '8px', display: 'block' }}>
-                        Premium Features
-                      </Typography>
-                      <Typography variant="omega" fontWeight="semiBold">
-                        {data.features?.premium ? '✓ Enabled' : '✗ Disabled'}
-                      </Typography>
-                    </Box>
-                    <Box style={{ flex: '1', minWidth: '180px' }}>
-                      <Typography variant="sigma" textColor="neutral600" textTransform="uppercase" style={{ marginBottom: '8px', display: 'block' }}>
-                        Advanced Features
-                      </Typography>
-                      <Typography variant="omega" fontWeight="semiBold">
-                        {data.features?.advanced ? '✓ Enabled' : '✗ Disabled'}
-                      </Typography>
-                    </Box>
-                    <Box style={{ flex: '1', minWidth: '180px' }}>
-                      <Typography variant="sigma" textColor="neutral600" textTransform="uppercase" style={{ marginBottom: '8px', display: 'block' }}>
-                        Enterprise Features
-                      </Typography>
-                      <Typography variant="omega" fontWeight="semiBold">
-                        {data.features?.enterprise ? '✓ Enabled' : '✗ Disabled'}
-                      </Typography>
-                    </Box>
-                  </Flex>
-                </Box>
-              </Accordion.Content>
-            </Accordion.Item>
+            {/* Features section removed in the marketplace refactor —
+                all Magic Link features are unconditionally available;
+                there is no premium/advanced/enterprise tier to display. */}
 
-            {/* System Status */}
+            {/* System Status — kept slim. Online/last-sync indicators
+                were retired together with the periodic license ping. */}
             <Accordion.Item value="status">
               <Accordion.Header>
                 <Accordion.Trigger icon={ChartBubble}>
@@ -472,33 +444,15 @@ Generated:   ${new Date().toLocaleString()}
                         License Status
                       </Typography>
                       <Typography variant="omega" fontWeight="semiBold">
-                        {data.isActive ? 'Active' : 'Inactive'}
+                        {hasKey ? (data.isActive ? 'Active' : 'Inactive') : 'No key registered'}
                       </Typography>
                     </Box>
                     <Box style={{ flex: '1', minWidth: '150px' }}>
                       <Typography variant="sigma" textColor="neutral600" textTransform="uppercase" style={{ marginBottom: '8px', display: 'block' }}>
-                        Connection
+                        Plugin Mode
                       </Typography>
                       <Typography variant="omega" fontWeight="semiBold">
-                        {data.isOnline ? 'Online' : 'Offline'}
-                      </Typography>
-                    </Box>
-                    <Box style={{ flex: '1', minWidth: '150px' }}>
-                      <Typography variant="sigma" textColor="neutral600" textTransform="uppercase" style={{ marginBottom: '8px', display: 'block' }}>
-                        Last Sync
-                      </Typography>
-                      <Typography variant="omega" fontWeight="semiBold">
-                        {data.lastPingAt 
-                          ? new Date(data.lastPingAt).toLocaleTimeString()
-                          : 'Never'}
-                      </Typography>
-                    </Box>
-                    <Box style={{ flex: '1', minWidth: '150px' }}>
-                      <Typography variant="sigma" textColor="neutral600" textTransform="uppercase" style={{ marginBottom: '8px', display: 'block' }}>
-                        Device Limit
-                      </Typography>
-                      <Typography variant="omega" fontWeight="semiBold">
-                        {data.currentDevices || 0} / {data.maxDevices || 1}
+                        Fully unlocked
                       </Typography>
                     </Box>
                   </Flex>

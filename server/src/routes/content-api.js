@@ -2,6 +2,11 @@
 
 /**
  * Content API routes
+ *
+ * NOTE: License gating was removed from these endpoints in the marketplace
+ * refactor. All magic-link / OTP / MFA flows are available without a
+ * license key. The optional license-key activation in the admin UI is
+ * cosmetic / branding only and does NOT block any user-facing route.
  */
 
 module.exports = {
@@ -13,8 +18,8 @@ module.exports = {
       handler: 'auth.login',
       config: {
         auth: false,
-        policies: ['plugin::magic-link.license-check']
-      }
+        policies: [],
+      },
     },
     {
       method: 'POST',
@@ -22,8 +27,8 @@ module.exports = {
       handler: 'auth.sendLink',
       config: {
         auth: false,
-        policies: ['plugin::magic-link.license-check']
-      }
+        policies: [],
+      },
     },
     // OTP Routes
     {
@@ -32,8 +37,8 @@ module.exports = {
       handler: 'otp.send',
       config: {
         auth: false,
-        policies: ['plugin::magic-link.license-check']
-      }
+        policies: [],
+      },
     },
     {
       method: 'POST',
@@ -41,8 +46,8 @@ module.exports = {
       handler: 'otp.verify',
       config: {
         auth: false,
-        policies: ['plugin::magic-link.license-check']
-      }
+        policies: [],
+      },
     },
     {
       method: 'POST',
@@ -50,8 +55,8 @@ module.exports = {
       handler: 'otp.resend',
       config: {
         auth: false,
-        policies: ['plugin::magic-link.license-check']
-      }
+        policies: [],
+      },
     },
     // MFA Routes
     {
@@ -60,8 +65,8 @@ module.exports = {
       handler: 'auth.verifyMFATOTP',
       config: {
         auth: false,
-        policies: ['plugin::magic-link.license-check']
-      }
+        policies: [],
+      },
     },
     {
       method: 'POST',
@@ -69,8 +74,8 @@ module.exports = {
       handler: 'auth.loginWithTOTP',
       config: {
         auth: false,
-        policies: ['plugin::magic-link.license-check']
-      }
-    }
+        policies: [],
+      },
+    },
   ],
 };

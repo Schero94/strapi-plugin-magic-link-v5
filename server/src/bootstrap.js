@@ -268,51 +268,23 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
     }
   }, 5 * 60 * 1000);
 
-  // Initialize License Guard
+  // License-guard initialization is intentionally a no-op in the
+  // marketplace build. The license-key activation flow in the admin UI
+  // remains available, but the plugin no longer auto-validates on boot
+  // and does NOT start a periodic ping. We still call initialize() so
+  // any future hook in the service has a stable entry point.
   try {
     const licenseGuardService = strapi.plugin('magic-link').service('license-guard');
-    
-    // Wait a bit for all services to be ready
     setTimeout(async () => {
-      const licenseStatus = await licenseGuardService.initialize();
-      
-      if (!licenseStatus.valid && licenseStatus.demo) {
-        strapi.log.warn('╔════════════════════════════════════════════════════════════════╗');
-        strapi.log.warn('║  [WARNING] MAGIC LINK PLUGIN RUNNING IN DEMO MODE             ║');
-        strapi.log.warn('║                                                                ║');
-        strapi.log.warn('║  To activate, create a license via Admin UI:                  ║');
-        strapi.log.warn('║  Go to Settings → Magic Link → License                        ║');
-        strapi.log.warn('╚════════════════════════════════════════════════════════════════╝');
-      } else if (licenseStatus.valid) {
-        // Get license key from store if data is not available (grace period)
-        const pluginStore = strapi.store({
-          type: 'plugin',
-          name: 'magic-link',
-        });
-        const storedKey = await pluginStore.get({ key: 'licenseKey' });
-        
-        strapi.log.info('╔════════════════════════════════════════════════════════════════╗');
-        strapi.log.info('║  [SUCCESS] MAGIC LINK PLUGIN LICENSE ACTIVE                    ║');
-        strapi.log.info('║                                                                ║');
-        
-        if (licenseStatus.data) {
-          // Full license data available (online validation)
-          strapi.log.info(`║  License: ${licenseStatus.data.licenseKey}                    ║`);
-          strapi.log.info(`║  User: ${licenseStatus.data.firstName} ${licenseStatus.data.lastName}`.padEnd(66) + '║');
-          strapi.log.info(`║  Email: ${licenseStatus.data.email}`.padEnd(66) + '║');
-        } else if (storedKey) {
-          // Grace period / offline mode
-          strapi.log.info(`║  License: ${storedKey} (Offline Mode)                         ║`);
-          strapi.log.info(`║  Status: Grace Period Active                                  ║`);
-        }
-        
-        strapi.log.info('║                                                                ║');
-        strapi.log.info('║  [AUTO] Pinging every 15 minutes                               ║');
-        strapi.log.info('╚════════════════════════════════════════════════════════════════╝');
+      try {
+        await licenseGuardService.initialize();
+      } catch (initErr) {
+        // Initialization is best-effort — never fatal.
+        strapi.log.debug('[magic-link] license-guard initialize() warning:', initErr.message);
       }
-    }, 3000); // Wait 3 seconds for API to be ready
+    }, 3000);
   } catch (error) {
-    strapi.log.error('[ERROR] Error initializing License Guard:', error);
+    strapi.log.debug('[magic-link] license-guard service not available at bootstrap:', error.message);
   }
 
   // [AUTO-MIGRATION] Update old 'magic-link' provider to 'local'

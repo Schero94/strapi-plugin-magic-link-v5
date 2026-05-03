@@ -10,12 +10,12 @@ Secure, modern, and user-friendly authentication using email-based magic links, 
 
 ## Why Magic Link?
 
-- **Zero Setup Time** - Install, activate license (free), and start using
-- **Production Ready** - Battle-tested with rate limiting, IP bans, and session management
-- **Multi-Factor Authentication** - Email OTP + TOTP Authenticator support
-- **WhatsApp Integration** - Send magic links via WhatsApp (FREE!)
-- **Beautiful UI** - Modern, responsive admin interface with German translations
-- **Enterprise Security** - License-based feature unlocking with Free, Premium & Advanced tiers
+- **Zero Setup Time** - Install, configure SMTP, and start using.
+- **Production Ready** - Battle-tested with rate limiting, IP bans, and session management.
+- **Multi-Factor Authentication** - Email OTP + TOTP Authenticator support, included.
+- **WhatsApp Integration** - Send magic links via WhatsApp messenger.
+- **Beautiful UI** - Modern, responsive admin interface localized in 5 languages.
+- **Free & Open** - MIT license, no paywall, every feature available out of the box.
 
 ## 📚 Quick Links
 
@@ -45,23 +45,16 @@ Users can switch languages in **Settings → Magic Link → Interface Language**
 
 ## 📜 License
 
-This plugin is licensed under the **MIT License** - free for everyone to use!
+MIT-licensed. Free for personal and commercial use. See [LICENSE](./LICENSE).
 
-### What you CAN do:
-- ✅ Use the plugin freely (personal & commercial)
-- ✅ View and study the source code
-- ✅ Report issues and contribute improvements
-- ✅ Deploy in production without fees
-- ✅ Integrate in your commercial projects
+### Optional license-key activation
 
-### What you CANNOT do:
-- ❌ Remove or bypass the license validation system
-- ❌ Modify `license-guard.js` or license-related endpoints
-- ❌ Disable license activation requirements
+The admin panel offers a "License" tab where you can register an optional
+license key. This is purely cosmetic — it does **not** unlock any
+feature, and the plugin is fully usable without it. Registering a key
+just lets the project track installs and helps us prioritise issues.
 
-**Important:** The license validation system must remain intact and functional. This ensures quality, support, and continued development. Users must activate the plugin (free) through the admin interface.
-
-📄 See [LICENSE](./LICENSE) for full terms  
+You can ignore the License tab entirely; nothing will be gated.
 
 ---
 
@@ -69,37 +62,25 @@ This plugin is licensed under the **MIT License** - free for everyone to use!
 
 ### Authentication Modes
 
-Choose the security level that fits your needs:
+All modes are available in every install — pick whichever fits your security profile:
 
-| Mode | Description | License |
-|------|-------------|---------|
-| **Magic Link Only** | One-click email login - fast & user-friendly | Free |
-| **Magic Link via WhatsApp** | Send magic links via WhatsApp messenger | Free |
-| **Magic Link + Email OTP** | 6-digit code after magic link click | Premium |
-| **Magic Link + TOTP (MFA)** | Authenticator app (Google Auth, Authy) | Advanced |
-| **TOTP-Only Login** | Direct login with email + TOTP code | Advanced |
+| Mode | Description |
+|------|-------------|
+| **Magic Link Only** | One-click email login — fast & user-friendly |
+| **Magic Link via WhatsApp** | Send magic links via the WhatsApp messenger |
+| **Magic Link + Email OTP** | 6-digit code sent after the magic link click |
+| **Magic Link + TOTP (MFA)** | Authenticator app (Google Authenticator, Authy, …) |
+| **TOTP-Only Login** | Direct login with email + TOTP code |
 
 ### 🛡️ Security Features
 
-- **Rate Limiting** - 5 requests per 15 minutes (configurable)
-- **IP Banning** - Block suspicious addresses with one click
-- **Session Management** - Monitor and revoke active JWT sessions
-- **Login Tracking** - Store IP addresses and user agents
-- **Token Expiration** - Configurable validity periods
-- **Brute Force Protection** - Login attempt limiting
-- **Security Score** - Real-time configuration assessment
-
-### � License Tiers
-
-| Feature | Free | Premium | Advanced |
-|---------|------|---------|----------|
-| Magic Link Login | ✅ | ✅ | ✅ |
-| Token Management | ✅ | ✅ | ✅ |
-| IP Banning | ✅ | ✅ | ✅ |
-| Rate Limiting | ✅ | ✅ | ✅ |
-| Email OTP | ❌ | ✅ | ✅ |
-| TOTP Authenticator | ❌ | ❌ | ✅ |
-| TOTP-Only Login | ❌ | ❌ | ✅ |
+- **Rate Limiting** — 5 requests per 15 minutes (configurable)
+- **IP Banning** — Block suspicious addresses with one click
+- **Session Management** — Monitor and revoke active JWT sessions
+- **Login Tracking** — Store IP addresses and user agents
+- **Token Expiration** — Configurable validity periods
+- **Brute Force Protection** — Login attempt limiting
+- **Security Score** — Real-time configuration assessment
 
 ### 🎨 Admin Interface
 
