@@ -693,26 +693,16 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                     {formatMessage({ id: getTrad('settings.features.subtitle') })}
                   </Typography>
                   <Grid.Root gap={4}>
-                    <Grid.Item col={4} s={6} xs={12}>
-                      <ToggleCard $active={settings.enabled} $statusLabel={settings.enabled ? statusActive : statusInactive}>
-                        <Flex direction="column" gap={3}>
-                          <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                            <Switch
-                              checked={settings.enabled}
-                              onCheckedChange={(checked) => updateSetting('enabled', checked)}
-                            />
-                          </Flex>
-                          <Box>
-                            <Typography variant="pi" fontWeight="bold" style={{ fontSize: '14px', marginBottom: '6px', display: 'block', textAlign: 'center' }}>
-                              {formatMessage({ id: getTrad('settings.feature.enabled.title') })}
-                            </Typography>
-                            <Typography variant="omega" textColor="neutral600" style={{ fontSize: '12px', lineHeight: '1.4', textAlign: 'center' }}>
-                              {formatMessage({ id: getTrad('settings.feature.enabled.description') })}
-                            </Typography>
-                          </Box>
-                        </Flex>
-                      </ToggleCard>
-                    </Grid.Item>
+                    {/*
+                      The "Enable Magic Link plugin" toggle was removed in
+                      the marketplace build. Allowing an admin to flip a
+                      single switch and silently turn every public auth
+                      route into a 400 was a foot-gun: if it gets toggled
+                      off by mistake nobody can log in until somebody
+                      finds the toggle again. The plugin is now always-on
+                      once installed; uninstall is the supported off
+                      switch.
+                    */}
                     <Grid.Item col={4} s={6} xs={12}>
                       <ToggleCard $active={settings.createUserIfNotExists} $statusLabel={settings.createUserIfNotExists ? statusActive : statusInactive}>
                         <Flex direction="column" gap={3}>

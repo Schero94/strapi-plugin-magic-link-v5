@@ -29,11 +29,10 @@ module.exports = {
     const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
     const userService = strapi.plugin('users-permissions').service('user');
     const jwtService = strapi.plugin('users-permissions').service('jwt');
-    const isEnabled = await magicLink.isEnabled();
 
-    if (!isEnabled) {
-      return i18n.sendError(ctx, 'plugin.disabled', 400);
-    }
+    // The "plugin disabled" admin toggle was removed in the marketplace
+    // build — the plugin is always active once installed. Individual
+    // login modes (OTP/TOTP) are still gated by their own settings.
 
     if (_.isEmpty(loginToken)) {
       return i18n.sendError(ctx, 'token.invalid', 400);
@@ -342,11 +341,8 @@ module.exports = {
     const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
     const whatsappService = strapi.plugin('magic-link').service('whatsapp');
 
-    const isEnabled = await magicLink.isEnabled();
-
-    if (!isEnabled) {
-      return i18n.sendError(ctx, 'plugin.disabled', 400);
-    }
+    // The "plugin disabled" admin toggle was removed in the marketplace
+    // build — see auth.login() for context.
 
     const params = parseBody(sendLinkSchema, ctx.request.body);
 

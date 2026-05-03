@@ -54,10 +54,17 @@ module.exports = ({ strapi }) => ({
     return pluginStore.get({ key: 'advanced' });
   },
 
+  /**
+   * Returns whether the Magic Link plugin is active. In the marketplace
+   * build the plugin is always-on once installed: it cannot be disabled
+   * from the admin panel by mistake (that toggle was removed). The
+   * function is kept as a stable export so any legacy caller continues
+   * to compile.
+   *
+   * @returns {Promise<boolean>} always true
+   */
   async isEnabled() {
-    const settings = await this.settings();
-    // Wenn keine Settings existieren oder enabled nicht gesetzt ist, standardmäßig true zurückgeben
-    return settings ? (settings.enabled !== false) : true;
+    return true;
   },
 
   async createUser(user) {
