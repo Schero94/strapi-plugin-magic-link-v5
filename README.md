@@ -1020,7 +1020,7 @@ If this plugin saves you time and you'd like to support development:
 
 ## Dependency maintenance
 
-Install from the committed lockfile with `npm ci`. This plugin does not ship
+Install from the committed lockfile with `npm ci --legacy-peer-deps`. This plugin does not ship
 its own WhatsApp transport or require a Baileys dependency. React and React DOM
 stay on version 18, and React Router stays on version 6 to match Strapi 5.57.0.
 
