@@ -344,7 +344,7 @@ Generated:   ${new Date().toLocaleString()}
 
         {/* Details Section */}
         <Box marginTop={6}>
-          <Accordion.Root defaultValue={['account', 'details', 'features', 'status']}>
+          <Accordion.Root defaultValue="account">
             {/* Account Information */}
             <Accordion.Item value="account">
               <Accordion.Header>

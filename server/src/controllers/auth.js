@@ -6,12 +6,13 @@
  */
 
 const _ = require('lodash');
-const { nanoid } = require('nanoid');
+const createId = require('../utils/id');
 const i18n = require('../utils/i18n');
 const cryptoUtils = require('../utils/crypto');
 const { normalizeEmail } = require('../utils/email');
 const { resolveJwt } = require('../utils/jwt');
 const { appendJwtSession } = require('../utils/jwt-session-store');
+const createMagicWhatsAppProvider = require('../services/magic-whatsapp-provider');
 const {
   sendLinkSchema,
   mfaVerifyTotpSchema,
@@ -293,7 +294,7 @@ module.exports = {
     }
     
     await appendJwtSession(strapi, {
-      id: `session_${Date.now()}_${nanoid(12)}`,
+      id: `session_${Date.now()}_${createId(12)}`,
       userId: user.id,
       userEmail: user.email,
       username: user.username || user.email.split('@')[0],
@@ -339,7 +340,6 @@ module.exports = {
     // Strapi v5 pattern für Service Zugriff
     const magicLink = strapi.plugin('magic-link').service('magic-link');
     const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
-    const whatsappService = strapi.plugin('magic-link').service('whatsapp');
 
     // The "plugin disabled" admin toggle was removed in the marketplace
     // build — see auth.login() for context.
@@ -351,6 +351,13 @@ module.exports = {
     const context = params.context || {};
     const username = params.username || null;
     const deliveryMethod = params.delivery || params.via || 'email';
+    const useWhatsApp = deliveryMethod === 'whatsapp' || Boolean(phoneNumber && (params.delivery || params.via));
+
+    if (useWhatsApp && !phoneNumber) {
+      ctx.status = 400;
+      ctx.body = { data: null, error: { status: 400, message: 'phoneNumber is required for WhatsApp delivery' } };
+      return;
+    }
     
     // Rate limiting check - both IP and email/phone
     const ipAddress = ctx.request.ip;
@@ -388,14 +395,13 @@ module.exports = {
     // the structured server log.
     //
     // The only non-generic failure we still surface is a downstream
-    // delivery error (SMTP/WhatsApp failed AFTER user/token creation) —
-    // see the WhatsApp branch further down where we must tell the caller
-    // that their delivery endpoint is not available.
+    // delivery error after user/token creation. The WhatsApp channel is
+    // delegated to the standalone Magic WhatsApp plugin.
     const GENERIC_SEND_RESPONSE = {
       email: email || null,
       username: username || null,
       sent: true,
-      delivery: phoneNumber ? 'whatsapp' : 'email',
+      delivery: useWhatsApp ? 'whatsapp' : 'email',
     };
     const silentReject = (reason) => {
       strapi.log.warn(`[magic-link] sendLink rejected silently: ${reason} (email=${email || '-'}, ip=${ipAddress})`);
@@ -474,26 +480,19 @@ module.exports = {
 
     try {
       const token = await magicLink.createToken(user.email, context);
-      
-      // Check if WhatsApp delivery is requested and available
-      const settings = await magicLink.settings();
-      const useWhatsApp = (deliveryMethod === 'whatsapp' || phoneNumber) && 
-                          settings?.whatsapp_enabled && 
-                          phoneNumber;
 
       if (useWhatsApp) {
-        // Send via WhatsApp
-        const whatsappStatus = whatsappService.getStatus();
-        
-        if (!whatsappStatus.isConnected) {
-          return ctx.badRequest('WhatsApp is not connected. Please connect WhatsApp in the admin panel first.');
-        }
+        const confirmationUrl = sendLinkSettings?.confirmationUrl || `${process.env.URL || 'http://localhost:1337'}/api/magic-link/login`;
+        const tokenValue = token._plaintextToken || token.token;
+        const separator = confirmationUrl.includes('?') ? '&' : '?';
+        const loginUrl = `${confirmationUrl}${separator}loginToken=${encodeURIComponent(tokenValue)}`;
+        const expiresAt = token.expires_at ? new Date(token.expires_at).getTime() : NaN;
+        const expiresInSeconds = Number.isFinite(expiresAt)
+          ? Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000))
+          : (sendLinkSettings?.expire_period || 3600);
 
-        const result = await magicLink.sendLoginLinkViaWhatsApp(token, phoneNumber);
-        
-        if (!result.success) {
-          return ctx.badRequest(result.error || 'Failed to send WhatsApp message');
-        }
+        const provider = createMagicWhatsAppProvider({ strapi });
+        await provider.sendMagicLink({ phoneNumber, loginUrl, expiresInSeconds });
 
         ctx.send({
           email,
@@ -513,6 +512,19 @@ module.exports = {
         });
       }
     } catch (err) {
+      if (err.code === 'MAGIC_WHATSAPP_UNAVAILABLE' || err.code === 'MAGIC_WHATSAPP_SEND_FAILED') {
+        ctx.status = 503;
+        ctx.body = {
+          data: null,
+          error: {
+            status: 503,
+            name: 'WhatsAppDeliveryError',
+            message: 'WhatsApp delivery is unavailable. Try again later or use email.',
+            details: { code: err.code },
+          },
+        };
+        return;
+      }
       return ctx.badRequest(err);
     }
   },
@@ -666,7 +678,7 @@ module.exports = {
     }
     
     await appendJwtSession(strapi, {
-      id: `session_${Date.now()}_${nanoid(12)}`,
+      id: `session_${Date.now()}_${createId(12)}`,
       userId: user.id,
       userEmail: user.email,
       username: user.username || user.email.split('@')[0],
@@ -787,7 +799,7 @@ module.exports = {
     }
     
     await appendJwtSession(strapi, {
-      id: `session_${Date.now()}_${nanoid(12)}`,
+      id: `session_${Date.now()}_${createId(12)}`,
       userId: user.id,
       userEmail: user.email,
       username: user.username || user.email.split('@')[0],
@@ -809,4 +821,4 @@ module.exports = {
       expires_at: expiresAt.toISOString()
     });
   },
-}; 
+};

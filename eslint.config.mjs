@@ -11,7 +11,6 @@
  * so it stays green on the existing codebase.
  */
 
-import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 
@@ -78,18 +77,10 @@ export default [
       },
     },
     plugins: {
-      react: reactPlugin,
       'react-hooks': reactHooksPlugin,
-    },
-    settings: {
-      react: { version: '18.3' },
     },
     rules: {
       ...correctnessRules,
-      // Without these two, `no-undef` / `no-unused-vars` would misreport
-      // identifiers that are used only inside JSX (e.g. <MyComp />).
-      'react/jsx-uses-vars': 'error',
-      'react/jsx-uses-react': 'error',
     },
   },
 

@@ -1,6 +1,7 @@
 'use strict';
 
 const cryptoUtils = require('./crypto');
+const createId = require('./id');
 
 /**
  * JWT session store helper for the magic-link plugin.
@@ -63,9 +64,8 @@ async function appendJwtSession(strapi, record) {
  * @returns {object}
  */
 function buildSessionRecord({ jwtToken, user, expiresAt, requestInfo = {}, source, context, extra }) {
-  const { nanoid } = require('nanoid');
   return {
-    id: `session_${Date.now()}_${nanoid(12)}`,
+    id: `session_${Date.now()}_${createId(12)}`,
     userId: user.id,
     userEmail: user.email,
     username: user.username || (user.email ? user.email.split('@')[0] : 'user'),

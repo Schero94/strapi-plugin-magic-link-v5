@@ -1,6 +1,6 @@
 'use strict';
 
-const { nanoid } = require('nanoid');
+const createId = require('../utils/id');
 const crypto = require('crypto');
 const emailHelpers = require('../utils/email-helpers');
 const cryptoUtils = require('../utils/crypto');
@@ -259,7 +259,7 @@ module.exports = {
           username = email;
         } else {
           // Generate a unique username based on the email prefix (emailUsername strategy)
-          username = email.split('@')[0] + '_' + nanoid(8);
+          username = email.split('@')[0] + '_' + createId(8);
         }
         
         // Create a cryptographically secure random password
@@ -294,7 +294,7 @@ module.exports = {
       const tokenLength = Math.max(16, Math.min(64, settings?.token_length || 32));
       
       // Generate cryptographically secure random token
-      const tokenValue = nanoid(tokenLength);
+      const tokenValue = createId(tokenLength);
       strapi.log.debug(`[MagicLink] Generated token with length: ${tokenLength}`);
       
       // Hash the token for secure storage
@@ -1034,4 +1034,4 @@ module.exports = {
       ctx.throw(500, error);
     }
   },
-}; 
+};

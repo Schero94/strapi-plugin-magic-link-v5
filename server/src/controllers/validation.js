@@ -14,13 +14,7 @@
  *    additional fields into downstream services.
  */
 
-// NOTE: Do not destructure `z` / `errors` at require-time.
-// @strapi/sdk-plugin's bundler (pack-up → @rollup/plugin-commonjs) treats
-// `const { z } = require('zod')` as an ESM-style named import and rewrites it
-// to `_interopDefault(require('zod')).default.z` — which resolves to
-// `undefined` because zod 3.25+ ships as a dual ESM/CJS package whose `.default`
-// branch does NOT expose the `z` namespace object. Plain `require('zod')` and
-// subsequent property access on `z` / `errors` sidesteps the rewrite.
+// Use the CommonJS entry so Plugin SDK bundling resolves Zod consistently.
 const z = require('zod');
 const { ValidationError } = require('@strapi/utils').errors;
 
@@ -45,7 +39,7 @@ const deliverySchema = z.enum(['email', 'whatsapp']).optional();
 const contextSchema = z
   .record(
     z.string().max(128),
-    z.union([z.string().max(2000), z.number(), z.boolean(), z.null(), z.record(z.any())])
+    z.union([z.string().max(2000), z.number(), z.boolean(), z.null(), z.record(z.string(), z.any())])
   )
   .optional();
 
@@ -62,6 +56,9 @@ const sendLinkSchema = z
   .strict()
   .refine((v) => !!v.email || !!v.phoneNumber || !!v.phone, {
     message: 'Either email or phoneNumber is required',
+  })
+  .refine((v) => ![v.delivery, v.via].includes('whatsapp') || !!v.phoneNumber || !!v.phone, {
+    message: 'A phone number is required for WhatsApp delivery',
   });
 
 const otpSendSchema = z

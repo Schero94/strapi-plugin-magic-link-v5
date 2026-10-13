@@ -14,8 +14,8 @@
 // permission was invisible in Settings → Roles → Plugins → Magic Link,
 // so an admin could neither grant it to nor revoke it from a role —
 // they only saw the two Settings checkboxes (Read / Edit) and had no
-// way to control whether the plugin menu link and the License / Upgrade
-// / WhatsApp settings pages were reachable for the role.
+// way to control whether the plugin menu link and License page were
+// reachable for the role.
 const magicLinkActions = {
   actions: [
     {
@@ -156,19 +156,6 @@ Thanks.`,
       mfa_mode: 'disabled', // 'disabled' | 'optional' | 'required'
       mfa_require_totp: false,
       totp_as_primary_auth: false, // Allow login with Email + TOTP only (Advanced)
-      // WhatsApp Settings
-      whatsapp_enabled: false,
-      whatsapp_debug: false, // Enable verbose WhatsApp logging
-      whatsapp_app_name: 'Magic Link', // App name shown in WhatsApp message
-      whatsapp_message_template: `*{{appName}} Login*
-
-Klicke auf den Link um dich einzuloggen:
-
-{{link}}
-
-Dieser Link ist {{expiry}} gültig.
-
-_Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
       // Frontend URL for Magic Link redirects
       frontend_url: '', // e.g., https://myapp.com - if empty, uses callback_url
       frontend_login_path: '/auth/magic-link', // Path appended to frontend_url for login

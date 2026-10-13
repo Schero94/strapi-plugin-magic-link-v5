@@ -433,31 +433,6 @@
   "magic-link.settings.compatibility.emailDesigner.title": "Intégration Email Designer 5",
   "magic-link.settings.compatibility.emailDesigner.description": "Utilisez des modèles d'email professionnels de strapi-plugin-email-designer-5",
   "magic-link.settings.compatibility.migration.title": "Note de Migration",
-  "magic-link.settings.compatibility.migration.description": "Après une migration réussie, vous pouvez progressivement passer à l'API Magic Link (/api/magic-link/*) puis désactiver les modes de compatibilité.",
-
-  "magic-link.Form.title.WhatsApp": "WhatsApp",
-  "magic-link.whatsapp.title": "Intégration WhatsApp",
-  "magic-link.whatsapp.subtitle": "Envoyez des Magic Links via WhatsApp au lieu d'Email",
-  "magic-link.whatsapp.notInstalled.title": "Baileys non installé",
-  "magic-link.whatsapp.notInstalled.description": "Pour utiliser l'intégration WhatsApp, vous devez installer le package Baileys. Exécutez la commande suivante:",
-  "magic-link.whatsapp.connection.title": "Connexion WhatsApp",
-  "magic-link.whatsapp.connection.generating": "Génération du code QR...",
-  "magic-link.whatsapp.connection.clickToConnect": "Cliquez sur le bouton pour générer un code QR",
-  "magic-link.whatsapp.qr.instruction": "Ouvrez WhatsApp sur votre téléphone → Paramètres → Appareils liés → Lier un appareil → Scannez ce code QR",
-  "magic-link.whatsapp.connected.title": "WhatsApp connecté",
-  "magic-link.whatsapp.test.title": "Envoyer un message test",
-  "magic-link.whatsapp.test.phoneLabel": "Numéro de téléphone",
-  "magic-link.whatsapp.test.phoneHint": "Entrez le numéro avec l'indicatif pays (ex: 491234567890)",
-  "magic-link.whatsapp.actions.connect": "Connecter WhatsApp",
-  "magic-link.whatsapp.actions.disconnect": "Déconnecter",
-  "magic-link.whatsapp.actions.sendTest": "Envoyer test",
-  "magic-link.whatsapp.actions.refresh": "Actualiser le statut",
-  "magic-link.whatsapp.info.title": "Comment utiliser",
-  "magic-link.whatsapp.info.description": "Une fois connecté, vous pouvez envoyer des Magic Links via WhatsApp en incluant un numéro de téléphone dans la requête API.",
-  "magic-link.whatsapp.info.apiExample": "Exemple API:",
-  "magic-link.whatsapp.notifications.connecting": "Connexion à WhatsApp...",
-  "magic-link.whatsapp.notifications.disconnected": "WhatsApp déconnecté",
-  "magic-link.whatsapp.notifications.phoneRequired": "Veuillez entrer un numéro de téléphone",
-  "magic-link.whatsapp.notifications.messageSent": "Message test envoyé avec succès!"
+  "magic-link.settings.compatibility.migration.description": "Après une migration réussie, vous pouvez progressivement passer à l'API Magic Link (/api/magic-link/*) puis désactiver les modes de compatibilité."
 }
 

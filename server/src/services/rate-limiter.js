@@ -106,7 +106,7 @@ module.exports = ({ strapi }) => {
           return { allowed: false, retryAfter: 60 };
         }
         const retryAfter = Math.ceil(rlRejected.msBeforeNext / 1000) || 1;
-        strapi.log.warn(`[RATE-LIMIT] Blocked ${type}: ${identifier} (retry in ${retryAfter}s)`);
+        strapi.log.warn(`[RATE-LIMIT] Blocked ${type} request (retry in ${retryAfter}s)`);
         return { allowed: false, retryAfter };
       }
     },

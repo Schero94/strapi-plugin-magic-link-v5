@@ -10,7 +10,6 @@ const jwt = require('./jwt');
 const license = require('./license');
 const rateLimit = require('./rate-limit');
 const otp = require('./otp');
-const whatsapp = require('./whatsapp');
 
 module.exports = {
   controller,
@@ -20,5 +19,4 @@ module.exports = {
   license,
   rateLimit,
   otp,
-  whatsapp,
 };

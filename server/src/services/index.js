@@ -6,7 +6,6 @@ const store = require('./store');
 const licenseGuard = require('./license-guard');
 const rateLimiter = require('./rate-limiter');
 const otp = require('./otp');
-const whatsapp = require('./whatsapp');
 
 module.exports = {
   service,
@@ -18,5 +17,4 @@ module.exports = {
   'rate-limiter': rateLimiter,
   rateLimiter, // Alias für Kompatibilität
   otp,
-  whatsapp,
 };

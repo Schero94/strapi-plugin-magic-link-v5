@@ -252,19 +252,6 @@ const SettingsModern = () => {
     totp_algorithm: 'SHA1',
     totp_digits: 6,
     totp_period: 30,
-    // WhatsApp Settings
-    whatsapp_enabled: false,
-    whatsapp_debug: false,
-    whatsapp_app_name: 'Magic Link',
-    whatsapp_message_template: `*{{appName}} Login*
-
-Klicke auf den Link um dich einzuloggen:
-
-{{link}}
-
-Dieser Link ist {{expiry}} gültig.
-
-_Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
     // Frontend URL Settings
     frontend_url: '',
     frontend_login_path: '/auth/magic-link',
@@ -646,7 +633,7 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
           </Flex>
         </Box>
 
-        <Accordion.Root type="multiple" defaultValue={['general', 'auth', 'email', 'mfa']}>
+        <Accordion.Root defaultValue="general">
           {/* General Settings */}
           <Accordion.Item value="general">
             <Accordion.Header>
@@ -974,116 +961,6 @@ _Falls du diesen Link nicht angefordert hast, ignoriere diese Nachricht._`,
                           : `${settings.confirmationUrl || 'http://localhost:1337/api/magic-link/login'}?loginToken=ABC123`
                         }
                       </Typography>
-                    </Box>
-                  </Grid.Item>
-                </Grid.Root>
-              </Box>
-            </Accordion.Content>
-          </Accordion.Item>
-
-          {/* WhatsApp Settings */}
-          <Accordion.Item value="whatsapp">
-            <Accordion.Header>
-              <Accordion.Trigger
-                icon={Lightning}
-                description="WhatsApp-Nachricht anpassen und Delivery konfigurieren"
-              >
-                WhatsApp Einstellungen
-              </Accordion.Trigger>
-            </Accordion.Header>
-            <Accordion.Content>
-              <Box padding={6}>
-                <Grid.Root gap={4}>
-                  <Grid.Item col={12}>
-                    <Box background="success50" padding={4} style={{ borderRadius: '8px', border: '2px solid rgba(34, 197, 94, 0.4)', marginBottom: '16px' }}>
-                      <Flex gap={3} alignItems="flex-start">
-                        <Lightning style={{ color: '#22C55E', width: '24px', height: '24px', flexShrink: 0, marginTop: '2px' }} />
-                        <Box>
-                          <Typography variant="delta" fontWeight="bold" style={{ display: 'block', marginBottom: '4px' }}>
-                            WhatsApp Magic Link Delivery
-                          </Typography>
-                          <Typography variant="pi" textColor="neutral600">
-                            Sende Magic Links kostenlos via WhatsApp anstatt per Email. Die Nachricht kann hier angepasst werden.
-                          </Typography>
-                        </Box>
-                      </Flex>
-                    </Box>
-                  </Grid.Item>
-                  
-                  <Grid.Item col={6} s={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        App Name (in WhatsApp Nachricht)
-                      </Typography>
-                      <TextInput
-                        value={settings.whatsapp_app_name || 'Magic Link'}
-                        onChange={(e) => updateSetting('whatsapp_app_name', e.target.value)}
-                        placeholder="Magic Link"
-                      />
-                      <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '8px' }}>
-                        Wird in der WhatsApp-Nachricht als App-Name angezeigt.
-                      </Typography>
-                    </Box>
-                  </Grid.Item>
-                  
-                  <Grid.Item col={6} s={12}>
-                    <Flex direction="column" gap={3}>
-                      <ToggleCard $active={settings.whatsapp_debug} $statusLabel={settings.whatsapp_debug ? 'DEBUG' : 'OFF'} onClick={() => updateSetting('whatsapp_debug', !settings.whatsapp_debug)}>
-                        <Flex gap={3} alignItems="center">
-                          <GreenToggle $isActive={settings.whatsapp_debug}>
-                            <Switch checked={settings.whatsapp_debug} onCheckedChange={(checked) => updateSetting('whatsapp_debug', checked)} />
-                          </GreenToggle>
-                          <Box>
-                            <Typography variant="omega" fontWeight="bold">Debug Mode</Typography>
-                            <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px' }}>
-                              Aktiviert ausfuehrliche WhatsApp-Logs
-                            </Typography>
-                          </Box>
-                        </Flex>
-                      </ToggleCard>
-                    </Flex>
-                  </Grid.Item>
-                  
-                  <Grid.Item col={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        WhatsApp Nachricht Template
-                      </Typography>
-                      <Textarea
-                        value={settings.whatsapp_message_template || ''}
-                        onChange={(e) => updateSetting('whatsapp_message_template', e.target.value)}
-                        style={{ minHeight: '200px', fontFamily: 'monospace', fontSize: '13px' }}
-                      />
-                      <Box padding={3} background="neutral100" style={{ borderRadius: '8px', marginTop: '12px' }}>
-                        <Typography variant="pi" fontWeight="bold" style={{ display: 'block', marginBottom: '8px' }}>
-                          Verfuegbare Platzhalter:
-                        </Typography>
-                        <Flex gap={2} wrap="wrap">
-                          <Badge backgroundColor="primary100" textColor="primary700">{'{{appName}}'}</Badge>
-                          <Badge backgroundColor="primary100" textColor="primary700">{'{{link}}'}</Badge>
-                          <Badge backgroundColor="primary100" textColor="primary700">{'{{expiry}}'}</Badge>
-                        </Flex>
-                        <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '8px', display: 'block' }}>
-                          *text* = Fett, _text_ = Kursiv (WhatsApp Formatierung)
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Grid.Item>
-                  
-                  <Grid.Item col={12}>
-                    <Box padding={4} background="neutral50" style={{ borderRadius: '8px', border: '1px solid rgba(128, 128, 128, 0.2)' }}>
-                      <Typography variant="pi" fontWeight="bold" style={{ display: 'block', marginBottom: '8px' }}>
-                        Vorschau:
-                      </Typography>
-                      <Box padding={3} background="neutral0" style={{ borderRadius: '8px', whiteSpace: 'pre-wrap', fontFamily: 'system-ui', fontSize: '14px', lineHeight: '1.5', border: '1px solid rgba(128, 128, 128, 0.2)' }}>
-                        {(settings.whatsapp_message_template || '')
-                          .replace(/\{\{appName\}\}/g, settings.whatsapp_app_name || 'Magic Link')
-                          .replace(/\{\{link\}\}/g, settings.frontend_url 
-                            ? `${settings.frontend_url.replace(/\/$/, '')}${settings.frontend_login_path || '/auth/magic-link'}?loginToken=ABC123`
-                            : `${settings.confirmationUrl || 'http://localhost:1337'}?loginToken=ABC123`)
-                          .replace(/\{\{expiry\}\}/g, '1 Stunde')
-                        }
-                      </Box>
                     </Box>
                   </Grid.Item>
                 </Grid.Root>

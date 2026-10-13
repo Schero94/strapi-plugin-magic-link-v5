@@ -209,10 +209,6 @@ This link will expire in 1 hour.`,
         // Compatibility Settings
         passwordlessCompatibility: false,
         emailDesignerCompatibility: true,
-        // WhatsApp Settings
-        whatsapp_enabled: false,
-        whatsapp_app_name: 'Magic Link',
-        whatsapp_message_template: null, // Uses default if null
       };
 
       // Einstellungen zurücksetzen

@@ -5,41 +5,33 @@ on:
     branches:
       - main
 
-# OIDC Trusted Publishing - No npm tokens needed!
-# npm trusts GitHub Actions directly via OIDC
-# See: https://docs.npmjs.com/generating-provenance-statements
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-      id-token: write  # Required for OIDC trusted publishing
-
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
-
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
-
+          node-version: 22
+          registry-url: https://registry.npmjs.org
       - name: Install dependencies
         run: npm ci
-
+      - name: Run tests
+        run: npm test
       - name: Build plugin
         run: npm run build
-
       - name: Verify plugin
         run: npm run verify
-
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

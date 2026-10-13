@@ -284,42 +284,5 @@ module.exports = {
       config: { policies: adminPolicy() },
     },
 
-    // ─────────────────────── WhatsApp Integration ───────────────────────
-    {
-      method: 'GET',
-      path: '/whatsapp/status',
-      handler: 'whatsapp.getStatus',
-      config: { policies: adminPolicy() },
-    },
-    {
-      method: 'POST',
-      path: '/whatsapp/connect',
-      handler: 'whatsapp.connect',
-      config: { policies: adminPolicy() },
-    },
-    {
-      method: 'POST',
-      path: '/whatsapp/disconnect',
-      handler: 'whatsapp.disconnect',
-      config: { policies: adminPolicy() },
-    },
-    {
-      method: 'GET',
-      path: '/whatsapp/qr',
-      handler: 'whatsapp.getQRCode',
-      config: { policies: adminPolicy() },
-    },
-    {
-      method: 'POST',
-      path: '/whatsapp/check-number',
-      handler: 'whatsapp.checkNumber',
-      config: { policies: adminPolicy() },
-    },
-    {
-      method: 'POST',
-      path: '/whatsapp/test-message',
-      handler: 'whatsapp.testMessage',
-      config: { policies: adminPolicy() },
-    },
   ],
 };

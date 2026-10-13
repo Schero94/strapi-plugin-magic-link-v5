@@ -60,16 +60,6 @@ export default {
           Component: () => import(/* webpackChunkName: "magic-link-license" */ './pages/License'),
           permissions: pluginPermissions.access,
         },
-        {
-          intlLabel: {
-            id: getTrad('Form.title.WhatsApp'),
-            defaultMessage: 'WhatsApp',
-          },
-          id: 'magic-link-whatsapp',
-          to: `${pluginId}/whatsapp`,
-          Component: () => import(/* webpackChunkName: "magic-link-whatsapp" */ './pages/WhatsApp'),
-          permissions: pluginPermissions.access,
-        },
       ]
     );
   },

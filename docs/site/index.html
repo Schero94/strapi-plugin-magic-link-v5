@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Passwordless authentication for Strapi 5 with email magic links, email OTP, TOTP and delegated Magic WhatsApp delivery."
+    />
+    <title>Magic Link for Strapi 5</title>
+    <link rel="stylesheet" href="./site.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="#top" aria-label="Magic Link home"
+          ><span class="brand-mark" aria-hidden="true">ML</span>Magic Link</a
+        >
+        <nav class="top-links" aria-label="Main navigation">
+          <a href="https://github.com/Schero94/strapi-plugin-magic-link-v5"
+            >GitHub</a
+          >
+          <a href="https://www.npmjs.com/package/strapi-plugin-magic-link-v5"
+            >npm</a
+          >
+        </nav>
+      </div>
+    </header>
+    <main id="main-content">
+      <div class="hero-wrap" id="top">
+        <section class="hero" aria-labelledby="page-title">
+          <div class="hero-copy">
+            <p class="eyebrow">Strapi 5 plugin · Node.js 18 to 22</p>
+            <h1 id="page-title">Passwordless sign-in for Strapi</h1>
+            <p class="lead">
+              Add email magic links, email OTP and TOTP-based multi-factor
+              authentication to the Users &amp; Permissions plugin. WhatsApp
+              delivery is handled by the separate Magic WhatsApp plugin.
+            </p>
+            <p class="hero-actions">
+              <a class="button primary" href="#install">Install the plugin</a>
+              <a
+                class="text-link"
+                href="https://github.com/Schero94/strapi-plugin-magic-link-v5"
+                >View source on GitHub</a
+              >
+            </p>
+            <div class="badges" aria-label="Project links">
+              <a
+                class="badge"
+                href="https://www.npmjs.com/package/strapi-plugin-magic-link-v5"
+                >npm package</a
+              >
+              <a
+                class="badge"
+                href="https://github.com/Schero94/strapi-plugin-magic-link-v5/releases"
+                >GitHub releases</a
+              >
+            </div>
+          </div>
+        </section>
+      </div>
+      <div class="layout">
+        <nav class="side-nav" aria-label="Page sections">
+          <a href="#features">Features</a>
+          <a href="#install">Install</a>
+          <a href="#configuration">Configuration</a>
+          <a href="#security">Security</a>
+          <a href="#api">API</a>
+          <a href="#releases">Releases</a>
+        </nav>
+        <div class="content">
+          <section
+            class="section"
+            id="features"
+            aria-labelledby="features-title"
+          >
+            <h2 id="features-title">Features</h2>
+            <p class="section-lead">
+              Passwordless authentication with email delivery, optional second
+              factors and an admin interface for managing access.
+            </p>
+            <div class="card-grid">
+              <article class="card">
+                <h3>Email magic links</h3>
+                <p>
+                  Issue expiring login links through your configured Strapi
+                  email provider. Login responses avoid revealing whether an
+                  account exists.
+                </p>
+              </article>
+              <article class="card">
+                <h3>Additional verification</h3>
+                <p>
+                  Add email one-time codes or TOTP authenticator challenges to
+                  the login flow.
+                </p>
+              </article>
+              <article class="card">
+                <h3>Delegated WhatsApp delivery</h3>
+                <p>
+                  Request WhatsApp delivery through the standalone Magic
+                  WhatsApp plugin. That plugin owns its connection, transport
+                  and message setup.
+                </p>
+              </article>
+              <article class="card">
+                <h3>Admin controls</h3>
+                <p>
+                  Manage tokens, sessions, IP bans and plugin settings from the
+                  Strapi admin panel.
+                </p>
+              </article>
+            </div>
+          </section>
+
+          <section class="section" id="install" aria-labelledby="install-title">
+            <h2 id="install-title">Install</h2>
+            <p>
+              Install the published package in your Strapi 5 project and restart
+              the server. The plugin should then appear in the admin panel.
+            </p>
+            <div class="code-card">
+              <pre><code>npm install strapi-plugin-magic-link-v5</code></pre>
+            </div>
+            <p>
+              Configure a Strapi email provider for email links and OTP
+              messages. The package manifest supports Node.js 18 through 22.
+            </p>
+          </section>
+
+          <section
+            class="section"
+            id="configuration"
+            aria-labelledby="configuration-title"
+          >
+            <h2 id="configuration-title">Configuration</h2>
+            <p>
+              Open <strong>Settings → Magic Link</strong> in the Strapi admin to
+              set link expiry, email details, registration behavior, rate limits
+              and optional OTP or TOTP requirements.
+            </p>
+            <p>
+              For WhatsApp requests, install and enable Magic WhatsApp
+              separately. It must expose the <code>whatsapp</code> service with
+              <code>getStatus()</code> and <code>sendMagicLink()</code>. The
+              service must report a connected account. Magic Link does not
+              connect WhatsApp or manage its templates.
+            </p>
+            <div class="code-card">
+              <div class="code-label">WhatsApp delivery request</div>
+              <pre><code>POST /api/magic-link/send-link
+{
+  "email": "user@example.com",
+  "delivery": "whatsapp",
+  "phoneNumber": "+491234567890"
+}</code></pre>
+            </div>
+            <p>
+              When WhatsApp is unavailable or sending fails, the request returns
+              an error. It does not switch to email automatically.
+            </p>
+          </section>
+
+          <section
+            class="section"
+            id="security"
+            aria-labelledby="security-title"
+          >
+            <h2 id="security-title">Security</h2>
+            <ul>
+              <li>
+                Public login and code-verification routes are rate-limited.
+                Responses for unrecognized accounts use a generic success
+                response.
+              </li>
+              <li>
+                Admin routes require an authenticated Strapi administrator with
+                the <code>plugin::magic-link.access</code> permission.
+              </li>
+              <li>
+                Magic-link tokens expire and can be blocked or revoked from the
+                admin panel.
+              </li>
+              <li>
+                WhatsApp is delegated to Magic WhatsApp. Its absence or
+                disconnected state fails closed for WhatsApp delivery.
+              </li>
+            </ul>
+            <p>
+              Use HTTPS in production and keep provider credentials and
+              authentication secrets in your deployment’s secret store.
+            </p>
+          </section>
+
+          <section class="section" id="api" aria-labelledby="api-title">
+            <h2 id="api-title">API</h2>
+            <p>
+              Content API routes are mounted under <code>/api/magic-link</code>.
+              Login and send-link are public. OTP routes handle code send,
+              verification and resend; TOTP routes support login and MFA
+              verification. Consult the repository README for request details
+              and the complete admin route list.
+            </p>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Method</th>
+                    <th scope="col">Path</th>
+                    <th scope="col">Access</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>POST</td>
+                    <td><code>/api/magic-link/send-link</code></td>
+                    <td>Public, rate-limited</td>
+                  </tr>
+                  <tr>
+                    <td>GET</td>
+                    <td><code>/api/magic-link/login</code></td>
+                    <td>Public, rate-limited</td>
+                  </tr>
+                  <tr>
+                    <td>POST</td>
+                    <td>
+                      <code>/api/magic-link/otp/send</code>,
+                      <code>/api/magic-link/otp/verify</code>,
+                      <code>/api/magic-link/otp/resend</code>
+                    </td>
+                    <td>Public, rate-limited</td>
+                  </tr>
+                  <tr>
+                    <td>POST</td>
+                    <td>
+                      <code>/api/magic-link/verify-mfa-totp</code>,
+                      <code>/login-totp</code>
+                    </td>
+                    <td>Public login challenges</td>
+                  </tr>
+                  <tr>
+                    <td>Admin API</td>
+                    <td><code>/magic-link/*</code></td>
+                    <td>Admin authentication and plugin permission required</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section
+            class="section"
+            id="releases"
+            aria-labelledby="releases-title"
+          >
+            <h2 id="releases-title">Releases</h2>
+            <p>
+              Releases use semantic-release and Conventional Commits. The
+              release workflow installs from the lockfile, runs tests, builds
+              and verifies the plugin before publishing. Run the same checks
+              locally:
+            </p>
+            <div class="code-card">
+              <pre><code>npm ci
+npm test
+npm run build
+npm run verify</code></pre>
+            </div>
+            <p class="link-list">
+              <a
+                href="https://github.com/Schero94/strapi-plugin-magic-link-v5/releases"
+                >Browse releases</a
+              ><a
+                href="https://github.com/Schero94/strapi-plugin-magic-link-v5/issues"
+                >Report an issue</a
+              ><a
+                href="https://www.npmjs.com/package/strapi-plugin-magic-link-v5"
+                >Install from npm</a
+              >
+            </p>
+          </section>
+        </div>
+      </div>
+    </main>
+    <footer class="footer">
+      <p>
+        <a href="https://github.com/Schero94/strapi-plugin-magic-link-v5"
+          >Magic Link on GitHub</a
+        >
+        · MIT License
+      </p>
+    </footer>
+  </body>
+</html>

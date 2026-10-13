@@ -4,6 +4,8 @@
 
 Secure, modern, and user-friendly authentication using email-based magic links, OTP codes, and TOTP authenticators. Built for production with enterprise-grade security features.
 
+**Project site:** [Magic Link for Strapi 5](https://schero94.github.io/strapi-plugin-magic-link-v5/)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![npm version](https://badge.fury.io/js/strapi-plugin-magic-link-v5.svg)](https://www.npmjs.com/package/strapi-plugin-magic-link-v5)
 [![Strapi v5](https://img.shields.io/badge/Strapi-v5-7C3AED.svg)](https://strapi.io)
@@ -13,7 +15,7 @@ Secure, modern, and user-friendly authentication using email-based magic links, 
 - **Zero Setup Time** - Install, configure SMTP, and start using.
 - **Production Ready** - Battle-tested with rate limiting, IP bans, and session management.
 - **Multi-Factor Authentication** - Email OTP + TOTP Authenticator support, included.
-- **WhatsApp Integration** - Send magic links via WhatsApp messenger.
+- **WhatsApp delivery** - Delegate one-time login links to the standalone Magic WhatsApp plugin.
 - **Beautiful UI** - Modern, responsive admin interface localized in 5 languages.
 - **Free & Open** - MIT license, no paywall, every feature available out of the box.
 
@@ -50,7 +52,7 @@ MIT-licensed. Free for personal and commercial use. See [LICENSE](./LICENSE).
 ### Optional license-key activation
 
 The admin panel offers a "License" tab where you can register an optional
-license key. This is purely cosmetic — it does **not** unlock any
+license key. This is cosmetic and does **not** unlock any
 feature, and the plugin is fully usable without it. Registering a key
 just lets the project track installs and helps us prioritise issues.
 
@@ -62,25 +64,25 @@ You can ignore the License tab entirely; nothing will be gated.
 
 ### Authentication Modes
 
-All modes are available in every install — pick whichever fits your security profile:
+All modes are available in every install. Choose the one that fits your security requirements:
 
 | Mode | Description |
 |------|-------------|
-| **Magic Link Only** | One-click email login — fast & user-friendly |
-| **Magic Link via WhatsApp** | Send magic links via the WhatsApp messenger |
+| **Magic Link Only** | Sign in with a one-time email link |
+| **Magic Link via WhatsApp** | Send one-time login links through the standalone Magic WhatsApp plugin |
 | **Magic Link + Email OTP** | 6-digit code sent after the magic link click |
 | **Magic Link + TOTP (MFA)** | Authenticator app (Google Authenticator, Authy, …) |
 | **TOTP-Only Login** | Direct login with email + TOTP code |
 
 ### 🛡️ Security Features
 
-- **Rate Limiting** — 5 requests per 15 minutes (configurable)
-- **IP Banning** — Block suspicious addresses with one click
-- **Session Management** — Monitor and revoke active JWT sessions
-- **Login Tracking** — Store IP addresses and user agents
-- **Token Expiration** — Configurable validity periods
-- **Brute Force Protection** — Login attempt limiting
-- **Security Score** — Real-time configuration assessment
+- **Rate limiting:** 5 requests per 15 minutes (configurable)
+- **IP banning:** Block suspicious addresses from the admin panel
+- **Session management:** Monitor and revoke active JWT sessions
+- **Login tracking:** Store IP addresses and user agents
+- **Token expiration:** Set token validity periods
+- **Brute-force protection:** Limit login attempts
+- **Security score:** Review the current configuration assessment
 
 ### 🎨 Admin Interface
 
@@ -95,7 +97,6 @@ All modes are available in every install — pick whichever fits your security p
 ### Customization
 
 - **Email Templates** - HTML & plain text with variables
-- **WhatsApp Templates** - Customizable WhatsApp message content
 - **Email Designer 5** - Visual email builder integration
 - **Flexible Configuration** - All settings in admin panel
 - **Frontend URL** - Configure custom frontend login URLs
@@ -139,79 +140,39 @@ Configure core functionality and authentication options.
 
 ---
 
-## WhatsApp Integration (NEW!)
+## Magic WhatsApp delivery
 
-Magic Link now supports sending authentication links via **WhatsApp** - completely FREE!
+Magic Link can delegate one-time login links to the standalone `magic-whatsapp`
+plugin. Magic Link no longer owns WhatsApp connection state, authentication
+files, message templates, admin controls or transport dependencies.
 
-### Why WhatsApp?
-
-- **Higher Open Rates** - 98% open rate vs 20% for email
-- **Instant Delivery** - No spam folders, no delays
-- **User Preference** - Many users prefer messaging over email
-- **FREE** - No additional costs, uses your own WhatsApp number
-
-### Quick Setup
-
-1. Navigate to **Admin Panel -> Magic Link -> WhatsApp**
-2. Scan the QR code with your WhatsApp mobile app
-3. Done! Your WhatsApp is connected
-
-### How It Works
-
-When a user requests a magic link and has a phone number on file, you can send the magic link via WhatsApp instead of email:
+To request a link over WhatsApp, send an explicit delivery mode and phone number:
 
 ```javascript
-// Send magic link via WhatsApp
 await fetch('/api/magic-link/send-link', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
     email: 'user@example.com',
-    channel: 'whatsapp',  // Send via WhatsApp
-    phoneNumber: '+491234567890'  // Required for WhatsApp
+    delivery: 'whatsapp',
+    phoneNumber: '+491234567890'
   })
 });
 ```
 
-### Customizable Messages
+Magic WhatsApp must be installed, enabled, connected and expose its `whatsapp`
+service contract. If the plugin is disabled, disconnected or its send operation
+fails, Magic Link returns HTTP 503. It does not silently fall back to email.
+The existing email login, email OTP and TOTP/MFA flows are unchanged.
 
-Configure your WhatsApp message templates in **Settings -> Email & Messaging**:
+### Migration from the built-in transport
 
-**Available Variables:**
-- `<%= URL %>` - Your frontend login URL
-- `<%= CODE %>` - The magic link token
-- `<%= APP_NAME %>` - Your app name
-- `<%= EXPIRY_TEXT %>` - Token expiration text
-
-**Example Template:**
-```
-*<%= APP_NAME %> Login*
-
-Click the link below to log in:
-
-<%= URL %>?loginToken=<%= CODE %>
-
-This link expires in <%= EXPIRY_TEXT %>.
-
-_If you didn't request this, please ignore this message._
-```
-
-### Frontend Login URL
-
-Configure where users land when clicking the magic link:
-
-1. Go to **Settings -> Email & Messaging**
-2. Set **Frontend Login URL** (e.g., `https://yourapp.com/auth/login`)
-3. Magic links will now redirect to your frontend
-
-### Integration with Magic-Mail
-
-If you have both **Magic-Link** and **Magic-Mail** plugins installed:
-
-- Magic-Link delegates WhatsApp functionality to Magic-Mail
-- Only ONE WhatsApp connection needed (managed by Magic-Mail)
-- Navigate to Magic-Mail for WhatsApp setup
-- Unified WhatsApp management across both plugins
+Install and configure Magic WhatsApp separately. Move connection setup and
+message-template management there. Then update API callers to send
+`delivery: 'whatsapp'` and `phoneNumber` explicitly. Magic Link leaves existing
+WhatsApp settings keys and the legacy `.whatsapp-auth` directory untouched, but
+does not read or use them. No authentication data or settings are migrated or
+deleted automatically.
 
 ---
 
@@ -771,18 +732,18 @@ not be rotated with the rest of your Strapi key material. Two env vars are
 **mandatory in production** (the plugin refuses to boot without them):
 
 ```bash
-# 32+ random bytes — used as AES-256 key for TOTP secrets.
+# At least 32 random bytes. Used as the AES-256 key for TOTP secrets.
 # DO NOT ROTATE: existing TOTP secrets would become undecryptable.
 MAGIC_LINK_ENCRYPTION_KEY=<hex from: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
 
-# 16+ random bytes — pepper mixed into OTP code hashes to defeat
-# rainbow-table attacks on stored 6-digit codes if the DB is ever leaked.
+# At least 16 random bytes. Mixed into OTP code hashes to make
+# precomputed attacks on stored 6-digit codes harder.
 MAGIC_LINK_OTP_PEPPER=<hex from: node -e "console.log(require('crypto').randomBytes(24).toString('hex'))">
 ```
 
 In non-production environments (`NODE_ENV !== 'production'`) the plugin
-falls back to derived values so local dev setups keep working — but a WARN
-is logged once per process.
+falls back to derived values for local development. The plugin logs a warning
+once per process.
 
 ---
 
@@ -936,7 +897,10 @@ Contributions are welcome! Please:
 
 ## Changelog
 
-### v5.2.7 (2025-12-16) - Latest
+### Previous release v5.2.7 (2025-12-16)
+
+This historical entry describes the former built-in WhatsApp implementation.
+Current WhatsApp ownership and setup are described in [Magic WhatsApp delivery](#magic-whatsapp-delivery).
 
 **WhatsApp Integration**
 - **WhatsApp Magic Links** - Send authentication links via WhatsApp messenger (FREE!)
@@ -1054,46 +1018,11 @@ If this plugin saves you time and you'd like to support development:
 
 ---
 
-## Security Advisories & Dependency Overrides
+## Dependency maintenance
 
-This plugin ships with a first-party dependency tree audited on every
-release, but two transitive paths are governed by upstream packages we
-do not control. If your own `npm audit` flags any of the following,
-add the matching entry to your **Strapi project's** `package.json`
-(not this plugin's — npm `overrides` only take effect on the
-root project):
-
-```jsonc
-{
-  "overrides": {
-    // GHSA-xq3m-2v4x-88gg — protobufjs <7.5.5 arbitrary code execution.
-    // Reaches us via @whiskeysockets/baileys → libsignal → protobufjs.
-    // We already ship this override for local development; apply it in
-    // your Strapi project so the fix propagates to the installed tree.
-    "protobufjs": "^7.5.5",
-
-    // Optional: if you do not use the WhatsApp delivery feature, you
-    // can also skip installing @whiskeysockets/baileys altogether:
-    //   npm install --omit=optional
-    // (The Magic-Link code path detects the missing module and
-    // disables the WhatsApp controller at runtime — the rest of the
-    // plugin keeps working.)
-  }
-}
-```
-
-After editing `package.json`, run:
-
-```bash
-rm -rf node_modules package-lock.json
-npm install
-npm audit
-```
-
-The critical `protobufjs` advisory disappears once the override is in
-place. The remaining `@strapi/design-system → lodash` advisory is a
-Strapi-core issue and will clear up automatically when you upgrade
-`@strapi/strapi` to the latest patch release.
+Install from the committed lockfile with `npm ci`. This plugin does not ship
+its own WhatsApp transport or require a Baileys dependency. React and React DOM
+stay on version 18, and React Router stays on version 6 to match Strapi 5.57.0.
 
 ---
 
