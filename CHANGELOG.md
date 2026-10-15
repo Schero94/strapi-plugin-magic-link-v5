@@ -1,3 +1,16 @@
+# [5.6.0](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v5.5.9...v5.6.0) (2026-10-15)
+
+
+### Bug Fixes
+
+* align CI installs with lockfile settings ([77580a3](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/77580a36f00f7f41d04be953a8d19a0422d14dce))
+* check out documentation before Pages deploy ([114ef6e](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/114ef6e3e5e4d1039d5db89ae791b633e1189793))
+
+
+### Features
+
+* delegate WhatsApp OTP to Magic WhatsApp ([64fa660](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/64fa66053478db45785374840f4e9f6236b428c4))
+
 ## [5.5.9](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v5.5.8...v5.5.9) (2026-05-03)
 
 
