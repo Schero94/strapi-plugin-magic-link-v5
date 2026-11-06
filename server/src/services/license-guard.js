@@ -187,13 +187,13 @@ module.exports = ({ strapi }) => ({
 
       const data = await response.json();
       if (data.success) {
-        strapi.log.info('[SUCCESS] License created:', data.data.licenseKey);
+        strapi.log.info('[SUCCESS] License created');
         return data.data;
       }
-      strapi.log.warn('[WARNING] License creation rejected by server:', data.message || 'unknown');
+      strapi.log.warn('[WARNING] License creation rejected by server');
       return null;
-    } catch (error) {
-      strapi.log.error('[ERROR] Error creating license:', error.message);
+    } catch {
+      strapi.log.error('[ERROR] License creation request failed');
       return null;
     }
   },
@@ -228,15 +228,10 @@ module.exports = ({ strapi }) => ({
         }
         return { valid: isValid, data: data.data };
       }
-      strapi.log.warn(
-        `[WARNING] License verification failed: ${data.message || 'Unknown error'} (Key: ${licenseKey?.substring(0, 8)}...)`
-      );
+      strapi.log.warn('[WARNING] License verification rejected');
       return { valid: false, data: null };
-    } catch (error) {
-      strapi.log.warn(
-        `[WARNING] License server unreachable during activation: ${error.message} ` +
-          `(Key: ${licenseKey?.substring(0, 8)}...). Activation will not block this install.`
-      );
+    } catch {
+      strapi.log.warn('[WARNING] License server unreachable during activation');
       // We intentionally do NOT block on a network error here. The plugin
       // is fully functional without a key, so a temporarily unreachable
       // license server should not prevent the admin from saving one.
@@ -258,8 +253,8 @@ module.exports = ({ strapi }) => ({
       const data = await response.json();
       if (data.success) return data.data;
       return null;
-    } catch (error) {
-      strapi.log.warn('[WARNING] Could not fetch license by key:', error.message);
+    } catch {
+      strapi.log.warn('[WARNING] License lookup failed');
       return null;
     }
   },
@@ -280,8 +275,8 @@ module.exports = ({ strapi }) => ({
       const data = await response.json();
       if (data.success) return data.data;
       return [];
-    } catch (error) {
-      strapi.log.warn('[WARNING] Could not fetch licenses by email:', error.message);
+    } catch {
+      strapi.log.warn('[WARNING] License email lookup failed');
       return [];
     }
   },
@@ -304,8 +299,8 @@ module.exports = ({ strapi }) => ({
       await pluginStore.set({ key: 'lastValidated', value: new Date().toISOString() });
       strapi.log.info('[SUCCESS] License key stored');
       return true;
-    } catch (error) {
-      strapi.log.error('[ERROR] Error storing license key:', error.message);
+    } catch {
+      strapi.log.error('[ERROR] License key storage failed');
       return false;
     }
   },

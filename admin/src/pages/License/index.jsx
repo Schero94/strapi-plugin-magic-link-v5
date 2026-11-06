@@ -281,9 +281,7 @@ Generated:   ${new Date().toLocaleString()}
           </Alert>
         ) : (
           <Alert variant="default" title="No license key registered">
-            All Magic Link features are available without activation. If you
-            want to register a license key, use the form below or run
-            "Auto-Activate" to generate one for your admin email.
+            All Magic Link features are available without activation.
           </Alert>
         )}
 

@@ -51,12 +51,8 @@ module.exports = {
    */
   async reset(ctx) {
     try {
-      const pluginStore = strapi.store({
-        type: 'plugin',
-        name: 'magic-link',
-      });
-      
-      await pluginStore.set({ key: 'rate_limits', value: { limits: {} } });
+      const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
+      await rateLimiter.resetAll();
       
       ctx.send({
         success: true,

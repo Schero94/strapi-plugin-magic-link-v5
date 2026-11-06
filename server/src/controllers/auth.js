@@ -12,6 +12,7 @@ const cryptoUtils = require('../utils/crypto');
 const { normalizeEmail } = require('../utils/email');
 const { resolveJwt } = require('../utils/jwt');
 const { appendJwtSession } = require('../utils/jwt-session-store');
+const { resolveMfaMode } = require('../utils/mfa-mode');
 const createMagicWhatsAppProvider = require('../services/magic-whatsapp-provider');
 const {
   sendLinkSchema,
@@ -22,7 +23,11 @@ const {
 
 module.exports = {
   /**
-   * Handles magic link login token verification with rate limiting
+   * Verifies a public magic-link token and starts the configured second-factor
+   * flow, or issues a JWT after identity, expiry, replay and rate-limit checks.
+   *
+   * @param {object} ctx - Strapi Koa context for the public login route.
+   * @returns {Promise<object|void>} The response or a Koa error response.
    */
   async login(ctx) {
     const { loginToken } = ctx.query;
@@ -59,13 +64,31 @@ module.exports = {
       return i18n.sendError(ctx, 'token.invalid', 400);
     }
 
+    if (token.context?.otpVerified === true || token.context?.totpVerified === true) {
+      await magicLink.deactivateToken(token);
+      return i18n.sendError(ctx, 'token.invalid', 400);
+    }
+
     // Check if OTP is enabled. License gating was removed in the
     // marketplace refactor — OTP-email is part of the free tier and is
     // available to every install, conditional only on the admin's
     // `otp_enabled` setting.
     const settings = await magicLink.settings();
+    const mfaMode = resolveMfaMode(settings);
 
-    if (settings.otp_enabled) {
+    if (settings.otp_enabled && mfaMode !== 'required') {
+      if ((settings.otp_type || 'email') !== 'email') {
+        ctx.status = 503;
+        ctx.body = {
+          success: false,
+          error: {
+            code: 'OTP_DELIVERY_UNAVAILABLE',
+            message: 'The configured verification method is not available.',
+          },
+        };
+        return;
+      }
+
       // Mark token as requiring OTP using Document Service API.
       // Keep this BEFORE generating the code so a concurrent login attempt
       // with the same link cannot race past the flag.
@@ -97,8 +120,8 @@ module.exports = {
           subject: 'Your Verification Code',
           expiryMinutes: Math.floor((settings.otp_expiry || 300) / 60),
         });
-      } catch (mailErr) {
-        strapi.log.error(`[magic-link] OTP email delivery failed for ${token.email}: ${mailErr.message}`);
+      } catch {
+        strapi.log.error('[magic-link] OTP email delivery failed');
         ctx.status = 503;
         ctx.body = {
           data: null,
@@ -110,7 +133,7 @@ module.exports = {
               code: 'OTP_EMAIL_FAILED',
               resendEndpoint: '/api/magic-link/otp/resend',
               email: token.email,
-              loginToken: token.token,
+              loginToken,
             },
           },
         };
@@ -121,25 +144,20 @@ module.exports = {
         requiresOTP: true,
         message: 'OTP verification required',
         email: token.email,
-        loginToken: token.token,
+        loginToken,
         expiresIn: settings.otp_expiry || 300,
       });
     }
 
     // Check whether Magic Link must be followed by a TOTP challenge.
     //
-    // `mfa_mode` is the authoritative switch:
+    // `mfa_mode` is the canonical switch. A true legacy flag overrides a stale
+    // disabled mode so settings saved by the older UI cannot bypass TOTP:
     //   'disabled' → TOTP step always skipped
     //   'optional' → only prompted when the user has TOTP configured+enabled
     //   'required' → every user MUST configure TOTP; logins without it fail
     //
-    // The legacy `mfa_require_totp` flag maps to 'required' for
-    // backwards compatibility with existing installs. If both are set,
-    // mfa_mode wins.
-    const mfaMode = ['disabled', 'optional', 'required'].includes(settings.mfa_mode)
-      ? settings.mfa_mode
-      : (settings.mfa_require_totp ? 'required' : 'disabled');
-
+    // Settings writes keep both values in sync after migration.
     if (mfaMode !== 'disabled') {
       const otpService = strapi.plugin('magic-link').service('otp');
 
@@ -185,7 +203,7 @@ module.exports = {
             requiresTOTP: true,
             message: 'TOTP verification required for MFA',
             email: token.email,
-            loginToken: token.token,
+            loginToken,
             userId: user.id
           });
         }
@@ -530,12 +548,14 @@ module.exports = {
   },
 
   /**
-   * Verifies a TOTP code after a successful Magic Link click (MFA scenario 1).
-   * Rate-limited per-IP and per-token to prevent brute-force against the
-   * 6-digit TOTP space.
+   * Verifies the TOTP challenge created by a successful Magic Link click.
+   * The challenge must still be active and unexpired, and is deactivated after
+   * success even when reusable login links are otherwise enabled.
    *
+   * @param {object} ctx - Strapi Koa context for the public TOTP route.
+   * @returns {Promise<object|void>} The login response or a rejection response.
    * @route POST /api/magic-link/verify-mfa-totp
-   * @throws {BadRequestError} When the token/code is invalid or expired
+   * @throws {BadRequestError} When the challenge is invalid, expired or spent.
    */
   async verifyMFATOTP(ctx) {
     const { loginToken, totpCode } = parseBody(mfaVerifyTotpSchema, ctx.request.body);
@@ -564,10 +584,16 @@ module.exports = {
     if (!token || !token.is_active) {
       return ctx.badRequest('Invalid or expired token');
     }
+
+    const isValid = await magicLink.isTokenValid(token);
+    if (!isValid) {
+      await magicLink.deactivateToken(token);
+      return ctx.badRequest('Invalid or expired token');
+    }
     
     // Check if token requires TOTP
     const context = token.context || {};
-    if (!context.requiresTOTP || !context.userId) {
+    if (!context.requiresTOTP || !context.userId || context.totpVerified === true) {
       return ctx.badRequest('TOTP verification not required for this token');
     }
     
@@ -578,24 +604,13 @@ module.exports = {
       return ctx.badRequest(verificationResult.message || 'Invalid TOTP code');
     }
     
-    // Mark token as TOTP-verified using Document Service API
-    await strapi.documents('plugin::magic-link.token').update({
-      documentId: token.documentId,
-      data: {
-        context: {
-          ...context,
-          totpVerified: true
-        }
-      }
-    });
-    
-    // Proceed with login
     const requestInfo = {
       userAgent: ctx.request.header['user-agent'],
       ipAddress: ctx.request.ip
     };
-    
-    await magicLink.updateTokenOnLogin(token, requestInfo);
+
+    const consumed = await magicLink.consumeChallenge(token, 'totp', requestInfo);
+    if (!consumed) return ctx.badRequest('Invalid or expired token');
     
     // Find user using Document Service API
     // Prefer documentId (Strapi v5), fallback to id for backward compatibility

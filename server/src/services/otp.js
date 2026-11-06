@@ -184,8 +184,8 @@ module.exports = ({ strapi }) => {
    * 2. Increment `attempts` on ALL candidates (any attempt counts)
    * 3. If aggregate attempts ≥ maxAttempts, burn the entire pool
    * 4. Try a timing-safe hash match only if attempts are still within budget
-   * 5. On match: mark matched entry as used. All other entries stay as-is
-   *    (already invalidated by createOTP's single-active-code policy).
+   * 5. On match: atomically mark the matched row as used. All other entries
+   *    stay as-is (already invalidated by createOTP's single-active-code policy).
    *
    * This closes the previous bug where `attempts` was never incremented on
    * mismatched codes, letting attackers brute-force within the rate-limit
@@ -194,9 +194,11 @@ module.exports = ({ strapi }) => {
    * @param {string} email - User email
    * @param {string} code - Plaintext OTP code to verify
    * @param {string} type - OTP type
+   * @param {string|null} [magicLinkTokenHash] - Stored token hash required for
+   *   exact login-challenge binding. Omit only for explicitly legacy flows.
    * @returns {Promise<{valid: boolean, error?: string, message?: string, otpEntry?: object}>}
    */
-  async verifyOTP(email, code, type = 'email') {
+  async verifyOTP(email, code, type = 'email', magicLinkTokenHash = null) {
     const activeStrapi = getStrapi();
     const pluginStore = activeStrapi.store({ type: 'plugin', name: 'magic-link' });
     const settings = (await pluginStore.get({ key: 'settings' })) || {};
@@ -216,6 +218,7 @@ module.exports = ({ strapi }) => {
           type,
           used: false,
           expiresAt: { $gt: now },
+          ...(magicLinkTokenHash ? { magicLinkToken: magicLinkTokenHash } : {}),
         },
         sort: [{ createdAt: 'desc' }],
         limit: 10,
@@ -269,16 +272,26 @@ module.exports = ({ strapi }) => {
         return { valid: false, error: 'invalid_code', message: 'Invalid or expired OTP code' };
       }
 
-      // Match found — mark only the matched entry as used.
-      await activeStrapi.documents('plugin::magic-link.otp-code').update({
-        documentId: matched.documentId,
+      // Consume the code with a conditional update so parallel verify requests
+      // cannot both issue a login from the same one-time code.
+      const consumed = await activeStrapi.db.query('plugin::magic-link.otp-code').updateMany({
+        where: {
+          id: matched.id,
+          used: false,
+          expiresAt: { $gt: now },
+          ...(magicLinkTokenHash ? { magicLinkToken: magicLinkTokenHash } : {}),
+        },
         data: { used: true },
       });
 
-      log.info(`OTP verified successfully for ${normalizedEmail}`);
+      if (consumed?.count !== 1) {
+        return { valid: false, error: 'invalid_code', message: 'Invalid or expired OTP code' };
+      }
+
+      log.info('OTP verification succeeded');
       return { valid: true, otpEntry: matched };
-    } catch (error) {
-      log.error('Error verifying OTP:', error);
+    } catch {
+      log.error('OTP verification failed');
       return { valid: false, error: 'server_error', message: 'Error verifying OTP code' };
     }
   },
@@ -373,8 +386,8 @@ If you didn't request this code, you can safely ignore this email.
 
         log.info(`OTP email sent via MagicMail to ${email}`);
         return true;
-      } catch (error) {
-        log.error('MagicMail send failed, falling back to default provider:', error);
+      } catch {
+        log.error('MagicMail OTP delivery failed; using the configured fallback');
       }
     }
 
@@ -397,21 +410,12 @@ If you didn't request this code, you can safely ignore this email.
    * Send OTP via SMS (requires SMS provider like Twilio)
    * @param {string} phoneNumber - Recipient phone number
    * @param {string} code - OTP code
-   * @returns {boolean} Success status
+   * @throws {Error} When no SMS transport is configured.
    */
-  async sendOTPSMS(phoneNumber, code) {
-    const activeStrapi = getStrapi();
-    const pluginStore = activeStrapi.store({
-      type: 'plugin',
-      name: 'magic-link',
-    });
-    const settings = await pluginStore.get({ key: 'settings' }) || {};
-
-    // TODO: Implement SMS sending with Twilio/Vonage
-    // For now, log that this is a premium feature
-    log.info(`SMS OTP to ${phoneNumber}: ${code} (SMS provider not yet implemented)`);
-    
-    return true;
+  async sendOTPSMS() {
+    const error = new Error('SMS delivery is not configured');
+    error.code = 'SMS_PROVIDER_UNAVAILABLE';
+    throw error;
   },
 
   /**
@@ -457,9 +461,9 @@ If you didn't request this code, you can safely ignore this email.
       if (total > 0) {
         strapiInstance.log.info(`[CLEANUP] Deleted ${total} expired OTP codes`);
       }
-    } catch (error) {
+    } catch {
       if (strapiInstance.log) {
-        strapiInstance.log.debug('[CLEANUP] OTP cleanup skipped:', error.message);
+        strapiInstance.log.debug('[CLEANUP] OTP cleanup skipped');
       }
     }
 
@@ -554,7 +558,9 @@ If you didn't request this code, you can safely ignore this email.
           data: {
             secret: encryptedSecret, // Store encrypted
             enabled: false, // Not enabled until first verification
-            email
+            email,
+            lastUsed: null,
+            lastUsedStep: null,
           }
         });
       } else {
@@ -572,7 +578,7 @@ If you didn't request this code, you can safely ignore this email.
       // Generate QR code
       const qrCodeDataURL = await QRCode.toDataURL(secret.otpauth_url);
 
-      log.info(`TOTP setup initiated for user ${userId} (${email})`);
+      log.info('TOTP setup initiated');
 
       // The plaintext secret is returned ONCE so the user can add it to their
       // authenticator app. Callers must display it ephemerally (no logs, no
@@ -584,7 +590,7 @@ If you didn't request this code, you can safely ignore this email.
         otpauthUrl: secret.otpauth_url,
       };
     } catch (error) {
-      log.error('Error setting up TOTP:', error);
+      log.error('TOTP setup failed');
       throw error;
     }
   },
@@ -592,7 +598,7 @@ If you didn't request this code, you can safely ignore this email.
   /**
    * Verify TOTP code and enable TOTP if valid
    * @param {number} userId - User ID
-   * @param {string} token - 6-digit TOTP code
+   * @param {string} token - Configured-length TOTP code
    * @param {boolean} enableAfterVerify - Enable TOTP after successful verification
    * @returns {Object} Verification result
    */
@@ -635,17 +641,20 @@ If you didn't request this code, you can safely ignore this email.
         return Math.min(Math.max(Math.round(raw), 15), 300);
       })();
 
-      const verified = speakeasy.totp.verify({
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const currentStep = Math.floor(nowSeconds / period);
+      const verification = speakeasy.totp.verifyDelta({
         secret: decryptedSecret,
         encoding: 'base32',
         token,
         algorithm,
         digits,
         step: period,
+        time: nowSeconds,
         window: 1, // ±1 step tolerance for clock drift
       });
 
-      if (!verified) {
+      if (!verification) {
         return {
           valid: false,
           error: 'invalid_token',
@@ -653,27 +662,58 @@ If you didn't request this code, you can safely ignore this email.
         };
       }
 
-      // Update config
+      const verifiedStep = currentStep + verification.delta;
+      const legacyLastUsedStep = config.lastUsed
+        ? Math.floor(new Date(config.lastUsed).getTime() / 1000 / period)
+        : null;
+      // Existing configurations predate lastUsedStep. Treat their recorded
+      // verification time as a conservative lower bound during migration.
+      const lastUsedStep = config.lastUsedStep == null
+        ? legacyLastUsedStep
+        : Number(config.lastUsedStep);
+
+      if (lastUsedStep !== null && (!Number.isFinite(lastUsedStep) || verifiedStep <= lastUsedStep)) {
+        return {
+          valid: false,
+          error: 'totp_replayed',
+          message: 'This TOTP code has already been used'
+        };
+      }
+
+      // Compare-and-set the last accepted TOTP step so two simultaneous
+      // requests cannot both exchange the same code for a login.
       const updateData = {
-        lastUsed: new Date()
+        lastUsed: new Date(nowSeconds * 1000),
+        lastUsedStep: verifiedStep,
       };
 
       if (enableAfterVerify && !config.enabled) {
         updateData.enabled = true;
-        log.info(`TOTP enabled for user ${userId}`);
+        log.info('TOTP enabled');
       }
 
-      await activeStrapi.documents('plugin::magic-link.totp-config').update({
-        documentId: config.documentId,
-        data: updateData
+      const updateResult = await activeStrapi.db.query('plugin::magic-link.totp-config').updateMany({
+        where: {
+          userId,
+          lastUsedStep: config.lastUsedStep ?? null,
+        },
+        data: updateData,
       });
+
+      if (updateResult?.count !== 1) {
+        return {
+          valid: false,
+          error: 'totp_replayed',
+          message: 'This TOTP code has already been used'
+        };
+      }
 
       return {
         valid: true,
         enabled: updateData.enabled || config.enabled
       };
-    } catch (error) {
-      log.error('Error verifying TOTP:', error);
+    } catch {
+      log.error('TOTP verification failed');
       return {
         valid: false,
         error: 'server_error',
@@ -703,10 +743,10 @@ If you didn't request this code, you can safely ignore this email.
         documentId: configs[0].documentId
       });
       
-      log.info(`TOTP disabled for user ${userId}`);
+      log.info('TOTP disabled');
       return true;
-    } catch (error) {
-      log.error('Error disabling TOTP:', error);
+    } catch {
+      log.error('TOTP disable failed');
       return false;
     }
   },
@@ -736,8 +776,8 @@ If you didn't request this code, you can safely ignore this email.
         configured: true,
         lastUsed: configs[0].lastUsed
       };
-    } catch (error) {
-      log.error('Error getting TOTP status:', error);
+    } catch {
+      log.error('TOTP status lookup failed');
       return {
         enabled: false,
         configured: false
@@ -781,11 +821,11 @@ If you didn't request this code, you can safely ignore this email.
         }
       });
 
-      log.info(`Backup codes generated for user ${userId}`);
+      log.info('TOTP backup codes generated');
 
       return backupCodes;
     } catch (error) {
-      log.error('Error generating backup codes:', error);
+      log.error('TOTP backup-code generation failed');
       throw error;
     }
   }

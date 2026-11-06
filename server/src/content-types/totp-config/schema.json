@@ -43,6 +43,10 @@
     },
     "lastUsed": {
       "type": "datetime"
+    },
+    "lastUsedStep": {
+      "type": "integer",
+      "private": true
     }
   }
 }

@@ -19,7 +19,7 @@ const setup = ({
   user = { id: 5, documentId: 'user-doc', email: 'person@example.test', username: 'person', confirmed: true, password: 'private' },
   totpStatus = { configured: false, enabled: false },
 } = {}) => {
-  const result = { sentEmails: [], updates: [], deactivated: 0, issued: [], sessions: [] };
+  const result = { sentEmails: [], otpRequests: [], updates: [], deactivated: 0, issued: [], sessions: [] };
   const magicLink = {
     fetchToken: async () => token,
     isTokenValid: async () => valid,
@@ -28,7 +28,10 @@ const setup = ({
     updateTokenOnLogin: async () => {},
   };
   const otp = {
-    createOTP: async (email, type, options) => ({ email, type, options, code: '731204' }),
+    createOTP: async (email, type, options) => {
+      result.otpRequests.push({ email, type, options });
+      return { email, type, options, code: '731204' };
+    },
     sendOTPEmail: async () => { result.sentEmails.push('mail'); },
     getTOTPStatus: async () => totpStatus,
   };
@@ -85,13 +88,28 @@ test('email OTP remains bound to the login token and never contacts an external 
 
   assert.equal(ctx.response.requiresOTP, true);
   assert.equal(ctx.response.email, 'person@example.test');
+  assert.equal(ctx.response.loginToken, 'one-time-token');
   assert.equal(state.sentEmails.length, 1);
+  assert.equal(state.otpRequests[0].options.magicLinkToken, 'stored-token');
   assert.deepEqual(state.updates[0].data.context, {
     redirectTo: '/dashboard',
     secret: 'private-value',
     requiresOTP: true,
     otpVerified: false,
   });
+});
+
+test('unsupported SMS OTP configuration fails without issuing a code', async () => {
+  const state = setup({ settings: { otp_enabled: true, otp_type: 'sms' } });
+  const ctx = context();
+
+  await auth.login(ctx);
+
+  assert.equal(ctx.status, 503);
+  assert.equal(ctx.body.error.code, 'OTP_DELIVERY_UNAVAILABLE');
+  assert.equal(state.otpRequests.length, 0);
+  assert.equal(state.sentEmails.length, 0);
+  assert.equal(state.updates.length, 0);
 });
 
 test('required TOTP MFA returns a challenge and does not issue a JWT before verification', async () => {
@@ -104,9 +122,45 @@ test('required TOTP MFA returns a challenge and does not issue a JWT before veri
   await auth.login(ctx);
 
   assert.equal(ctx.response.requiresTOTP, true);
+  assert.equal(ctx.response.loginToken, 'one-time-token');
   assert.equal(ctx.response.userId, 5);
   assert.equal(state.issued.length, 0);
   assert.equal(state.updates[0].data.context.requiresTOTP, true);
+});
+
+test('required TOTP blocks an unconfigured end user before issuing a JWT', async () => {
+  const state = setup({
+    settings: { otp_enabled: false, mfa_mode: 'required' },
+    totpStatus: { configured: false, enabled: false },
+  });
+  const ctx = context();
+
+  await auth.login(ctx);
+
+  assert.match(ctx.badRequestMessage, /TOTP is required but not yet configured/i);
+  assert.equal(state.issued.length, 0);
+  assert.equal(state.updates.length, 0);
+});
+
+test('mandatory TOTP takes precedence over email OTP and the legacy required flag overrides stale disabled mode', async () => {
+  const state = setup({
+    settings: {
+      otp_enabled: true,
+      otp_type: 'email',
+      mfa_mode: 'disabled',
+      mfa_require_totp: true,
+    },
+    totpStatus: { configured: true, enabled: true },
+  });
+  const ctx = context();
+
+  await auth.login(ctx);
+
+  assert.equal(ctx.response.requiresTOTP, true);
+  assert.equal(ctx.response.loginToken, 'one-time-token');
+  assert.equal(state.sentEmails.length, 0);
+  assert.equal(state.otpRequests.length, 0);
+  assert.equal(state.issued.length, 0);
 });
 
 test('normal passwordless login issues a JWT, stores only a hash and removes private user fields', async () => {

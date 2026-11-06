@@ -18,7 +18,7 @@ module.exports = {
       handler: 'auth.login',
       config: {
         auth: false,
-        policies: [],
+        policies: ['plugin::magic-link.ip-ban-check'],
       },
     },
     {
@@ -27,7 +27,7 @@ module.exports = {
       handler: 'auth.sendLink',
       config: {
         auth: false,
-        policies: [],
+        policies: ['plugin::magic-link.ip-ban-check'],
       },
     },
     // OTP Routes
@@ -37,7 +37,7 @@ module.exports = {
       handler: 'otp.send',
       config: {
         auth: false,
-        policies: [],
+        policies: ['plugin::magic-link.ip-ban-check'],
       },
     },
     {
@@ -46,7 +46,7 @@ module.exports = {
       handler: 'otp.verify',
       config: {
         auth: false,
-        policies: [],
+        policies: ['plugin::magic-link.ip-ban-check'],
       },
     },
     {
@@ -55,7 +55,7 @@ module.exports = {
       handler: 'otp.resend',
       config: {
         auth: false,
-        policies: [],
+        policies: ['plugin::magic-link.ip-ban-check'],
       },
     },
     // MFA Routes
@@ -65,7 +65,7 @@ module.exports = {
       handler: 'auth.verifyMFATOTP',
       config: {
         auth: false,
-        policies: [],
+        policies: ['plugin::magic-link.ip-ban-check'],
       },
     },
     {
@@ -74,7 +74,7 @@ module.exports = {
       handler: 'auth.loginWithTOTP',
       config: {
         auth: false,
-        policies: [],
+        policies: ['plugin::magic-link.ip-ban-check'],
       },
     },
   ],

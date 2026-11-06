@@ -61,6 +61,7 @@ import {
 } from '@strapi/icons';
 import getTrad from '../../utils/getTrad';
 import { usePluginLanguage } from '../../components/LanguageProvider';
+import { getTokenCreationNotice } from './tokenCreateNotice.mjs';
 
 // ================ DESIGN TOKENS ================
 const theme = {
@@ -1258,7 +1259,11 @@ const TokensProfessional = () => {
     });
   };
   
+  /** Confirms and deletes one magic-link token. */
   const handleDelete = async (tokenId) => {
+    const confirmed = window.confirm(formatMessage({ id: getTrad('tokens.confirm.delete') }));
+    if (!confirmed) return;
+
     try {
       await del(`/magic-link/tokens/${tokenId}`);
       await fetchTokens();
@@ -1267,7 +1272,7 @@ const TokensProfessional = () => {
         message: formatMessage({ id: getTrad('tokens.notifications.deleted') }),
         title: formatMessage({ id: getTrad('tokens.notifications.success') })
       });
-    } catch (error) {
+    } catch {
       toggleNotification({
         type: 'warning',
         message: formatMessage({ id: getTrad('tokens.notifications.deleteError') }),
@@ -1276,8 +1281,14 @@ const TokensProfessional = () => {
     }
   };
   
+  /** Confirms the selected count before issuing token-delete requests. */
   const handleBulkDelete = async () => {
     if (selectedTokens.length === 0) return;
+    const confirmed = window.confirm(formatMessage(
+      { id: getTrad('tokens.confirm.bulkDelete') },
+      { count: selectedTokens.length }
+    ));
+    if (!confirmed) return;
     
     try {
       await Promise.all(
@@ -1290,7 +1301,7 @@ const TokensProfessional = () => {
         message: formatMessage({ id: getTrad('tokens.notifications.bulkDeleted') }, { count: selectedTokens.length }),
         title: formatMessage({ id: getTrad('tokens.notifications.bulkDeleteSuccess') })
       });
-    } catch (error) {
+    } catch {
       toggleNotification({
         type: 'warning',
         message: formatMessage({ id: getTrad('tokens.notifications.deleteError') }),
@@ -1337,9 +1348,14 @@ const TokensProfessional = () => {
         setShowCreatedTokenModal(true);
       }
       
+      const notice = getTokenCreationNotice({
+        sendEmail: newToken.sendEmail,
+        email: newToken.email,
+      });
+
       toggleNotification({
         type: 'success',
-        message: formatMessage({ id: getTrad('tokens.notifications.created') }, { email: newToken.email }),
+        message: formatMessage({ id: getTrad(notice.messageId) }, notice.values),
         title: formatMessage({ id: getTrad('tokens.notifications.createSuccess') })
       });
     } catch (error) {

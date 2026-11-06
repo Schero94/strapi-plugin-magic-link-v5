@@ -19,6 +19,7 @@ const sanitize = require('@strapi/utils').sanitize;
 const emailHelpers = require('../utils/email-helpers');
 const cryptoUtils = require('../utils/crypto');
 const { normalizeEmail } = require('../utils/email');
+const { normalizeIpAddress } = require('../utils/ip-address');
 
 // Helper to format expiry time in human-readable format
 const formatExpiryText = (minutes) => {
@@ -271,7 +272,7 @@ module.exports = ({ strapi }) => ({
    * 2. is_active
    * 3. not expired
    * 4. email on the token matches the email the OTP is being sent to
-   * 5. the stored context contains the expected flag (requiresOTP or requiresTOTP)
+   * 5. the stored context contains the expected flag and is not already verified
    *
    * Returns the token record on success so callers can reuse its context.
    * Returns null on any failure. Never leaks the specific failure reason.
@@ -296,9 +297,63 @@ module.exports = ({ strapi }) => ({
 
     const ctx = token.context || {};
     if (expectedChallenge === 'otp' && ctx.requiresOTP !== true) return null;
+    if (expectedChallenge === 'otp' && ctx.otpVerified === true) return null;
     if (expectedChallenge === 'totp' && ctx.requiresTOTP !== true) return null;
+    if (expectedChallenge === 'totp' && ctx.totpVerified === true) return null;
 
     return token;
+  },
+
+  /**
+   * Atomically consumes a pending second-factor token. The conditional database
+   * update makes a parallel replay lose even when two requests loaded the token
+   * before either request finished verification.
+   *
+   * @param {object} token - Active token record returned by fetchToken.
+   * @param {'otp'|'totp'} challenge - Required challenge type.
+   * @param {object} [requestInfo] - Optional login IP and user-agent metadata.
+   * @returns {Promise<boolean>} True only for the request that consumed the row.
+   */
+  async consumeChallenge(token, challenge, requestInfo = {}) {
+    const challengeContextKey = challenge === 'otp' ? 'requiresOTP' : 'requiresTOTP';
+    const verifiedContextKey = challenge === 'otp' ? 'otpVerified' : 'totpVerified';
+    const context = token?.context || {};
+
+    if (
+      !token?.id
+      || !['otp', 'totp'].includes(challenge)
+      || context[challengeContextKey] !== true
+      || context[verifiedContextKey] === true
+    ) {
+      return false;
+    }
+
+    const consumedAt = new Date();
+    const settings = await this.settings();
+    const data = {
+      is_active: false,
+      is_used: true,
+      used_at: token.used_at || consumedAt,
+      context: { ...context, [verifiedContextKey]: true },
+    };
+
+    if (settings?.store_login_info !== false) {
+      data.last_used_at = consumedAt;
+      if (requestInfo.userAgent) data.user_agent = requestInfo.userAgent;
+      if (requestInfo.ipAddress) data.ip_address = requestInfo.ipAddress;
+    }
+
+    const result = await strapi.db.query('plugin::magic-link.token').updateMany({
+      where: {
+        id: token.id,
+        is_active: true,
+        is_used: false,
+        expires_at: { $gt: consumedAt },
+      },
+      data,
+    });
+
+    return result?.count === 1;
   },
 
   async updateTokenOnLogin(token, requestInfo = null) {
@@ -687,7 +742,7 @@ module.exports = ({ strapi }) => ({
       await pluginStore.set({ key: 'blocked_jwt_tokens', value: blockedTokensData });
       return { success: true };
     } catch (error) {
-      strapi.log.error('Error unblocking JWT token:', error);
+      strapi.log.error('Error unblocking JWT token');
       throw new Error('Failed to unblock JWT token');
     }
   },
@@ -705,8 +760,10 @@ module.exports = ({ strapi }) => ({
       const tokenHash = cryptoUtils.hashJwt(token);
       return blockedTokens.tokens.some(bt => bt.tokenHash === tokenHash);
     } catch (error) {
-      strapi.log.error('Error checking if JWT token is blocked:', error);
-      return false;
+      // A store failure means revocation status is unknown. Never treat it as
+      // an unblocked token, or a still-valid revoked JWT could be accepted.
+      strapi.log.error('[magic-link] JWT revocation lookup failed');
+      throw new Error('Failed to verify JWT revocation status');
     }
   },
 
@@ -731,24 +788,29 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Prüft, ob eine IP-Adresse gebannt ist
-   * @param {string} ipAddress - Die zu prüfende IP-Adresse
-   * @returns {boolean} - True, wenn die IP gebannt ist
+   * Checks the canonical request IP against the stored block list.
+   * Storage errors are thrown so public authentication routes can fail closed.
+   *
+   * @param {string} ipAddress - Request IP to check.
+   * @returns {Promise<boolean>} Whether the address is blocked.
    */
   async isIPBanned(ipAddress) {
     try {
+      const normalizedIpAddress = normalizeIpAddress(ipAddress);
+      if (!normalizedIpAddress) throw new Error('Invalid request IP address');
+
       const pluginStore = strapi.store({
-      type: 'plugin',
+        type: 'plugin',
         name: 'magic-link',
       });
-      
+
       const bannedIPs = (await pluginStore.get({ key: 'banned_ips' })) || { ips: [] };
-      
-      // Prüfen, ob die IP in der Liste gebannter IPs ist
-      return bannedIPs.ips.includes(ipAddress);
-    } catch (error) {
-      console.error('Error checking if IP is banned:', error);
-      return false;
+      if (!Array.isArray(bannedIPs.ips)) throw new Error('Invalid IP block-list data');
+
+      return bannedIPs.ips.some((bannedIp) => normalizeIpAddress(bannedIp) === normalizedIpAddress);
+    } catch {
+      strapi.log.error('[Magic-Link] IP ban lookup failed');
+      throw new Error('IP ban status could not be checked');
     }
   }
 });

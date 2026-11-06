@@ -18,10 +18,12 @@ import {
   Badge,
 } from '@strapi/design-system';
 import { Check, Cog, Mail, Shield, Code, Link, Key, Lock, Lightning, CheckCircle } from '@strapi/icons';
-import { useFetchClient, useNotification } from '@strapi/strapi/admin';
+import { useFetchClient, useNotification, useRBAC } from '@strapi/strapi/admin';
 import getTrad from '../../utils/getTrad';
+import pluginPermissions from '../../permissions';
 import { usePluginLanguage } from '../../components/LanguageProvider';
 import { getTemplateList, getTemplate } from '../../utils/emailTemplates';
+import { isValidJwtExpiry, isValidOptionalEmail } from '../../utils/settingsValidation.mjs';
 
 // ================ THEME ================
 const theme = {
@@ -199,7 +201,12 @@ const IconWrapper = styled.div`
 const SettingsModern = () => {
   const { formatMessage } = useIntl();
   const { toggleNotification } = useNotification();
-  const { get, put } = useFetchClient();
+  const { get, put, post } = useFetchClient();
+  const {
+    isLoading: isPermissionLoading,
+    allowedActions: { canUpdate },
+  } = useRBAC(pluginPermissions.updateSettings);
+  const canWriteSettings = canUpdate;
   const { language, changeLanguage } = usePluginLanguage();
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -256,6 +263,10 @@ const SettingsModern = () => {
     frontend_url: '',
     frontend_login_path: '/auth/magic-link',
   });
+  const jwtExpiryValid = isValidJwtExpiry(settings.jwt_token_expires_in);
+  const fromEmailValid = isValidOptionalEmail(settings.from_email);
+  const responseEmailValid = isValidOptionalEmail(settings.response_email);
+  const settingsFormValid = jwtExpiryValid && fromEmailValid && responseEmailValid;
   
   const [rateLimitStats, setRateLimitStats] = useState(null);
   const [emailDesignerInstalled, setEmailDesignerInstalled] = useState(false);
@@ -464,8 +475,11 @@ const SettingsModern = () => {
   // plugin no longer downgrades the user's saved settings based on a
   // license tier. All toggles remain in the state the admin saved them.
 
+  /** Validates settings through the server and adopts its normalized response. */
   const handleSave = async (e) => {
     e.preventDefault();
+    if (!canWriteSettings || isPermissionLoading) return;
+    if (!settingsFormValid) return;
     setIsSaving(true);
     try {
       // Convert comma-separated strings to arrays before saving
@@ -476,7 +490,9 @@ const SettingsModern = () => {
       if (typeof toSave.context_blacklist === 'string') {
         toSave.context_blacklist = toSave.context_blacklist.split(',').map(s => s.trim()).filter(Boolean);
       }
-      await put('/magic-link/settings', toSave);
+      const response = await put('/magic-link/settings', toSave);
+      const savedSettings = response?.data?.settings;
+      if (savedSettings) setSettings(savedSettings);
       toggleNotification({
         type: 'success',
         message: formatMessage({ id: getTrad('settings.save.success') })
@@ -494,8 +510,9 @@ const SettingsModern = () => {
     }
   };
 
+  /** Updates one field without dropping sibling changes from batched controls. */
   const updateSetting = (key, value) => {
-    setSettings({ ...settings, [key]: value });
+    setSettings((current) => ({ ...current, [key]: value }));
   };
   
   // Tier-gating helper retained for backward compatibility with existing
@@ -508,15 +525,17 @@ const SettingsModern = () => {
     changeLanguage(newLang);
   };
   
+  /** Cleans expired rate-limit entries through the mutation route. */
   const handleRateLimitCleanup = async () => {
+    if (!canWriteSettings || isPermissionLoading) return;
     try {
-      await get('/magic-link/rate-limit/cleanup');
+      await post('/magic-link/rate-limit/cleanup');
       toggleNotification({
         type: 'success',
         message: formatMessage({ id: getTrad('settings.rateLimit.cleanupSuccess') })
       });
       loadSettings();
-    } catch (error) {
+    } catch {
       toggleNotification({
         type: 'danger',
         message: formatMessage({ id: getTrad('settings.rateLimit.cleanupError') })
@@ -524,16 +543,18 @@ const SettingsModern = () => {
     }
   };
   
+  /** Confirms and clears all rate-limit entries through a POST request. */
   const handleRateLimitReset = async () => {
+    if (!canWriteSettings || isPermissionLoading) return;
     if (window.confirm(formatMessage({ id: getTrad('settings.rateLimit.resetConfirm') }))) {
       try {
-        await get('/magic-link/rate-limit/reset');
+        await post('/magic-link/rate-limit/reset');
         toggleNotification({
           type: 'success',
           message: formatMessage({ id: getTrad('settings.rateLimit.resetSuccess') })
         });
         loadSettings();
-      } catch (error) {
+      } catch {
         toggleNotification({
           type: 'danger',
           message: formatMessage({ id: getTrad('settings.rateLimit.resetError') })
@@ -566,11 +587,16 @@ const SettingsModern = () => {
               {formatMessage({ id: getTrad('settings.page.subtitle') })}
             </Typography>
           </Flex>
+          {!isPermissionLoading && !canWriteSettings && (
+            <Typography variant="pi" textColor="neutral600" role="status">
+              {formatMessage({ id: getTrad('settings.permission.readOnly') })}
+            </Typography>
+          )}
           <Button
             type="submit"
             loading={isSaving}
             startIcon={<Check />}
-            disabled={isSaving}
+            disabled={isSaving || isPermissionLoading || !canWriteSettings || !settingsFormValid}
             size="L"
             style={{
               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -1112,10 +1138,16 @@ const SettingsModern = () => {
                       </Typography>
                       <TextInput
                         hint={formatMessage({ id: getTrad('settings.auth.jwtExpiration.hint') })}
+                        aria-invalid={!jwtExpiryValid}
                         value={settings.jwt_token_expires_in}
                         onChange={(e) => updateSetting('jwt_token_expires_in', e.target.value)}
                         placeholder={formatMessage({ id: getTrad('settings.auth.jwtExpiration.placeholder') })}
                       />
+                      {!jwtExpiryValid && (
+                        <Typography variant="pi" textColor="danger600" role="alert">
+                          {formatMessage({ id: getTrad('settings.auth.jwtExpiration.invalid') })}
+                        </Typography>
+                      )}
                       <Box padding={2} background="success50" style={{ borderRadius: '4px', marginTop: '8px' }}>
                         <Typography variant="pi" textColor="success700" style={{ fontSize: '11px' }}>
                           {formatMessage({ id: getTrad('settings.auth.jwtExpiration.examples') })}
@@ -1241,10 +1273,16 @@ const SettingsModern = () => {
                       <TextInput
                         type="email"
                         hint={formatMessage({ id: getTrad('settings.email.fromEmail.hint') })}
+                        aria-invalid={!fromEmailValid}
                         value={settings.from_email}
                         onChange={(e) => updateSetting('from_email', e.target.value)}
                         placeholder={formatMessage({ id: getTrad('settings.email.fromEmail.placeholder') })}
                       />
+                      {!fromEmailValid && (
+                        <Typography variant="pi" textColor="danger600" role="alert">
+                          {formatMessage({ id: getTrad('settings.email.invalidEmail') })}
+                        </Typography>
+                      )}
                       <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '6px' }}>
                         {formatMessage({ id: getTrad('settings.email.fromEmail.note') })}
                       </Typography>
@@ -1258,10 +1296,16 @@ const SettingsModern = () => {
                       <TextInput
                         type="email"
                         hint={formatMessage({ id: getTrad('settings.email.responseEmail.hint') })}
+                        aria-invalid={!responseEmailValid}
                         value={settings.response_email}
                         onChange={(e) => updateSetting('response_email', e.target.value)}
                         placeholder={formatMessage({ id: getTrad('settings.email.responseEmail.placeholder') })}
                       />
+                      {!responseEmailValid && (
+                        <Typography variant="pi" textColor="danger600" role="alert">
+                          {formatMessage({ id: getTrad('settings.email.invalidEmail') })}
+                        </Typography>
+                      )}
                       <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '6px' }}>
                         {formatMessage({ id: getTrad('settings.email.responseEmail.note') })}
                       </Typography>
@@ -2045,6 +2089,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                       }
                       onClick={() => {
                         updateSetting('otp_enabled', false);
+                        updateSetting('mfa_mode', 'disabled');
                         updateSetting('mfa_require_totp', false);
                         updateSetting('totp_as_primary_auth', false);
                       }}
@@ -2076,7 +2121,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                       }}>
                         Free
                       </Badge>
-                      {!(!settings.otp_enabled && !settings.mfa_require_totp && !settings.totp_as_primary_auth) && (
+                      {canWriteSettings && !(!settings.otp_enabled && !settings.mfa_require_totp && !settings.totp_as_primary_auth) && (
                         <Button
                           variant="secondary"
                           startIcon={<Check />}
@@ -2086,6 +2131,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                               const newSettings = {
                                 ...settings,
                                 otp_enabled: false,
+                                mfa_mode: 'disabled',
                                 mfa_require_totp: false,
                                 totp_as_primary_auth: false
                               };
@@ -2119,6 +2165,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                       onClick={() => {
                         if (!checkLicenseAndSetMode('otp-email')) return;
                         updateSetting('otp_enabled', true);
+                        updateSetting('mfa_mode', 'disabled');
                         updateSetting('mfa_require_totp', false);
                         updateSetting('totp_as_primary_auth', false);
                       }}
@@ -2162,7 +2209,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                       }}>
                         Premium
                       </Badge>
-                      {['premium', 'advanced', 'enterprise'].includes(licenseInfo?.tier) && !(settings.otp_enabled && !settings.mfa_require_totp) && (
+                      {canWriteSettings && ['premium', 'advanced', 'enterprise'].includes(licenseInfo?.tier) && !(settings.otp_enabled && !settings.mfa_require_totp) && (
                         <Button
                           variant="secondary"
                           startIcon={<Check />}
@@ -2173,6 +2220,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                               const newSettings = {
                                 ...settings,
                                 otp_enabled: true,
+                                mfa_mode: 'disabled',
                                 mfa_require_totp: false,
                                 totp_as_primary_auth: false
                               };
@@ -2206,6 +2254,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                       onClick={() => {
                         if (!checkLicenseAndSetMode('mfa-totp')) return;
                         updateSetting('otp_enabled', false);
+                        updateSetting('mfa_mode', 'required');
                         updateSetting('mfa_require_totp', true);
                         updateSetting('totp_as_primary_auth', false);
                       }}
@@ -2250,7 +2299,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                       }}>
                         Advanced
                       </Badge>
-                      {['advanced', 'enterprise'].includes(licenseInfo?.tier) && !settings.mfa_require_totp && (
+                      {canWriteSettings && ['advanced', 'enterprise'].includes(licenseInfo?.tier) && !settings.mfa_require_totp && (
                         <Button
                           variant="secondary"
                           startIcon={<Check />}
@@ -2261,6 +2310,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                               const newSettings = {
                                 ...settings,
                                 otp_enabled: false,
+                                mfa_mode: 'required',
                                 mfa_require_totp: true,
                                 totp_as_primary_auth: false
                               };
@@ -2327,12 +2377,12 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                             onChange={(value) => updateSetting('otp_type', value)}
                             placeholder="Wähle Versandmethode"
                           >
-                            <SingleSelectOption value="email">E-Mail OTP (Premium)</SingleSelectOption>
-                            <SingleSelectOption value="sms">SMS OTP (Advanced)</SingleSelectOption>
-                            <SingleSelectOption value="totp">Authenticator App (Advanced)</SingleSelectOption>
+                            <SingleSelectOption value="email">E-Mail OTP</SingleSelectOption>
+                            <SingleSelectOption value="sms" disabled>SMS OTP (nicht verfügbar)</SingleSelectOption>
+                            <SingleSelectOption value="totp" disabled>Authenticator App (über den MFA-Modus)</SingleSelectOption>
                           </SingleSelect>
                           <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '6px' }}>
-                            Wie sollen Benutzer den Verifikationscode erhalten?
+                            Derzeit wird nur E-Mail versendet. TOTP wird separat im MFA-Modus geprüft.
                           </Typography>
                         </Box>
                       </Grid.Item>
@@ -2732,6 +2782,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                         onClick={handleRateLimitCleanup}
                         variant="secondary"
                         size="M"
+                            disabled={isPermissionLoading || !canWriteSettings}
                       >
                         {formatMessage({ id: getTrad('settings.rateLimit.cleanup') })}
                       </Button>
@@ -2739,6 +2790,7 @@ ${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1
                         onClick={handleRateLimitReset}
                         variant="danger"
                         size="M"
+                            disabled={isPermissionLoading || !canWriteSettings}
                       >
                         {formatMessage({ id: getTrad('settings.rateLimit.reset') })}
                       </Button>

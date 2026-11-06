@@ -498,14 +498,18 @@ const JWTSessions = () => {
     });
   };
   
+  /** Confirms before revoking a JWT session and refreshes the list on success. */
   const handleRevoke = async (sessionId) => {
+    const confirmed = window.confirm(formatMessage({ id: getTrad('jwt.confirm.revoke') }));
+    if (!confirmed) return;
+
     try {
       await post('/magic-link/revoke-jwt', { sessionId });
       await fetchSessions();
       toggleNotification({
         type: 'success',
-        message: 'Session wurde gesperrt',
-        title: 'Erfolg'
+        message: formatMessage({ id: getTrad('jwt.notifications.revokeSuccess') }),
+        title: formatMessage({ id: getTrad('tokens.notifications.success') })
       });
     } catch (error) {
       toggleNotification({
@@ -516,7 +520,11 @@ const JWTSessions = () => {
     }
   };
   
+  /** Confirms before restoring a still-valid JWT session. */
   const handleUnrevoke = async (sessionId, userId) => {
+    const confirmed = window.confirm(formatMessage({ id: getTrad('jwt.confirm.unrevoke') }));
+    if (!confirmed) return;
+
     try {
       await post('/magic-link/unrevoke-jwt', { sessionId, userId });
       await fetchSessions();
@@ -534,7 +542,11 @@ const JWTSessions = () => {
     }
   };
   
+  /** Confirms before marking every expired JWT session as revoked. */
   const handleCleanup = async () => {
+    const confirmed = window.confirm(formatMessage({ id: getTrad('jwt.confirm.cleanup') }));
+    if (!confirmed) return;
+
     try {
       const response = await post('/magic-link/cleanup-sessions');
       await fetchSessions();

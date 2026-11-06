@@ -32,6 +32,25 @@ const { resolveJwt } = require('../utils/jwt');
 const GENERIC_FAILURE = 'Invalid or expired verification code';
 const GENERIC_OTP_RESPONSE = 'If the request is valid, a verification code will be sent.';
 
+/**
+ * Sends a uniform service-unavailable response when the configured OTP
+ * transport is not implemented. No code or recipient is included.
+ *
+ * @param {object} ctx - Strapi Koa context.
+ * @returns {object} The response body.
+ */
+const unavailableOtpDelivery = (ctx) => {
+  ctx.status = 503;
+  ctx.body = {
+    success: false,
+    error: {
+      code: 'OTP_DELIVERY_UNAVAILABLE',
+      message: 'The configured verification method is not available.',
+    },
+  };
+  return ctx.body;
+};
+
 const SENSITIVE_CONTEXT_KEYS = [
   'password', 'secret', 'apiKey', 'token',
   'resetPasswordToken', 'confirmationToken',
@@ -107,6 +126,9 @@ module.exports = {
    * factor. This prevents /otp/send from being used as a standalone email
    * bombardment vector.
    *
+   * Only email delivery is implemented. Unsupported settings return 503 before
+   * an OTP record is created.
+   *
    * @route POST /api/magic-link/otp/send
    */
   async send(ctx) {
@@ -123,6 +145,10 @@ module.exports = {
         return ctx.badRequest('OTP is not enabled');
       }
 
+      if (otpSettings.type !== 'email') {
+        return unavailableOtpDelivery(ctx);
+      }
+
       const rlFail = await enforceOtpRateLimits(ctx, normalizedEmail, 'send');
       if (rlFail) return ctx.tooManyRequests(rlFail.message);
 
@@ -130,6 +156,7 @@ module.exports = {
       const settings = (await pluginStore.get({ key: 'settings' })) || {};
       const strictBinding = settings.otp_strict_binding !== false;
 
+      let boundToken = null;
       if (strictBinding) {
         // Clear 400 when the client simply forgot to send the binding
         // token (usually a frontend bug) so the user is not left waiting
@@ -143,7 +170,7 @@ module.exports = {
         }
 
         const magicLink = strapi.plugin('magic-link').service('magic-link');
-        const boundToken = await magicLink.validateBindingForChallenge(
+        boundToken = await magicLink.validateBindingForChallenge(
           magicLinkToken,
           normalizedEmail,
           'otp'
@@ -159,7 +186,7 @@ module.exports = {
       }
 
       const otpEntry = await otpService.createOTP(normalizedEmail, otpSettings.type, {
-        magicLinkToken,
+        magicLinkToken: boundToken?.token || null,
         expirySeconds: otpSettings.expiry,
         codeLength: otpSettings.length,
         ipAddress: ctx.request.ip,
@@ -167,20 +194,15 @@ module.exports = {
       });
 
       if (otpSettings.type === 'email') {
-        await otpService.sendOTPEmail(normalizedEmail, otpEntry.code, {
-          subject: 'Your Verification Code',
-          expiryMinutes: Math.floor(otpSettings.expiry / 60),
-        });
-      } else if (otpSettings.type === 'sms') {
-        const users = await strapi.documents('plugin::users-permissions.user').findMany({
-          filters: { email: normalizedEmail },
-          limit: 1,
-        });
-        const user = users && users[0];
-        if (user?.phoneNumber) {
-          await otpService.sendOTPSMS(user.phoneNumber, otpEntry.code);
+        try {
+          await otpService.sendOTPEmail(normalizedEmail, otpEntry.code, {
+            subject: 'Your Verification Code',
+            expiryMinutes: Math.floor(otpSettings.expiry / 60),
+          });
+        } catch {
+          strapi.log.error('[OTP] Email delivery failed');
+          return unavailableOtpDelivery(ctx);
         }
-        // Generic response — do not reveal whether phone number was missing
       }
 
       return ctx.send({
@@ -189,8 +211,8 @@ module.exports = {
         expiresIn: otpSettings.expiry,
         type: otpSettings.type,
       });
-    } catch (error) {
-      strapi.log.error('Error sending OTP:', error);
+    } catch {
+      strapi.log.error('[OTP] Send request failed');
       return ctx.badRequest('Failed to send OTP code');
     }
   },
@@ -198,9 +220,9 @@ module.exports = {
   /**
    * Verifies an OTP code and completes the magic-link login.
    *
-   * When otp_strict_binding is enabled (default), a valid magicLinkToken
-   * with requiresOTP=true is required; otherwise the flow falls back to
-   * email-only verification (insecure legacy mode).
+   * When otp_strict_binding is enabled (default), the code must match the
+   * stored token hash for this exact login challenge. Disabling strict binding
+   * preserves the explicit legacy email-only flow.
    *
    * @route POST /api/magic-link/otp/verify
    */
@@ -217,6 +239,10 @@ module.exports = {
 
       if (!otpSettings.enabled) {
         return ctx.badRequest('OTP is not enabled');
+      }
+
+      if (otpSettings.type !== 'email') {
+        return unavailableOtpDelivery(ctx);
       }
 
       const rlFail = await enforceOtpRateLimits(ctx, normalizedEmail, 'verify');
@@ -241,7 +267,12 @@ module.exports = {
         }
       }
 
-      const verification = await otpService.verifyOTP(normalizedEmail, code, otpSettings.type);
+      const verification = await otpService.verifyOTP(
+        normalizedEmail,
+        code,
+        otpSettings.type,
+        boundToken?.token || null
+      );
       if (!verification.valid) {
         return ctx.badRequest(GENERIC_FAILURE);
       }
@@ -256,9 +287,13 @@ module.exports = {
         return ctx.badRequest(GENERIC_FAILURE);
       }
 
-      // Deactivate the magic-link token so it cannot be reused after OTP.
+      // Consume the login token atomically before issuing a JWT.
       if (boundToken) {
-        await magicLinkService.deactivateToken(boundToken);
+        const consumed = await magicLinkService.consumeChallenge(boundToken, 'otp', {
+          userAgent: ctx.request.headers['user-agent'],
+          ipAddress: ctx.request.ip,
+        });
+        if (!consumed) return ctx.badRequest(GENERIC_FAILURE);
       }
 
       const tokenContext = boundToken?.context ?? {};
@@ -285,8 +320,8 @@ module.exports = {
         user: { id: user.id, username: user.username, email: user.email },
         context: sanitizedContext,
       });
-    } catch (error) {
-      strapi.log.error('Error verifying OTP:', error);
+    } catch {
+      strapi.log.error('[OTP] Verification request failed');
       return ctx.badRequest('Failed to verify OTP code');
     }
   },
@@ -294,7 +329,8 @@ module.exports = {
   /**
    * Resends a new OTP code after the resend cooldown has elapsed.
    * Also subject to strict binding, IP + email rate-limits, and the
-   * single-active-code invalidation policy enforced by createOTP.
+   * single-active-code invalidation policy enforced by createOTP. Unsupported
+   * delivery settings fail before an OTP record is created.
    *
    * @route POST /api/magic-link/otp/resend
    */
@@ -312,6 +348,10 @@ module.exports = {
         return ctx.badRequest('OTP is not enabled');
       }
 
+      if (otpSettings.type !== 'email') {
+        return unavailableOtpDelivery(ctx);
+      }
+
       const rlFail = await enforceOtpRateLimits(ctx, normalizedEmail, 'resend');
       if (rlFail) return ctx.tooManyRequests(rlFail.message);
 
@@ -319,6 +359,7 @@ module.exports = {
       const settings = (await pluginStore.get({ key: 'settings' })) || {};
       const strictBinding = settings.otp_strict_binding !== false;
 
+      let boundToken = null;
       if (strictBinding) {
         // UX: distinguish between "client forgot to send the binding
         // token" (a legitimate frontend bug that deserves a clear 400)
@@ -334,7 +375,7 @@ module.exports = {
         }
 
         const magicLink = strapi.plugin('magic-link').service('magic-link');
-        const boundToken = await magicLink.validateBindingForChallenge(
+        boundToken = await magicLink.validateBindingForChallenge(
           magicLinkToken,
           normalizedEmail,
           'otp'
@@ -367,7 +408,7 @@ module.exports = {
       // createOTP invalidates all prior unused codes before creating the new one,
       // so no explicit "mark old as used" loop is needed here.
       const otpEntry = await otpService.createOTP(normalizedEmail, otpSettings.type, {
-        magicLinkToken,
+        magicLinkToken: boundToken?.token || null,
         expirySeconds: otpSettings.expiry,
         codeLength: otpSettings.length,
         ipAddress: ctx.request.ip,
@@ -375,18 +416,14 @@ module.exports = {
       });
 
       if (otpSettings.type === 'email') {
-        await otpService.sendOTPEmail(normalizedEmail, otpEntry.code, {
-          subject: 'Your New Verification Code',
-          expiryMinutes: Math.floor(otpSettings.expiry / 60),
-        });
-      } else if (otpSettings.type === 'sms') {
-        const users = await strapi.documents('plugin::users-permissions.user').findMany({
-          filters: { email: normalizedEmail },
-          limit: 1,
-        });
-        const user = users && users[0];
-        if (user?.phoneNumber) {
-          await otpService.sendOTPSMS(user.phoneNumber, otpEntry.code);
+        try {
+          await otpService.sendOTPEmail(normalizedEmail, otpEntry.code, {
+            subject: 'Your New Verification Code',
+            expiryMinutes: Math.floor(otpSettings.expiry / 60),
+          });
+        } catch {
+          strapi.log.error('[OTP] Resend delivery failed');
+          return unavailableOtpDelivery(ctx);
         }
       }
 
@@ -395,8 +432,8 @@ module.exports = {
         message: 'New OTP code sent successfully',
         expiresIn: otpSettings.expiry,
       });
-    } catch (error) {
-      strapi.log.error('Error resending OTP:', error);
+    } catch {
+      strapi.log.error('[OTP] Resend request failed');
       return ctx.badRequest('Failed to resend OTP code');
     }
   },
@@ -430,8 +467,8 @@ module.exports = {
           pageCount: Math.ceil(total / pageSize),
         },
       });
-    } catch (error) {
-      strapi.log.error('Error listing OTP codes:', error);
+    } catch {
+      strapi.log.error('[OTP] Admin list request failed');
       return ctx.badRequest('Failed to list OTP codes');
     }
   },
@@ -444,8 +481,8 @@ module.exports = {
       const { id } = ctx.params;
       await strapi.documents('plugin::magic-link.otp-code').delete({ documentId: id });
       ctx.send({ success: true, message: 'OTP code deleted successfully' });
-    } catch (error) {
-      strapi.log.error('Error deleting OTP code:', error);
+    } catch {
+      strapi.log.error('[OTP] Admin delete request failed');
       return ctx.badRequest('Failed to delete OTP code');
     }
   },
@@ -458,8 +495,8 @@ module.exports = {
       const otpService = strapi.plugin('magic-link').service('otp');
       await otpService.cleanupExpiredCodes();
       ctx.send({ success: true, message: 'Expired OTP codes cleaned up successfully' });
-    } catch (error) {
-      strapi.log.error('Error cleaning up OTP codes:', error);
+    } catch {
+      strapi.log.error('[OTP] Admin cleanup request failed');
       return ctx.badRequest('Failed to cleanup OTP codes');
     }
   },
@@ -478,8 +515,8 @@ module.exports = {
       const setupData = await otpService.setupTOTP(userId, email);
 
       ctx.send({ success: true, data: setupData });
-    } catch (error) {
-      strapi.log.error('Error setting up TOTP:', error);
+    } catch {
+      strapi.log.error('[OTP] TOTP setup request failed');
       return ctx.badRequest('Failed to setup TOTP');
     }
   },
@@ -504,8 +541,8 @@ module.exports = {
       } else {
         ctx.send({ success: false, error: result.error, message: result.message });
       }
-    } catch (error) {
-      strapi.log.error('Error verifying TOTP:', error);
+    } catch {
+      strapi.log.error('[OTP] TOTP verification request failed');
       return ctx.badRequest('Failed to verify TOTP');
     }
   },
@@ -524,8 +561,8 @@ module.exports = {
       } else {
         ctx.send({ success: false, message: 'TOTP was not enabled or does not exist' });
       }
-    } catch (error) {
-      strapi.log.error('Error disabling TOTP:', error);
+    } catch {
+      strapi.log.error('[OTP] TOTP disable request failed');
       return ctx.badRequest('Failed to disable TOTP');
     }
   },
@@ -539,8 +576,8 @@ module.exports = {
       const otpService = strapi.plugin('magic-link').service('otp');
       const status = await otpService.getTOTPStatus(userId);
       ctx.send({ success: true, data: status });
-    } catch (error) {
-      strapi.log.error('Error getting TOTP status:', error);
+    } catch {
+      strapi.log.error('[OTP] TOTP status request failed');
       return ctx.badRequest('Failed to get TOTP status');
     }
   },
@@ -559,9 +596,9 @@ module.exports = {
         codes: backupCodes,
         message: 'Backup codes generated. Store them securely!',
       });
-    } catch (error) {
-      strapi.log.error('Error generating backup codes:', error);
-      return ctx.badRequest(error.message || 'Failed to generate backup codes');
+    } catch {
+      strapi.log.error('[OTP] TOTP backup-code request failed');
+      return ctx.badRequest('Failed to generate backup codes');
     }
   },
 };

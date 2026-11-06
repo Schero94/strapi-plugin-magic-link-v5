@@ -1,6 +1,30 @@
 'use strict';
 
+const { settingsUpdateSchema, parseBody } = require('./validation');
+const { normalizeMfaSettings } = require('../utils/mfa-mode');
+
+/**
+ * Removes provider credentials from settings responses while preserving them
+ * in storage for future provider support.
+ *
+ * @param {object} settings - Stored or normalized plugin settings.
+ * @returns {object} Safe settings for the admin API response.
+ */
+const redactProviderCredentials = (settings) => {
+  const safeSettings = { ...settings };
+  delete safeSettings.sms_api_key;
+  delete safeSettings.sms_api_secret;
+  return safeSettings;
+};
+
 module.exports = {
+  /**
+   * Returns normalized plugin settings and integration availability metadata.
+   * Legacy required-TOTP settings are exposed in their effective canonical form.
+   *
+   * @param {object} ctx - Strapi Koa context.
+   * @returns {Promise<void>}
+   */
   async getSettings(ctx) {
     try {
       const pluginStore = strapi.store({
@@ -11,7 +35,7 @@ module.exports = {
       const settings = await pluginStore.get({ key: 'settings' });
       
       // Stelle sicher, dass alle Boolean-Werte korrekt formatiert sind
-      const processedSettings = { ...settings };
+      const processedSettings = redactProviderCredentials(normalizeMfaSettings(settings || {}));
       
       // Entferne verschachtelte settings-Objekte, falls vorhanden
       if (processedSettings && processedSettings.settings) {
@@ -68,7 +92,7 @@ module.exports = {
           const emailConfig = strapi.config.get('plugin::email');
           emailProviderName = emailConfig?.provider || 'configured';
         }
-      } catch (error) {
+      } catch {
         // Email plugin not available
         emailProviderConfigured = false;
       }
@@ -92,26 +116,36 @@ module.exports = {
     }
   },
 
+  /**
+   * Validates and persists a partial settings update without dropping other
+   * stored values. The legacy TOTP flag and the current mode are normalized
+   * before the settings are returned to the admin UI.
+   *
+   * @param {object} ctx - Strapi Koa context.
+   * @returns {Promise<void>}
+   * @throws {import('@strapi/utils').errors.ValidationError} For invalid fields.
+   */
   async updateSettings(ctx) {
-    const { body } = ctx.request;
+    const settingsPatch = parseBody(settingsUpdateSchema, ctx.request.body);
 
     try {
-      // Extrahiere die tatsächlichen Einstellungen, prüfe ob sie direkt im Body oder in body.settings liegen
-      let settingsToProcess = body.settings ? { ...body.settings } : { ...body };
-      
-      // Entferne vorsichtshalber nochmals verschachtelte settings
-      if (settingsToProcess.settings) {
-          delete settingsToProcess.settings;
-      }
-      
-      // Stelle sicher, dass alle Boolean-Werte korrekt formatiert sind
-      const processedBody = { ...settingsToProcess };
+      const pluginStore = strapi.store({
+        type: 'plugin',
+        name: 'magic-link',
+      });
+      const existingSettings = (await pluginStore.get({ key: 'settings' })) || {};
+      const processedBody = normalizeMfaSettings(
+        { ...existingSettings, ...settingsPatch },
+        settingsPatch
+      );
       
       // Verarbeite alle Eigenschaften, die als Boolean behandelt werden sollten
       const booleanFields = [
         'enabled', 'createUserIfNotExists', 'stays_valid', 'verify_email', 
         'welcome_email', 'use_jwt_token', 'allow_magic_links_on_public_registration',
-        'store_login_info', 'use_email_designer', 'use_magic_mail'
+        'store_login_info', 'use_email_designer', 'use_magic_mail',
+        'otp_enabled', 'otp_strict_binding', 'mfa_require_totp',
+        'totp_as_primary_auth', 'rate_limit_enabled',
       ];
       
       booleanFields.forEach(field => {
@@ -137,13 +171,14 @@ module.exports = {
         strapi.log.info(`[DEBUG] Saving MagicMail settings - use_magic_mail: ${processedBody.use_magic_mail}, template_id: ${processedBody.magic_mail_template_id}`);
       }
       
-      const pluginStore = strapi.store({
-        type: 'plugin',
-        name: 'magic-link',
-      });
-      
       await pluginStore.set({ key: 'settings', value: processedBody });
-      ctx.send({ settings: processedBody });
+
+      const rateLimiter = strapi.plugin('magic-link')?.service?.('rate-limiter');
+      if (typeof rateLimiter?.reloadSettings === 'function') {
+        await rateLimiter.reloadSettings();
+      }
+
+      ctx.send({ settings: redactProviderCredentials(processedBody) });
     } catch (error) {
       ctx.throw(500, error);
     }
@@ -241,17 +276,13 @@ This link will expire in 1 hour.`,
         console.error('Fehler beim Zurücksetzen der gebannten IPs:', error);
       }
 
-      // Gesperrte JWT-Tokens zurücksetzen
-      try {
-        await pluginStore.set({ key: 'blocked_jwt_tokens', value: { tokens: [] } });
-      } catch (error) {
-        console.error('Fehler beim Zurücksetzen der gesperrten JWT-Tokens:', error);
-      }
+      // Keep active revocations: clearing this deny-list would make a still-valid
+      // JWT work again after an administrative data reset.
 
       // Erfolgreiche Antwort senden
       ctx.send({
         success: true,
-        message: 'Alle Magic Link Daten wurden zurückgesetzt.',
+        message: 'Magic Link Daten wurden zurückgesetzt. Widerrufene JWTs bleiben bis zum Ablauf gesperrt.',
       });
     } catch (error) {
       console.error('Fehler beim Zurücksetzen der Magic Link Daten:', error);

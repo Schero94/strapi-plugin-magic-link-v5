@@ -135,12 +135,8 @@ Thanks.`,
       // Set to false only for legacy integrations that expose OTP as a
       // standalone flow. Disabling this weakens authentication significantly.
       otp_strict_binding: true,
-      // SMS Provider Settings — reserved for a future release.
-      // The SMS-OTP path in services/otp.js currently only logs the
-      // outgoing code; wiring these values into a real provider
-      // (Twilio / Vonage) is tracked as future work. The settings are
-      // kept so that integrators can pre-fill values without losing
-      // them on upgrade.
+      // SMS settings remain reserved for a future provider integration.
+      // Unsupported delivery fails closed and never logs an OTP.
       sms_provider: null,
       sms_api_key: '',
       sms_api_secret: '',
@@ -151,8 +147,8 @@ Thanks.`,
       totp_digits: 6,
       totp_period: 30,
       // MFA Settings (Premium/Advanced Feature).
-      // mfa_mode is the authoritative switch; mfa_require_totp is a legacy
-      // alias that maps to mfa_mode='required' for backwards compat.
+      // mfa_mode is canonical. A true legacy flag still forces required mode
+      // when older Settings UI data left mfa_mode set to disabled.
       mfa_mode: 'disabled', // 'disabled' | 'optional' | 'required'
       mfa_require_totp: false,
       totp_as_primary_auth: false, // Allow login with Email + TOTP only (Advanced)
@@ -183,14 +179,12 @@ Thanks.`,
         // Sicherer Service-Zugriff mit Null-Check
         const magicLinkPlugin = strapi.plugin('magic-link');
         if (!magicLinkPlugin || !magicLinkPlugin.service) {
-          // Plugin noch nicht vollständig geladen, überspringe Check
-          return next();
+          return ctx.throw(503, 'JWT revocation service is unavailable');
         }
         
         const magicLink = magicLinkPlugin.service('magic-link');
         if (!magicLink || !magicLink.isJwtTokenBlocked) {
-          // Service noch nicht vollständig geladen, überspringe Check
-          return next();
+          return ctx.throw(503, 'JWT revocation service is unavailable');
         }
         
         // Prüfen, ob der Token gesperrt ist
@@ -200,37 +194,15 @@ Thanks.`,
           return ctx.unauthorized('This token has been revoked');
         }
       } catch (error) {
-        // Bei Fehlern lieber fortfahren als die Anfrage zu blockieren
-        console.error('Error checking JWT token blacklist:', error);
+        // Do not log store errors or allow a token when its revocation state
+        // cannot be checked. A retryable response is clearer than a false 401.
+        strapi.log.error('[magic-link] JWT revocation status check failed');
+        return ctx.throw(503, 'Unable to verify JWT revocation status');
       }
     }
     
     return next();
   });
-
-  // Initialize Rate Limiter Cleanup Job
-  // Note: strapi is captured as closure from the bootstrap function parameter
-  
-  // Initial cleanup - wait longer for DB to be ready
-  setTimeout(async () => {
-    try {
-      const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
-      await rateLimiter.cleanupExpired();
-    } catch (error) {
-      // Silently ignore on first cleanup if DB not ready yet
-      strapi.log.debug('[CLEANUP] Rate limit cleanup skipped - DB not ready');
-    }
-  }, 10000);
-  
-  // Cleanup every 30 minutes - strapi is captured as closure
-  setInterval(async () => {
-    try {
-      const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
-      await rateLimiter.cleanupExpired();
-    } catch (error) {
-      // Silent fail - service handles its own logging
-    }
-  }, 30 * 60 * 1000);
 
   // Initialize OTP Cleanup Job
   // Note: strapi is captured as closure from the bootstrap function parameter

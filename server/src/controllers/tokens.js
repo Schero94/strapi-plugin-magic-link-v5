@@ -4,6 +4,7 @@ const createId = require('../utils/id');
 const crypto = require('crypto');
 const emailHelpers = require('../utils/email-helpers');
 const cryptoUtils = require('../utils/crypto');
+const { normalizeIpAddress } = require('../utils/ip-address');
 
 const formatExpiryText = (minutes) => {
   if (!minutes || Number.isNaN(minutes)) {
@@ -818,18 +819,16 @@ module.exports = {
   },
 
   /**
-   * Ban an IP address
+   * Validates and canonicalizes an IP ban, then deactivates existing tokens
+   * that were issued from the address.
    * @param {Object} ctx - The request context
    */
   async banIP(ctx) {
     try {
-      const { data } = ctx.request.body;
-      
-      if (!data || !data.ip) {
-        return ctx.badRequest('IP address is required');
+      const ipAddress = normalizeIpAddress(ctx.request?.body?.data?.ip);
+      if (!ipAddress) {
+        return ctx.badRequest('A valid IPv4 or IPv6 address is required');
       }
-
-      const ipAddress = data.ip;
       
       // Get plugin store to save banned IPs
       const pluginStore = strapi.store({
@@ -839,9 +838,13 @@ module.exports = {
       
       // Get current banned IPs or initialize empty array
       const bannedIPs = (await pluginStore.get({ key: 'banned_ips' })) || { ips: [] };
+      if (!Array.isArray(bannedIPs.ips)) throw new Error('Invalid IP block-list data');
       
       // Add new IP to the list if not already present
-      if (!bannedIPs.ips.includes(ipAddress)) {
+      const alreadyBanned = bannedIPs.ips.some((existingIp) => (
+        normalizeIpAddress(existingIp) === ipAddress
+      ));
+      if (!alreadyBanned) {
         bannedIPs.ips.push(ipAddress);
         
         // Save updated banned IPs list
@@ -859,7 +862,7 @@ module.exports = {
               data: { is_active: false },
             });
           }
-          strapi.log.info(`[SUCCESS] Deactivated ${tokensToDeactivate.length} token(s) for IP ${ipAddress}`);
+          strapi.log.info(`[SUCCESS] Deactivated ${tokensToDeactivate.length} token(s) for a banned IP address`);
         }
       }
       
@@ -893,18 +896,15 @@ module.exports = {
   },
 
   /**
-   * Entsperrt eine IP-Adresse
+   * Validates and canonicalizes an IP address before removing it from the ban list.
    * @param {Object} ctx - The request context
    */
   async unbanIP(ctx) {
     try {
-      const { data } = ctx.request.body;
-      
-      if (!data || !data.ip) {
-        return ctx.badRequest('IP address is required');
+      const ipAddress = normalizeIpAddress(ctx.request?.body?.data?.ip);
+      if (!ipAddress) {
+        return ctx.badRequest('A valid IPv4 or IPv6 address is required');
       }
-
-      const ipAddress = data.ip;
       
       // Get plugin store
       const pluginStore = strapi.store({
@@ -914,9 +914,12 @@ module.exports = {
       
       // Get current banned IPs
       const bannedIPs = (await pluginStore.get({ key: 'banned_ips' })) || { ips: [] };
+      if (!Array.isArray(bannedIPs.ips)) throw new Error('Invalid IP block-list data');
       
       // Remove IP from the banned list
-      bannedIPs.ips = bannedIPs.ips.filter(ip => ip !== ipAddress);
+      bannedIPs.ips = bannedIPs.ips.filter((existingIp) => (
+        normalizeIpAddress(existingIp) !== ipAddress
+      ));
       
       // Save updated banned IPs list
       await pluginStore.set({ key: 'banned_ips', value: bannedIPs });

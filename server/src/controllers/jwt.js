@@ -112,8 +112,11 @@ module.exports = {
   },
 
   /**
-   * Unrevokes a JWT session by sessionId
-   * @param {Object} ctx - Koa context
+   * Removes a session's JWT block only after blocklist storage accepts the change.
+   * The session record remains revoked if the blocklist operation fails.
+   *
+   * @param {import('koa').Context} ctx - Authenticated admin request context
+   * @returns {Promise<void>} Sends the updated session or throws on storage failure
    */
   async unrevokeToken(ctx) {
     try {
@@ -136,27 +139,25 @@ module.exports = {
         return ctx.badRequest('Cannot unrevoke an expired session');
       }
 
-      jwtSessions[sessionIndex].isRevoked = false;
-      jwtSessions[sessionIndex].revokedAt = null;
-      jwtSessions[sessionIndex].revokeReason = null;
-
       const session = jwtSessions[sessionIndex];
       const magicLink = strapi.plugin('magic-link').service('magic-link');
       const hashToUnblock = session.jwtTokenHash || (session.jwtToken ? cryptoUtils.hashJwt(session.jwtToken) : null);
 
       if (hashToUnblock) {
-        try {
-          await magicLink.unblockJwtTokenByHash(hashToUnblock, userId || session.userId);
-        } catch (err) {
-          strapi.log.warn('Could not unblock JWT token from blacklist:', err.message);
-        }
+        await magicLink.unblockJwtTokenByHash(hashToUnblock, userId || session.userId);
       }
 
+      jwtSessions[sessionIndex] = {
+        ...session,
+        isRevoked: false,
+        revokedAt: null,
+        revokeReason: null,
+      };
       await pluginStore.set({ key: 'jwt_sessions', value: { sessions: jwtSessions } });
       return ctx.send({ success: true, message: 'JWT session unrevoked successfully' });
     } catch (error) {
-      strapi.log.error('Error unrevoking JWT token:', error);
-      ctx.throw(500, error);
+      strapi.log.error('Error unrevoking JWT token');
+      ctx.throw(500, 'Failed to update JWT revocation status');
     }
   },
 

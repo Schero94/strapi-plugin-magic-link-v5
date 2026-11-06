@@ -23,7 +23,7 @@ module.exports = {
       handler: 'auth.login',
       config: {
         auth: false,
-        policies: ['plugin::magic-link.compatibility-check'],
+        policies: ['plugin::magic-link.compatibility-check', 'plugin::magic-link.ip-ban-check'],
         description: 'Compatibility route for strapi-plugin-passwordless',
       },
     },
@@ -34,7 +34,7 @@ module.exports = {
       handler: 'auth.sendLink',
       config: {
         auth: false,
-        policies: ['plugin::magic-link.compatibility-check'],
+        policies: ['plugin::magic-link.compatibility-check', 'plugin::magic-link.ip-ban-check'],
         description: 'Compatibility route for strapi-plugin-passwordless',
       },
     },

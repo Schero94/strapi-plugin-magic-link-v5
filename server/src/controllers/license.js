@@ -60,8 +60,8 @@ module.exports = {
           currentDevices: license?.currentDevices || 0,
         },
       });
-    } catch (error) {
-      strapi.log.error('Error getting license status:', error);
+    } catch {
+      strapi.log.error('License status request failed');
       return ctx.badRequest('Error getting license status');
     }
   },
@@ -98,8 +98,8 @@ module.exports = {
         message: 'License automatically created and activated',
         data: license,
       });
-    } catch (error) {
-      strapi.log.error('Error auto-creating license:', error);
+    } catch {
+      strapi.log.error('License auto-create request failed');
       return ctx.badRequest('Error creating license');
     }
   },
@@ -131,8 +131,8 @@ module.exports = {
         message: 'License created and activated successfully',
         data: license,
       });
-    } catch (error) {
-      strapi.log.error('Error creating license:', error);
+    } catch {
+      strapi.log.error('License create request failed');
       return ctx.badRequest('Error creating license');
     }
   },
@@ -164,8 +164,8 @@ module.exports = {
           : 'License key could not be verified, but the plugin keeps working.',
         data: verification.data,
       });
-    } catch (error) {
-      strapi.log.error('Error refreshing license:', error);
+    } catch {
+      strapi.log.error('License refresh request failed');
       return ctx.badRequest('Error refreshing license');
     }
   },
@@ -198,9 +198,7 @@ module.exports = {
         // shouldn't block activation outright. A definitive rejection
         // (server reachable + said "no") still blocks.
         if (verification.networkError) {
-          strapi.log.warn(
-            `[WARNING] License server unreachable during activation. Storing key anyway: ${trimmedKey.substring(0, 8)}...`
-          );
+          strapi.log.warn('[WARNING] License server unreachable during activation. Storing key anyway.');
           await licenseGuard.storeLicenseKey(trimmedKey);
           return ctx.send({
             success: true,
@@ -208,37 +206,33 @@ module.exports = {
             data: { licenseKey: trimmedKey, email: trimmedEmail },
           });
         }
-        strapi.log.warn(`[WARNING] Invalid license key: ${trimmedKey.substring(0, 8)}...`);
+        strapi.log.warn('[WARNING] Invalid license key submitted');
         return ctx.badRequest('Invalid or expired license key');
       }
 
       const license = await licenseGuard.getLicenseByKey(trimmedKey);
 
       if (!license) {
-        strapi.log.warn(`[WARNING] License not found: ${trimmedKey.substring(0, 8)}...`);
+        strapi.log.warn('[WARNING] License key was not found');
         return ctx.badRequest('License not found');
       }
 
       if (license.email && license.email.toLowerCase() !== trimmedEmail) {
-        strapi.log.warn(
-          `[WARNING] Email mismatch for license key: ${trimmedKey.substring(0, 8)}... (attempted: ${trimmedEmail})`
-        );
+        strapi.log.warn('[WARNING] License key email mismatch');
         return ctx.badRequest('Email address does not match this license key');
       }
 
       await licenseGuard.storeLicenseKey(trimmedKey);
 
-      strapi.log.info(
-        `[SUCCESS] License key validated and stored: ${trimmedKey.substring(0, 8)}... (email: ${trimmedEmail})`
-      );
+      strapi.log.info('[SUCCESS] License key validated and stored');
 
       return ctx.send({
         success: true,
         message: 'License key validated and activated successfully',
         data: verification.data,
       });
-    } catch (error) {
-      strapi.log.error('Error storing license key:', error);
+    } catch {
+      strapi.log.error('License-key validation request failed');
       return ctx.badRequest('Error validating license key');
     }
   },

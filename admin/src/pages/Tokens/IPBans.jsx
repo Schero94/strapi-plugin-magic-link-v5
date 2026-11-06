@@ -34,6 +34,7 @@ import {
   WarningCircle,
 } from '@strapi/icons';
 import getTrad from '../../utils/getTrad';
+import { normalizeIpAddress } from '../../utils/ipAddress.mjs';
 
 // ================ DESIGN TOKENS ================
 const theme = {
@@ -365,6 +366,7 @@ const IPBans = () => {
   }, [filteredIPs, currentPage, pageSize]);
   
   const totalPages = Math.ceil(filteredIPs.length / pageSize);
+  const normalizedNewIP = normalizeIpAddress(newIP);
   
   // Stat Cards Konfiguration
   const statCards = [
@@ -411,7 +413,7 @@ const IPBans = () => {
   };
   
   const handleBanIP = async () => {
-    if (!newIP || !isValidIP(newIP)) {
+    if (!normalizedNewIP) {
       toggleNotification({
         type: 'warning',
         message: formatMessage({ id: getTrad('ipban.modal.invalidIP') }),
@@ -422,14 +424,14 @@ const IPBans = () => {
     
     try {
       await post('/magic-link/ban-ip', {
-        data: { ip: newIP }
+        data: { ip: normalizedNewIP }
       });
       await fetchBannedIPs();
       setShowAddModal(false);
       setNewIP('');
       toggleNotification({
         type: 'success',
-        message: formatMessage({ id: getTrad('ipban.notifications.banSuccess') }, { ip: newIP }),
+        message: formatMessage({ id: getTrad('ipban.notifications.banSuccess') }, { ip: normalizedNewIP }),
         title: formatMessage({ id: getTrad('tokens.notifications.success') })
       });
     } catch (error) {
@@ -459,12 +461,6 @@ const IPBans = () => {
         title: formatMessage({ id: getTrad('tokens.notifications.error') })
       });
     }
-  };
-  
-  const isValidIP = (ip) => {
-    const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
-    const ipv6Pattern = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
-    return ipv4Pattern.test(ip) || ipv6Pattern.test(ip);
   };
   
   // Loading State
@@ -775,12 +771,14 @@ const IPBans = () => {
                     onChange={(e) => setNewIP(e.target.value)}
                     style={{ fontSize: '14px', fontFamily: 'monospace' }}
                   />
-                  <Typography 
+                  <Typography
                     variant="pi" 
-                    textColor="neutral600" 
+                    textColor={newIP && !normalizedNewIP ? 'danger600' : 'neutral600'}
                     style={{ marginTop: '6px', fontSize: '12px' }}
                   >
-                    {formatMessage({ id: getTrad('ipban.modal.hint') })}
+                    {formatMessage({
+                      id: getTrad(newIP && !normalizedNewIP ? 'ipban.modal.invalidIP' : 'ipban.modal.hint'),
+                    })}
                   </Typography>
                 </Box>
               </Flex>
@@ -815,7 +813,7 @@ const IPBans = () => {
                   size="M"
                   variant="danger"
                   startIcon={<Lock />}
-                  disabled={!newIP}
+                  disabled={!normalizedNewIP}
                 >
                   {formatMessage({ id: getTrad('ipban.modal.submit') })}
                 </Button>

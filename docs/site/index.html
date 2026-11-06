@@ -258,9 +258,12 @@
             <h2 id="releases-title">Releases</h2>
             <p>
               Releases use semantic-release and Conventional Commits. The
-              release workflow installs from the lockfile, runs tests, builds
-              and verifies the plugin before publishing. Run the same checks
-              locally:
+              workflow installs from the lockfile, runs tests, builds the
+              plugin and verifies its exports before using GitHub OIDC to
+              publish to npm. Configure npm Trusted Publishing for
+              <code>Schero94/strapi-plugin-magic-link-v5</code> and
+              <code>release.yml</code> before the first release. Run the same
+              checks locally:
             </p>
             <div class="code-card">
               <pre><code>npm ci --legacy-peer-deps

@@ -5,7 +5,10 @@
  *
  * SECURITY MODEL
  * --------------
- * Every admin route is gated by the two-step policy chain returned from
+ * Every route requires an authenticated admin. General plugin routes also
+ * require plugin access; Settings routes use their separate read/update actions.
+ *
+ * General plugin route chain:
  * `adminPolicy()`:
  *
  *   1. `admin::isAuthenticatedAdmin`
@@ -24,6 +27,8 @@
  */
 
 const PLUGIN_ACCESS_ACTION = 'plugin::magic-link.access';
+const SETTINGS_READ_ACTION = 'plugin::magic-link.settings.read';
+const SETTINGS_UPDATE_ACTION = 'plugin::magic-link.settings.update';
 
 /**
  * Fresh array per call because Strapi mutates policy arrays during boot
@@ -39,6 +44,21 @@ const adminPolicy = () => [
   },
 ];
 
+/**
+ * Policies for settings-owned data and mutations, governed by their own
+ * read/update capabilities instead of the token-page plugin access action.
+ *
+ * @param {string} permission - Settings read or update action.
+ * @returns {Array<string|object>}
+ */
+const settingsPolicy = (permission) => [
+  'admin::isAuthenticatedAdmin',
+  {
+    name: 'admin::hasPermissions',
+    config: { actions: [permission] },
+  },
+];
+
 module.exports = {
   type: 'admin',
   routes: [
@@ -47,19 +67,19 @@ module.exports = {
       method: 'GET',
       path: '/settings',
       handler: 'controller.getSettings',
-      config: { policies: adminPolicy() },
+      config: { policies: settingsPolicy(SETTINGS_READ_ACTION) },
     },
     {
       method: 'PUT',
       path: '/settings',
       handler: 'controller.updateSettings',
-      config: { policies: adminPolicy() },
+      config: { policies: settingsPolicy(SETTINGS_UPDATE_ACTION) },
     },
     {
       method: 'POST',
       path: '/reset-data',
       handler: 'controller.resetData',
-      config: { policies: adminPolicy() },
+      config: { policies: settingsPolicy(SETTINGS_UPDATE_ACTION) },
     },
 
     // ─────────────────────── Token Management ───────────────────────
@@ -205,31 +225,19 @@ module.exports = {
       method: 'GET',
       path: '/rate-limit/stats',
       handler: 'rateLimit.getStats',
-      config: { policies: adminPolicy() },
+      config: { policies: settingsPolicy(SETTINGS_READ_ACTION) },
     },
     {
       method: 'POST',
       path: '/rate-limit/cleanup',
       handler: 'rateLimit.cleanup',
-      config: { policies: adminPolicy() },
-    },
-    {
-      method: 'GET',
-      path: '/rate-limit/cleanup',
-      handler: 'rateLimit.cleanup',
-      config: { policies: adminPolicy() },
+      config: { policies: settingsPolicy(SETTINGS_UPDATE_ACTION) },
     },
     {
       method: 'POST',
       path: '/rate-limit/reset',
       handler: 'rateLimit.reset',
-      config: { policies: adminPolicy() },
-    },
-    {
-      method: 'GET',
-      path: '/rate-limit/reset',
-      handler: 'rateLimit.reset',
-      config: { policies: adminPolicy() },
+      config: { policies: settingsPolicy(SETTINGS_UPDATE_ACTION) },
     },
 
     // ─────────────────────── OTP Management ───────────────────────

@@ -116,11 +116,17 @@ module.exports = ({ strapi }) => {
      * @returns {Promise<{cleaned: number}>}
      */
     async cleanupExpired() {
+      // RateLimiterMemory removes each expired key using its own TTL timer.
+      // Rebuilding limiters here would also erase counters that have not expired.
+      return { cleaned: 0 };
+    },
+
+    /** Clears active counters while retaining the currently loaded policy. */
+    async resetAll() {
       limiters = null;
-      cachedSettings = null;
-      settingsCacheTime = 0;
-      strapi.log.info('[CLEANUP] Rate limit state reset');
-      return { cleaned: 1 };
+      await getLimiters();
+      strapi.log.info('[RATE-LIMIT] Active counters reset');
+      return { reset: true };
     },
 
     /**

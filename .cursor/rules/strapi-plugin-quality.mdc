@@ -1,0 +1,61 @@
+---
+description: Always apply the Strapi plugin product, API, UI and privacy contract before changing plugin code or documentation.
+alwaysApply: true
+---
+
+# Strapi plugin quality contract
+
+Before editing, read the applicable `AGENTS.md`, every always-applied Cursor rule, and the local `strapi-plugin-maintenance` skill. Inspect the root and target plugin Git status. Preserve existing changes and work on one plugin at a time.
+
+## Analyze and specify first
+
+- Record the current state: screens, controls, routes, permissions, error behavior, tests and known gaps.
+- Define the target state, affected user roles and data, non-goals, API contract and measurable acceptance criteria before implementation.
+- Use spec-first development. Add a failing regression test before changing behavior. Keep legacy routes and response contracts unless the approved spec explicitly changes them.
+
+## UI and journey
+
+- For any plugin admin UI, responsive, accessibility, form, or navigation change, read the workbench skill's `references/ui-ux-standards.md` before proposing or editing a design.
+- Before using a Strapi admin or Design System API, check current Strapi 5 documentation and installed package types. Prefer Context7; if its quota is unavailable, say so and verify official Strapi documentation and installed code rather than silently relying on memory.
+- Use the installed Strapi Design System and semantic, keyboard-accessible controls. Prefer its layout, form, table, feedback, switch and typography components over one-off styling.
+- Use Playwright CLI exclusively for browser automation and responsive UI checks. Do not use CUA, Computer Use, or desktop-control tools.
+- Make every admin page responsive by construction. Verify 320, 390, 1024 and 1440 CSS-pixel viewports in a real browser. Check document and component overflow, wrapping, focus, labels, contrast, and loading, empty, error and success states. Do not call source-only checks a visual acceptance pass.
+- For flexible content, set `min-width: 0`, use full-width controls, and use `minmax(0, 1fr)` where content must shrink. Let descriptions wrap naturally. Avoid fixed widths/heights for text and nested padding that consumes the mobile viewport.
+- Keep each field label, control and description together. Use equal desktop columns for paired fields and stack them cleanly on narrow screens without clipping or mismatched control widths.
+- Keep Strapi `Toggle` controls horizontal and aligned beside their title/description in one compact row. Do not center a switch above vertically stacked copy. On narrow screens, let the copy wrap while the switch remains horizontal and reachable.
+- Register plugin settings through the current `app.addSettingsLink` API. Verify the section label, expected paths and permission-backed visibility. Do not weaken or remove permissions to make a missing link appear; inspect RBAC and Strapi registration instead.
+- A primary task should take no more than four meaningful user interactions from the plugin entry page to its successful outcome. Exclude authentication and mandatory security confirmations from the count. Measure the path and document any justified exception. Never remove a safety step to meet the limit.
+
+## API and security
+
+- Treat the server as the authority. Validate request shape and values, authenticate every protected route, check plugin permissions and resource ownership on every state-changing operation, and return only allowlisted fields.
+- Document method, path, role, input, success response and error status for each affected route. Keep Strapi's admin and Content API conventions intact, use stable error codes/messages within each surface, and never return stack traces, raw exceptions or internal paths to clients.
+- Do not put secrets in browser code. Do not log tokens, cookies, passwords, keys, full provider URLs, request bodies, IP addresses, email addresses or stable user/session identifiers. Log safe operation context and error class/code only; document and test any narrowly justified exception.
+- Test anonymous and unauthorized access, invalid input, owner and other-user boundaries, provider failures, and privacy redaction. Use fake providers. Do not send messages, call live providers, mutate real user sessions or push changes unless separately authorized.
+
+## Verification and documentation
+
+- Cover the behavior with focused unit, UI, API-contract and security tests. Run the plugin's tests, type checks, verification and build, then the shared Strapi build/boot and authenticated Playwright acceptance where applicable.
+- For UI changes, record Playwright evidence at 320/390/1024/1440 px, including the affected task path, measured overflow, keyboard interaction, and console state. If authenticated access or screenshot capture is unavailable, leave that gate explicitly open.
+- Apply the detailed JSDoc contract below. Record measured evidence and leave unverified external or production behavior explicitly open.
+
+## Detailed JSDoc contract
+
+- Add or update a meaningful JSDoc/TSDoc block directly above each new or substantially changed exported or non-trivial function, controller, route handler, service, hook, middleware, policy or component. Update affected existing comments when behavior changes; do not mass-document untouched legacy code as part of an unrelated task.
+- Explain purpose and relevant context, then document applicable parameters, return values and asynchronous behavior with `@param` and `@returns`. Describe useful shapes and constraints; in TypeScript, let types be the source of truth and avoid redundant or conflicting types. Document `@throws` only for errors actually propagated to callers.
+- For HTTP handlers, document the verified method and actual path with `@route METHOD /path`, plus applicable authentication, permissions, ownership, inputs, success and error behavior. Never guess routes or contracts; verify them against the repository.
+- Describe mutations, external calls, security/privacy implications and meaningful partial effects or atomicity limits with `@sideeffect` where applicable. Do not put secrets or personal data in examples. Omit irrelevant tags instead of inventing behavior. `@route` and `@sideeffect` are project-specific custom tags: preserve compatibility with any configured documentation generator or linter.
+- Keep comments accurate, specific and as detailed as the contract warrants. Flag unverified behavior and documentation-tool incompatibilities rather than claiming they are verified.
+
+Example for a verified route; adapt all details to the implementation:
+
+```js
+/**
+ * Returns the authenticated user's active sessions.
+ * Access is limited to sessions owned by the requesting user.
+ * @route GET /sessions
+ * @param {object} ctx - Request context containing the authenticated user.
+ * @returns {Promise<void>} Resolves after the response is written to the context.
+ * @sideeffect Writes the response to the request context; does not revoke sessions.
+ */
+```
