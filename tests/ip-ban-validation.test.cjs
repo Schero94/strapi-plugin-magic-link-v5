@@ -35,11 +35,16 @@ test('admin IP validation accepts valid IPv4 and IPv6 forms and rejects malforme
   assert.equal(isValidIpAddress(' 999.999.999.999 '), false);
   assert.equal(normalizeAdminIpAddress(' 2001:0db8:0:0:0:0:0:1 '), '2001:db8::1');
   assert.equal(normalizeServerIpAddress('2001:0db8:0:0:0:0:0:1'), '2001:db8::1');
-  assert.equal(normalizeAdminIpAddress('::ffff:192.0.2.25'), '::ffff:c000:219');
-  // The server folds IPv4-mapped IPv6 into IPv4, so an IPv4 ban also matches
-  // dual-stack request addresses (::ffff:a.b.c.d).
-  assert.equal(normalizeServerIpAddress('::ffff:192.0.2.25'), '192.0.2.25');
-  assert.equal(normalizeServerIpAddress('::FFFF:C000:0219'), '192.0.2.25');
+  // Admin and server fold IPv4-mapped IPv6 into IPv4, so an IPv4 ban also
+  // matches dual-stack request addresses (::ffff:a.b.c.d) and the admin shows
+  // the value the server stores.
+  for (const mapped of ['::ffff:192.0.2.25', '::FFFF:C000:0219']) {
+    assert.equal(normalizeAdminIpAddress(mapped), '192.0.2.25', mapped);
+    assert.equal(normalizeServerIpAddress(mapped), '192.0.2.25', mapped);
+  }
+  for (const value of ['192.0.2.25', '2001:0db8::0001', 'fe80::1%eth0', '::1', '::ffff:1']) {
+    assert.equal(normalizeAdminIpAddress(value), normalizeServerIpAddress(value), value);
+  }
 });
 
 test('banIP rejects malformed addresses before storage writes or token queries', async () => {

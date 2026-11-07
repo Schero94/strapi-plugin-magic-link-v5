@@ -8,26 +8,8 @@ const test = require('node:test');
 const readSource = (relativePath) =>
   fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
 
-test('JWT expiry validation matches the settings API format and length bound', async () => {
-  const { isValidJwtExpiry } = await import('../admin/src/utils/settingsValidation.mjs');
-
-  for (const value of ['1h', '7d', '30d', '90d']) {
-    assert.equal(isValidJwtExpiry(value), true, `${value} should be accepted`);
-  }
-  for (const value of ['', 'invalid', '30m', '30D', '1 d', `${'1'.repeat(16)}d`, null]) {
-    assert.equal(isValidJwtExpiry(value), false, `${String(value)} should be rejected`);
-  }
-});
-
-test('optional settings email validation matches the server-side address bounds', async () => {
-  const { isValidOptionalEmail } = await import('../admin/src/utils/settingsValidation.mjs');
-
-  assert.equal(isValidOptionalEmail(''), true);
-  assert.equal(isValidOptionalEmail('  support@example.com  '), true);
-  assert.equal(isValidOptionalEmail('invalid-address'), false);
-  assert.equal(isValidOptionalEmail(`a@${'b'.repeat(316)}.com`), false);
-  assert.equal(isValidOptionalEmail(null), false);
-});
+// Field-by-field parity of the Settings validators with the server schema is
+// tested in admin-settings-ui.test.cjs (pages/Settings/utils/settingsForm.js).
 
 test('settings UI explains invalid fields and prevents submission before the API request', () => {
   const settings = readSource('admin/src/pages/Settings/SettingsModern.jsx');
