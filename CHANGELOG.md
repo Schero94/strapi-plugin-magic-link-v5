@@ -1,3 +1,143 @@
+# [6.0.0](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v5.6.0...v6.0.0) (2026-11-07)
+
+
+* build!: drop unused dependencies, require Node 22 and harden CI and release ([05eabb9](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/05eabb96baf98a8cca292f561a6e687d9417aeb8))
+* build(deps)!: declare the users-permissions peer dependency ([fde4798](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/fde4798c273a9aa8e4d3ddd1144af8846c2eaaf6)), closes [#peerdependencies](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/peerdependencies)
+* feat(admin-api)!: enforce read/manage RBAC, guard impersonation and harden sessions, IP bans, limits and license ([3036538](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/30365384350723d2ef38035a34f0cc81a03f8b5f))
+* feat(admin)!: split admin RBAC into read, manage and settings actions ([8a0a5f3](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/8a0a5f3249dd8b0dd56585394dcd64d285e18a6b))
+* feat(auth)!: harden the login core and make Magic Link e-mail only ([a1f4b89](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/a1f4b89b348fd046796658db22e9b52771478ead))
+* feat(mfa)!: namespace TOTP by principal, add enrolment and backup codes, move to otplib ([466319e](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/466319e332c0fdc597ef393ea16a9e434f57fa87))
+* fix(admin-api)!: require a confirmation for reset-data and keep MFA settings ([258fc76](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/258fc76c746e6a2c5e43d37108fcd8127a4e571b))
+* fix(admin)!: rebuild the Settings view with lock-out safe MFA modes and an unsaved-changes guard ([2942a75](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/2942a75d3b0749c435e5dad4d7e449ddc2449ea6))
+* fix(security)!: close revocation path bypass and admin limiter/settings gaps ([f63d203](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/f63d203eeb4315f304516280b22615bcc589cfda))
+* fix(security)!: close the open adversarial review findings ([e1a19b5](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/e1a19b5ae71c9bf1789c1e338fae2b5278b34766))
+* fix(security)!: guard required MFA, hash the send-link limiter key, tighten settings.security ([720240f](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/720240fb30927f5c1df46fd75d6ec081936f9f3a))
+
+
+### Bug Fixes
+
+* **admin:** complete translations, formal German and safe template placeholders ([e3e13fd](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/e3e13fde1daa9c8d24c485994e0661ba4ed34c4b))
+* **admin:** make the Tokens list keyboard operable, readable and responsive ([8315dd2](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/8315dd2baf39cf698ec04423c0eba868b47dc45a)), closes [#0284C7](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/0284C7) [#0369A1](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/0369A1) [#16A34A](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/16A34A) [15803D/#166534](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/166534)
+* **admin:** mask license key, gate it by settings rights and localise the License page ([a65011f](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/a65011f621fcc653c771b57a0380d14cd23f8f59))
+* **admin:** pass browser acceptance of the OTP, JWT session and IP ban tabs ([40b1205](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/40b1205cc280e9c7d88c6ebdba419005439ae35b)), closes [#0369A1](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/0369A1) [#9333EA](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/9333EA)
+* **admin:** pass browser acceptance of the Settings and License pages ([782bde7](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/782bde71f12c80cb29fd92a73144748c9e246eea))
+* **admin:** rebuild OTP, JWT session and IP ban tabs on the shared foundation ([e9c85ed](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/e9c85ed55367df7941e32e12772cd2e968a13df8))
+* **admin:** rebuild the Tokens view on the shared foundation and fix token actions ([afcd4d6](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/afcd4d6f793a342c210a1125945b8dc8ac12223e))
+* **admin:** show IPv4-mapped bans as IPv4 and drop a stale validator ([73add59](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/73add59c2eb6cd83dbb8f9d6fd2e98b9c67f888a))
+* **admin:** stop the reload permission race and unstick the Tokens table keyboard ([b76ff5b](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/b76ff5b8f024f15caef6a7cdd3105e8dd23e6d42))
+* **auth:** give every legacy JWT a unique jti so session revocation is per session ([2100678](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/2100678098d8f38faf4325f3854bb2069e90a22d))
+* **auth:** run the JWT revocation check on Content API paths only ([2189a36](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/2189a3642e944d44d1a17a3ef55b450a1d45d10d))
+* **errors:** keep the IP-ban and tokens.issue 403 details; final docs review ([b336280](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/b3362801714792f2eed9fc776c9c224283d827be))
+* **i18n:** merge view translations, drop unused keys and enforce id coverage ([9b949a4](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/9b949a44bd36d27e8a8ac3e40a5fc65848d0bed6))
+* **mail:** send Magic Mail login links as untracked transactional mail ([1b42439](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/1b424395f1d72c8fead3ce98a835f458823002b3))
+* **mfa:** keep second-factor brute-force limits on when rate limiting is off ([5ba821e](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/5ba821ec5130f5558f77cbc1b63bd6b94ba464c7))
+* **otp:** accept the admin status filter on GET /otp/codes and return stats ([132a149](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/132a14949d204995417780ad85d3c1749870fe40))
+* **release:** pass the npm token as fallback to trusted publishing ([72ca270](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/72ca270201ae8ddd5ac83dc7c146515066eea217))
+* **security:** strict GCM tags, refresh-family session records, drop dead OTP mailer ([d12d215](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/d12d215e32c84564e27e48d2b970a8a80209efaa))
+
+
+### Documentation
+
+* rewrite README and project site for the e-mail-only 6.0.0 release ([4744ef6](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/4744ef6035c53cd4ab3305823918cba85195844f))
+
+
+### Features
+
+* **admin:** add shared admin foundation for theme, i18n, dialogs and RBAC ([4e6527b](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/4e6527b3d1de774b30c507ca3534aa7e9c218350))
+
+
+### BREAKING CHANGES
+
+* POST /magic-link/reset-data needs plugin::magic-link.settings.security and no longer returns securitySettingsKept; changing from_name, from_email or response_email needs settings.security; switching mfa_mode to required with no enrolled user needs acknowledgeNoEnrolledUsers: true; max_login_attempts is no longer accepted or stored.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* changing OTP, TOTP-parameter and rate-limit settings now
+needs plugin::magic-link.settings.security, and reset-data without that
+permission keeps all security settings. Grant Settings > Security to roles
+that should keep changing them.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* changing security settings (link URLs and paths,
+templates, template providers, account creation, link/session lifetimes,
+context lists, MFA/OTP switches) now requires
+plugin::magic-link.settings.security in addition to settings.update; the
+action is never granted automatically. Confirming an unconfirmed account
+via Magic Link clears its password and ends its sessions. IPv6 IP bans now
+cover the whole /64 network.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* hosts must have @strapi/plugin-users-permissions ^5.24.0
+installed (it ships with every default Strapi 5 project).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* POST /magic-link/reset-data requires the body
+{ "confirm": "RESET" }; MFA settings survive a reset unless
+"resetSecurity": true is sent.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* documented 6.0.0 contract. Magic Link is e-mail only and
+needs Node.js 22+ and Strapi 5.24+; see the upgrade guide in README.md and
+CHANGELOG.md.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* Node.js 22 or newer is required, and the plugin needs
+Strapi 5.24.0 or newer (users-permissions session manager).
+
+Docs: npm trusted publishers (docs.npmjs.com/trusted-publishers),
+GitHub Actions security hardening (pin to full SHA, least-privilege
+GITHUB_TOKEN), Strapi 5.61.0 package.json engines, npm registry
+metadata for qrcode and @paulmillr/qr; checked 2026-11-07.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* admin routes require plugin::magic-link.read / manage /
+settings.read / settings.update (5.x `access` is migrated to read + manage
+when the permission rows still exist). POST /magic-link/tokens returns the
+plaintext token only for send_email:false and only with the new
+plugin::magic-link.tokens.issue action, sends `ttl` top-level, fails with
+503 when the mail fails; several unused admin routes were removed; GET
+/tokens no longer returns hashes or securityScore; revoke-jwt needs
+sessionId xor token; IPv4-mapped addresses are matched as IPv4; IP-ban
+denials are formatted 403s with details.code; unknown settings keys are
+dropped; license status masks the key for settings readers and no host
+telemetry is sent. See CHANGELOG [Unreleased] for migration steps.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* MAGIC_LINK_ENCRYPTION_KEY and MAGIC_LINK_OTP_PEPPER are
+required (>= 32 characters) on every host; rotate short keys with
+MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS. TOTP enrolments are namespaced by
+principal and 5.x rows without provable ownership are disabled. Required
+MFA answers /login with requiresTOTPSetup instead of 403. /otp/verify
+returns the common login body, the unbound OTP flow is refused while MFA
+is active, otp-code lost the sms type and phoneNumber, admin TOTP routes
+need a current code for re-setup, disable and backup codes. Grant the
+`totp` actions to the Authenticated role for self-service. See CHANGELOG.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* the Settings page no longer offers the login_path,
+callback_url, max_login_attempts and Email Designer compatibility
+controls (the server never used them), and saves only changed fields.
+Choosing "Magic link + authenticator app" now selects the optional
+policy; requiring TOTP for every user needs an explicit confirmation.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* WhatsApp and SMS delivery removed; send-link requires email and rejects phoneNumber, phone, via and non-email delivery with 400; whatsapp_* and sms_* settings are deleted and otp_type only accepts 'email'.
+* reserved context keys (requiresOTP, otpVerified, requiresTOTP, totpVerified, mfaVerified, totpLogin, userId, userDocumentId, user, expires_at, expiresAt, ttl and JWT claim names) are rejected; public context follows context_whitelist/context_blacklist.
+* e-mail templates use {{VARIABLE}} placeholders; legacy <%= VAR %> is converted, any other <% %> code is printed as text.
+* login links follow frontend_url+frontend_login_path > confirmationUrl > API URL; link URL settings must be https (http only for localhost); token_length must be 22..128.
+* login responses return a content-API sanitized user, drop expiry_formatted and the TOTP challenge userId, return jwtIssued:false when use_jwt_token is false, and use the Strapi error envelope.
+* JWTs honour jwt_token_expires_in; in users-permissions refresh mode logins return refreshToken (or the refresh cookie) from the u-p session manager.
+* users with an enabled authenticator always get the TOTP challenge; required MFA without an authenticator returns 403.
+* auto-registration also requires users-permissions allow_register; new users start unconfirmed; TOTP-only login no longer confirms users.
+* /api/magic-link/passwordless/* routes and the compatibility-check policy are removed; /<prefix>/passwordless/* is handled by the rewrite middleware.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* the plugin::magic-link.access action is replaced by
+plugin::magic-link.read and plugin::magic-link.manage, and the License page
+requires plugin::magic-link.settings.read. Re-grant Read (and Manage) to
+every role that had "Access the Magic Link plugin"; see CHANGELOG.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 ## [Unreleased]
 
 Next release: **6.0.0** (major). Magic Link becomes e-mail only and is
