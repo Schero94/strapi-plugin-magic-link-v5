@@ -78,7 +78,8 @@
 * **MFA precedence.** A user with an enabled authenticator always gets the
   TOTP challenge after the link click, even when e-mail OTP is enabled
   (previously `optional` mode silently skipped TOTP). In `required` mode a
-  user without an authenticator gets 403 `mfa.setupRequired`.
+  user without an authenticator enrols one during the login (see "MFA"
+  below).
 * **Auto-registration** needs `allow_magic_links_on_public_registration`,
   `createUserIfNotExists` and users-permissions "Enable sign-ups"
   (`allow_register`). New accounts are created unconfirmed and confirmed on
@@ -113,6 +114,93 @@
   `noreply@example.com`; the default expiry text reads "1 hour".
 * Server error messages are translated (de, en, es, fr, pt); unknown
   `?locale=` values fall back to English.
+
+### BREAKING CHANGES (MFA: e-mail OTP, TOTP, backup codes)
+
+* **Secrets are mandatory and checked at startup.** `MAGIC_LINK_ENCRYPTION_KEY`
+  and `MAGIC_LINK_OTP_PEPPER` must both be set and at least 32 characters
+  long, also outside `NODE_ENV=production`. The only exception is
+  `MAGIC_LINK_ALLOW_DEV_SECRETS=true` on non-production hosts, which uses a
+  development fallback and logs a warning.
+  Migration: generate both with
+  `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+  If your current encryption key is shorter than 32 characters (or you used
+  the development fallback), set the new key in `MAGIC_LINK_ENCRYPTION_KEY`
+  and the old value in `MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS` (for the old
+  development fallback: the value of `ADMIN_JWT_SECRET`). Startup re-encrypts
+  stored TOTP secrets with the new key; remove the previous key afterwards.
+  A new pepper only invalidates pending e-mail codes and backup codes.
+* **Authenticator enrolments are namespaced by principal.** TOTP records now
+  belong either to a users-permissions user (`up:<id>`) or to an admin user
+  (`admin:<id>`); equal numeric ids no longer share a second factor (security
+  review S-01). On startup, records from 5.x are assigned only where
+  ownership is provable: the users-permissions user or admin user with that
+  id must still have the enrolment e-mail. All other records are disabled.
+  Unconfirmed setups and the old unsalted backup codes are dropped.
+  Migration: users whose authenticator was disabled enrol again (see below).
+* **End users manage their authenticator themselves.** New Content API
+  routes (users-permissions JWT): `GET /api/magic-link/totp/status`,
+  `POST /totp/setup` (sends an e-mail code; needs `totpCode` when an
+  authenticator is already active), `POST /totp/confirm { totpCode, emailCode }`
+  (returns 10 backup codes once), `POST /totp/disable { totpCode | backupCode }`,
+  `POST /totp/backup-codes { totpCode }`. The README routes
+  `/totp/verify` and `/totp/login` never existed; use `/totp/confirm` and
+  `/login-totp`.
+  Migration: grant the `totp` actions (status, setup, confirm, disable,
+  backupCodes) to the **Authenticated** role in *Settings > Users &
+  Permissions > Roles*.
+* **Required MFA enrols during login.** With `mfa_mode: 'required'`, a user
+  without an authenticator no longer gets 403 `mfa.setupRequired`. `/login`
+  answers `{ requiresTOTPSetup: true, loginToken }`; the frontend calls
+  `POST /api/magic-link/totp/enroll { loginToken }` (secret and QR code) and
+  `POST /api/magic-link/totp/enroll/confirm { loginToken, totpCode }`, which
+  returns the session plus `backupCodes`.
+  Migration: handle `requiresTOTPSetup` in the frontend landing page.
+* **TOTP parameters are stored per enrolment.** Algorithm, digits and period
+  are saved when a user enrols; changing the settings only affects new
+  enrolments. The QR code now carries issuer, algorithm, digits and period.
+  Re-enrolment stages the new secret and keeps the current authenticator
+  active until the new one is confirmed.
+* **Backup codes work.** `verify-mfa-totp` accepts `{ loginToken, backupCode }`
+  instead of `totpCode` (one-time use; the response carries
+  `backupCodesRemaining`). Codes are 16 characters (`XXXX-XXXX-XXXX-XXXX`,
+  about 78 bits), stored as owner-bound HMACs.
+* **Admin TOTP routes** (`/magic-link/otp/totp/*`) manage only the calling
+  admin user's own authenticator. `setup` needs `{ token }` (a current code)
+  when one is active, `verify` confirms a pending setup and returns backup
+  codes, `disable` and `backup-codes` need `{ token }`.
+* **Unbound e-mail OTP is refused while MFA is active.** With
+  `otp_strict_binding: false`, `/otp/send` and `/otp/verify` only work when
+  `mfa_mode` is `disabled`.
+* **`/otp/verify` issues sessions like every other login.** The response is
+  the common login body (`jwt`, sanitized `user`, filtered `context`,
+  `expires_at`, `refreshToken` in refresh mode, `otpVerified: true`); the
+  session appears in the JWT sessions list and can be revoked. Invalid
+  request bodies answer with Strapi's `ValidationError` instead of
+  "Failed to send OTP code".
+* **OTP codes:** the `sms` type and the `phoneNumber` attribute were removed
+  from `otp-code`. The admin list (`GET /magic-link/otp/codes`) validates its
+  query (`page`, `pageSize` up to 100, `email`, `type`), paginates on the
+  server, returns `pagination.truncated` and no longer returns code hashes
+  or token bindings.
+
+### Security and fixes (MFA)
+
+* TOTP uses otplib 13 instead of the unmaintained speakeasy 2.0.0. Existing
+  base32 secrets stay valid (RFC 6238 test vectors pass).
+* Every accepted TOTP time step is recorded with a compare-and-set update,
+  also during setup confirmation, so a code cannot be used twice.
+* E-mail OTP attempts are counted with a compare-and-set update before the
+  comparison, so parallel guesses cannot exceed `otp_max_attempts`. Codes are
+  drawn with `crypto.randomInt` (no modulo bias).
+* TOTP-only login limits attempts per IP, per (account, IP) pair and per
+  account, so one client cannot lock a victim out, and runs a dummy
+  verification for unknown accounts (equal timing).
+* OTP e-mails no longer read "0 minutes" for short expiries and the plugin no
+  longer logs e-mail addresses or codes.
+* Deleting an OTP code from the admin works with the numeric id and answers
+  404 when nothing was deleted; the new `GET /magic-link/totp/enrollment-summary`
+  (Settings read) returns the number of enrolled end users.
 
 # [5.6.0](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v5.5.9...v5.6.0) (2026-10-15)
 

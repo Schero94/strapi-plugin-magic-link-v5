@@ -353,114 +353,99 @@ if (loginToken) {
 }
 ```
 
-#### 📧 Email OTP Flow (Premium)
+#### 📧 Email OTP Flow
 
-**Step 1: Request magic link (same as above)**
+With `otp_enabled: true`, the link click returns `{ requiresOTP: true, loginToken, email }`
+and a code is e-mailed. Verify it with the same `loginToken`:
 
-**Step 2: User clicks magic link → redirected to OTP page**
-
-**Step 3: Verify OTP code**
 ```javascript
-async function verifyOTP(email, otpCode) {
-  const response = await fetch('/api/magic-link/verify-otp', {
+async function verifyOTP(email, code, loginToken) {
+  const response = await fetch('/api/magic-link/otp/verify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email: email,
-      otp: otpCode
-    })
+    body: JSON.stringify({ email, code, magicLinkToken: loginToken }),
   });
-
-  if (response.ok) {
-    const { jwt, user } = await response.json();
-    localStorage.setItem('token', jwt);
-    localStorage.setItem('user', JSON.stringify(user));
-    window.location.href = '/dashboard';
-  } else {
-    alert('Invalid OTP code. Please try again.');
-  }
+  if (!response.ok) throw new Error('Invalid or expired code');
+  return response.json(); // { jwt, user, context, expires_at, otpVerified: true }
 }
 
-// Usage
-const otpInput = document.getElementById('otp-input');
-verifyOTP('user@example.com', otpInput.value);
+// New code after the cooldown:
+// POST /api/magic-link/otp/resend { email, magicLinkToken: loginToken }
 ```
 
-#### 🔐 TOTP Setup Flow (Advanced)
+#### 🔐 Authenticator App (TOTP)
 
-**Step 1: Setup TOTP for user (requires authentication)**
+A user with an authenticator always gets the TOTP step after the link click
+(`{ requiresTOTP: true, loginToken }`):
+
 ```javascript
-async function setupTOTP() {
-  const token = localStorage.getItem('token');
-  
-  const response = await fetch('/api/magic-link/totp/setup', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
-  });
-
-  const { secret, qrCode, otpauthUrl } = await response.json();
-  
-  // Display QR code to user
-  document.getElementById('qr-code').innerHTML = `<img src="${qrCode}" alt="Scan with authenticator app" />`;
-  
-  // Show secret for manual entry
-  document.getElementById('secret').textContent = secret;
-  
-  return secret;
-}
+// Second factor after the magic link: a TOTP code or a one-time backup code.
+await fetch('/api/magic-link/verify-mfa-totp', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ loginToken, totpCode: '123456' }), // or { loginToken, backupCode: 'XXXX-XXXX-XXXX-XXXX' }
+});
 ```
 
-**Step 2: Verify TOTP code**
+**Enrolment during login (`mfa_mode: "required"`).** A user without an
+authenticator gets `{ requiresTOTPSetup: true, loginToken }`. The magic link
+already proved the mailbox, so the landing page can enrol right away:
+
 ```javascript
-async function verifyTOTP(totpCode) {
-  const token = localStorage.getItem('token');
-  
-  const response = await fetch('/api/magic-link/totp/verify', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      token: totpCode
-    })
-  });
+// 1. Secret and QR code (shown once; never log or store them)
+const setup = await fetch('/api/magic-link/totp/enroll', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ loginToken }),
+}).then((r) => r.json()); // { data: { qrCode, secret, otpauthUrl, algorithm, digits, period, expiresAt } }
 
-  if (response.ok) {
-    alert('TOTP successfully enabled!');
-    return true;
-  } else {
-    alert('Invalid code. Please try again.');
-    return false;
-  }
-}
+// 2. Code from the app: activates the authenticator and completes the login
+const session = await fetch('/api/magic-link/totp/enroll/confirm', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ loginToken, totpCode }),
+}).then((r) => r.json()); // { jwt, user, ..., backupCodes: [10 codes, shown once] }
 ```
 
-**Step 3: Login with Email + TOTP (Alternative Login)**
+**Self-service for logged-in users** (users-permissions JWT). Grant the
+`totp` actions (status, setup, confirm, disable, backupCodes) to the
+**Authenticated** role in *Settings > Users & Permissions > Roles*.
+
 ```javascript
-async function loginWithTOTP(email, totpCode) {
-  const response = await fetch('/api/magic-link/totp/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email: email,
-      token: totpCode
-    })
-  });
+const auth = { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' };
 
-  if (response.ok) {
-    const { jwt, user } = await response.json();
-    localStorage.setItem('token', jwt);
-    localStorage.setItem('user', JSON.stringify(user));
-    window.location.href = '/dashboard';
-  } else {
-    alert('Invalid credentials');
-  }
-}
+// Start: returns the QR code and e-mails a confirmation code to the user.
+// With an active authenticator, send { totpCode } from the current app as well.
+const { data } = await fetch('/api/magic-link/totp/setup', { method: 'POST', headers: auth, body: '{}' })
+  .then((r) => r.json());
+
+// Confirm with a code from the app AND the e-mailed code -> 10 backup codes (shown once)
+await fetch('/api/magic-link/totp/confirm', {
+  method: 'POST', headers: auth, body: JSON.stringify({ totpCode, emailCode }),
+});
+
+// Status, new backup codes (needs a current code), remove (TOTP or backup code)
+await fetch('/api/magic-link/totp/status', { headers: auth });
+await fetch('/api/magic-link/totp/backup-codes', { method: 'POST', headers: auth, body: JSON.stringify({ totpCode }) });
+await fetch('/api/magic-link/totp/disable', { method: 'POST', headers: auth, body: JSON.stringify({ totpCode }) });
 ```
+
+A stolen JWT alone cannot add, replace or remove an authenticator: setup
+needs the e-mailed code, re-setup and new backup codes need a current TOTP
+code, and removal needs a TOTP or backup code.
+
+**TOTP-only login** (`totp_as_primary_auth: true`):
+
+```javascript
+await fetch('/api/magic-link/login-totp', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email, totpCode }),
+});
+```
+
+Algorithm, digits and period are stored with each enrolment; changing the
+settings only affects new enrolments.
 
 #### 🔍 Check License Tier (Client-side)
 
@@ -504,17 +489,24 @@ if (license.isPremium) {
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/api/magic-link/send-link` | Generate and send magic link to email |
-| `GET` | `/api/magic-link/login?loginToken=xxx` | Authenticate user with token |
-| `POST` | `/api/magic-link/verify-otp` | Verify Email OTP code |
-| `POST` | `/api/magic-link/totp/login` | Login with Email + TOTP code |
+| `POST` | `/api/magic-link/login` | Exchange `{ loginToken }` for a session (recommended) |
+| `GET` | `/api/magic-link/login?loginToken=xxx` | Same, kept for compatibility |
+| `POST` | `/api/magic-link/otp/send` | Send an e-mail OTP for a pending challenge |
+| `POST` | `/api/magic-link/otp/verify` | Verify the e-mail OTP `{ email, code, magicLinkToken }` |
+| `POST` | `/api/magic-link/otp/resend` | Resend the e-mail OTP after the cooldown |
+| `POST` | `/api/magic-link/verify-mfa-totp` | Second factor `{ loginToken, totpCode \| backupCode }` |
+| `POST` | `/api/magic-link/login-totp` | Login with `{ email, totpCode }` (if enabled) |
+| `POST` | `/api/magic-link/totp/enroll` | Enrolment during a required-MFA login `{ loginToken }` |
+| `POST` | `/api/magic-link/totp/enroll/confirm` | Finish that enrolment `{ loginToken, totpCode }` |
 
-#### TOTP Management (User Auth Required)
+#### Authenticator Management (users-permissions JWT, grant to the Authenticated role)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/magic-link/totp/setup` | Generate TOTP secret & QR code |
-| `POST` | `/api/magic-link/totp/verify` | Verify and enable TOTP |
-| `POST` | `/api/magic-link/totp/disable` | Disable TOTP for user |
-| `GET` | `/api/magic-link/totp/status` | Check if TOTP is configured |
+| `GET` | `/api/magic-link/totp/status` | Enrolment status and remaining backup codes |
+| `POST` | `/api/magic-link/totp/setup` | Start (re-)enrolment, e-mails a confirmation code (`{ totpCode }` when already enrolled) |
+| `POST` | `/api/magic-link/totp/confirm` | Activate with `{ totpCode, emailCode }`, returns backup codes |
+| `POST` | `/api/magic-link/totp/disable` | Remove with `{ totpCode }` or `{ backupCode }` |
+| `POST` | `/api/magic-link/totp/backup-codes` | New backup codes with `{ totpCode }` |
 
 ### 🔐 Admin Endpoints (Admin Auth Required)
 
@@ -539,11 +531,14 @@ if (license.isPremium) {
 | `GET` | `/magic-link/rate-limit/stats` | Get rate limit statistics |
 | `POST` | `/magic-link/rate-limit/cleanup` | Cleanup expired entries |
 
-#### OTP Management
+#### OTP and Authenticator Management
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/magic-link/otp-codes` | List all OTP codes |
-| `POST` | `/magic-link/otp-codes/cleanup` | Cleanup expired OTP codes |
+| `GET` | `/magic-link/otp/codes` | List OTP codes (`page`, `pageSize` up to 100, `email`, `type`) |
+| `DELETE` | `/magic-link/otp/codes/:id` | Delete an OTP code |
+| `POST` | `/magic-link/otp/cleanup` | Delete expired OTP codes |
+| `GET` | `/magic-link/totp/enrollment-summary` | Number of end users with an authenticator |
+| `POST` | `/magic-link/otp/totp/setup` | The admin user's own authenticator (separate from end users) |
 
 #### License Management
 | Method | Endpoint | Description |
@@ -643,7 +638,7 @@ npm install strapi-plugin-email-designer-5
   "totp_as_primary_auth": false,   // Enable TOTP-only login (Advanced)
   
   // Email OTP Configuration (Premium)
-  "otp_type": "email",             // "email" | "sms" | "totp"
+  "otp_type": "email",             // e-mail is the only channel
   "otp_length": 6,                 // Code length (4-8 digits)
   "otp_expiry": 300,               // Validity in seconds (default: 5 min)
   "otp_max_attempts": 3,           // Max verification attempts
@@ -653,7 +648,7 @@ npm install strapi-plugin-email-designer-5
   "totp_issuer": "Magic Link",     // Displayed in authenticator app
   "totp_digits": 6,                // Code digits (6 or 8)
   "totp_period": 30,               // Time period (seconds)
-  "totp_algorithm": "sha1"         // "sha1" | "sha256" | "sha512"
+  "totp_algorithm": "SHA1"         // "SHA1" | "SHA256" | "SHA512" (new enrolments only)
 }
 ```
 
@@ -727,23 +722,27 @@ npm install strapi-plugin-email-designer-5
 
 ## 🔑 Required Environment Variables
 
-The plugin stores secrets that must be protected across restarts and should
-not be rotated with the rest of your Strapi key material. Two env vars are
-**mandatory in production** (the plugin refuses to boot without them):
+Two env vars are **mandatory on every host** (the plugin refuses to start
+without them, also when `NODE_ENV` is not `production`):
 
 ```bash
-# At least 32 random bytes. Used as the AES-256 key for TOTP secrets.
-# DO NOT ROTATE: existing TOTP secrets would become undecryptable.
+# At least 32 characters (use 32 random bytes as hex). AES-256-GCM key for
+# TOTP secrets. Rotate only with MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS (below).
 MAGIC_LINK_ENCRYPTION_KEY=<hex from: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
 
-# At least 16 random bytes. Mixed into OTP code hashes to make
-# precomputed attacks on stored 6-digit codes harder.
-MAGIC_LINK_OTP_PEPPER=<hex from: node -e "console.log(require('crypto').randomBytes(24).toString('hex'))">
+# At least 32 characters. Keys the OTP code hashes and backup-code HMACs.
+# Changing it only invalidates pending e-mail codes and backup codes.
+MAGIC_LINK_OTP_PEPPER=<hex from: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
 ```
 
-In non-production environments (`NODE_ENV !== 'production'`) the plugin
-falls back to derived values for local development. The plugin logs a warning
-once per process.
+**Rotating the encryption key:** put the new key in `MAGIC_LINK_ENCRYPTION_KEY`
+and the old one in `MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS`, restart (TOTP secrets
+are re-encrypted on startup), then remove the previous key. Installations
+upgrading from 5.x with a key shorter than 32 characters do the same.
+
+**Local development only:** `MAGIC_LINK_ALLOW_DEV_SECRETS=true` (ignored when
+`NODE_ENV=production`) lets the plugin start without these variables and use
+derived development values. It logs a warning once per process.
 
 ---
 
@@ -843,7 +842,7 @@ Customize your magic link emails using template variables:
 | **License activation fails** | Check network connectivity. Try manual activation with license key |
 | **npm install fails** | Use `npm install --legacy-peer-deps` or update to latest npm |
 | **OTP settings not visible** | Check license tier. Email OTP requires Premium license |
-| **TOTP not working** | Verify Advanced license is active. Check authenticator app time sync |
+| **TOTP not working** | Check the time sync of the device with the authenticator app (codes are accepted one period early or late). Settings changes only affect new enrolments. A lost device: log in with a backup code, then set up again |
 | **"Current License: Free" but Premium activated** | Refresh browser cache. License info loads from `/magic-link/license/status` |
 | **Lock icons not centered** | Update to v4.16.1+. Mobile UI fixes are included |
 | **Email OTP shown without license** | Update to v4.16.3+. License validation is fixed |
