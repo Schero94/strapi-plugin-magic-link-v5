@@ -3,8 +3,10 @@
 /**
  * Multi-process concurrency test: starts N independent Node processes (like
  * Railway replicas or pm2 cluster workers) on ONE database and checks that
- * no update is lost, no row is duplicated, a background job runs once and
- * a rate limit is shared.
+ * no update is lost, no row is duplicated, a background job runs once, a
+ * rate limit is shared, logins store their session rows in parallel (also
+ * while the old session-list lock is held), the 6.1 session list migrates
+ * once and only one of several parallel revocations changes a row.
  *
  *   npm run test:cluster                       # SQLite file, 8 processes
  *   ML_CLUSTER_DB=postgres ML_CLUSTER_PG_URL=postgres://user@host:5432/throwaway_db \
@@ -26,6 +28,9 @@ const PROCESSES = Math.max(2, Number(process.env.ML_CLUSTER_PROCESSES) || 8);
 const ITERATIONS = Math.max(1, Number(process.env.ML_CLUSTER_ITERATIONS) || 15);
 const WORKER = path.join(__dirname, 'worker.cjs');
 const client = process.env.ML_CLUSTER_DB || 'sqlite';
+const { SESSION_UID } = require('../../server/src/utils/jwt-session-store');
+
+const inOneHour = () => new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
 /**
  * Empties the test database.
@@ -98,10 +103,67 @@ const runScenario = async (scenario, iterations = ITERATIONS) => {
   assert.equal(new Set(blocked.map((entry) => entry.tokenHash)).size, total, 'lost revocations');
   checks.push(`blocklist: ${total}/${total} revocations kept despite concurrent prune/read`);
 
-  await runScenario('sessions');
-  const sessions = (await store.get({ key: 'jwt_sessions' })).sessions;
-  assert.equal(new Set(sessions.map((session) => session.id)).size, total, 'lost sessions');
-  checks.push(`sessions: ${total}/${total} session records kept`);
+  const sessionQuery = strapi.db.query(SESSION_UID);
+  const logins = await runScenario('sessions');
+  const rows = await sessionQuery.findMany({ select: ['sessionId'] });
+  assert.equal(new Set(rows.map((row) => row.sessionId)).size, total, 'lost sessions');
+  assert.equal(
+    logins.reduce((sum, result) => sum + result.written, 0),
+    total,
+    'a login could not store its session'
+  );
+  const slowest = Math.max(...logins.map((result) => result.elapsedMs));
+  const held = Math.max(...logins.map((result) => result.heldLockMs));
+  if (held > 0) {
+    assert.ok(slowest < held, `logins waited for the session-list lock (${slowest} ms)`);
+  }
+  checks.push(
+    `sessions: ${total}/${total} parallel logins stored as rows, slowest process ${slowest} ms` +
+      (held > 0 ? ` while the old session-list lock was held for ${held} ms` : '')
+  );
+
+  // One-time migration of a 6.1 plugin-store list, started by every process.
+  const legacyJwt = 'synthetic.legacy.cluster-jwt';
+  const legacyCount = 300;
+  await store.set({
+    key: 'jwt_sessions',
+    value: {
+      sessions: [
+        { id: 'legacy-plain', userId: 1, jwtToken: legacyJwt, expiresAt: inOneHour() },
+        ...Array.from({ length: legacyCount - 1 }, (_, i) => ({
+          id: `legacy-${i}`,
+          userId: i,
+          jwtTokenHash: `legacy-hash-${i}`,
+          createdAt: new Date(Date.now() - 1000 * (legacyCount - i)).toISOString(),
+          expiresAt: inOneHour(),
+          isRevoked: i % 10 === 0,
+        })),
+        // Same id as a row of the logins above: skipped, not duplicated.
+        { id: 'session-0-0', jwtTokenHash: 'jwt-0-0', expiresAt: inOneHour() },
+      ],
+    },
+  });
+  const migration = await runScenario('migration', 1);
+  const migrated = migration.reduce((sum, result) => sum + result.migrated, 0);
+  assert.equal(migrated, legacyCount, 'legacy records migrated more than once or lost');
+  assert.equal(await sessionQuery.count(), total + legacyCount, 'duplicate or missing rows');
+  assert.equal(await store.get({ key: 'jwt_sessions' }), null, 'legacy key not deleted');
+  const plain = await sessionQuery.findOne({ where: { sessionId: 'legacy-plain' } });
+  assert.equal(JSON.stringify(plain).includes(legacyJwt), false, 'plaintext JWT migrated');
+  checks.push(
+    `migration: ${legacyCount} legacy records moved once by ${PROCESSES} processes, key deleted`
+  );
+
+  await sessionQuery.create({
+    data: { sessionId: 'race-session', jwtTokenHash: 'race-hash', expiresAt: inOneHour() },
+  });
+  const race = await runScenario('revokeRace', 1);
+  assert.equal(
+    race.reduce((sum, result) => sum + result.changed, 0),
+    1,
+    'more than one revocation changed the row'
+  );
+  checks.push(`revocation: 1 of ${PROCESSES} parallel revocations of one session changed it`);
 
   const lease = await runScenario('lease', 1);
   assert.equal(lease.filter((result) => result.ran).length, 1, 'job ran in more than one process');
@@ -118,7 +180,7 @@ const runScenario = async (scenario, iterations = ITERATIONS) => {
     `rate limit: ${allowed} of ${PROCESSES * 5} code checks allowed (limit ${limiter[0].points})`
   );
 
-  for (const key of ['cluster_counter', 'blocked_jwt_tokens', 'jwt_sessions']) {
+  for (const key of ['cluster_counter', 'blocked_jwt_tokens']) {
     assert.equal((await rowsOf(key)).length, 1, `duplicate rows for ${key}`);
   }
 

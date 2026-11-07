@@ -491,38 +491,38 @@ Some answers do not carry a `key`. Handle them by status:
 
 Admin routes live under `/magic-link` on the Strapi server (not under `/api`). They need an admin JWT (`Authorization: Bearer <admin token>`) and the listed permission. The admin pages use them; you rarely need them directly.
 
-| Method   | Path                                  | Permission        | Purpose                                                                                     |
-| -------- | ------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------- |
-| `GET`    | `/magic-link/tokens`                  | `read`            | Newest 1000 tokens, or `?page=&pageSize=` (max 1000)                                        |
-| `POST`   | `/magic-link/tokens`                  | `manage`          | Create a link: `{ email, ttl?, send_email?, context? }` (ttl in hours, 1-720)               |
-| `POST`   | `/magic-link/tokens/:id/block`        | `manage`          | Deactivate a link                                                                           |
-| `POST`   | `/magic-link/tokens/:id/activate`     | `manage`          | Re-activate (refused for used single-use or expired links)                                  |
-| `POST`   | `/magic-link/tokens/:id/extend`       | `manage`          | `{ days }`, 1-365 (default 7)                                                               |
-| `DELETE` | `/magic-link/tokens/:id`              | `manage`          | Delete a link                                                                               |
-| `GET`    | `/magic-link/jwt-sessions`            | `read`            | Sessions issued by Magic Link                                                               |
-| `POST`   | `/magic-link/revoke-jwt`              | `manage`          | `{ sessionId }` or `{ token }`                                                              |
-| `POST`   | `/magic-link/unrevoke-jwt`            | `manage`          | `{ sessionId }` (not for refresh-mode sessions)                                             |
-| `POST`   | `/magic-link/cleanup-sessions`        | `manage`          | Remove expired session records                                                              |
-| `GET`    | `/magic-link/banned-ips`              | `read`            | `{ ips: [...] }`                                                                            |
-| `POST`   | `/magic-link/ban-ip`                  | `manage`          | `{ data: { ip } }`                                                                          |
-| `POST`   | `/magic-link/unban-ip`                | `manage`          | `{ data: { ip } }`                                                                          |
-| `GET`    | `/magic-link/otp/codes`               | `read`            | `?page=&pageSize=&email=&type=&status=`; codes, stats and pagination (no code hashes)       |
-| `DELETE` | `/magic-link/otp/codes/:id`           | `manage`          | Delete one code                                                                             |
-| `POST`   | `/magic-link/otp/cleanup`             | `manage`          | Remove expired codes                                                                        |
-| `GET`    | `/magic-link/settings`                | `settings.read`   | Read settings                                                                               |
-| `PUT`    | `/magic-link/settings`                | `settings.update` | Save settings (only known keys, validated); security settings also need `settings.security` |
-| `POST`   | `/magic-link/reset-data`              | `settings.update` | Restore defaults: `{ confirm: 'RESET', resetSecurity? }`; also needs `settings.security`    |
-| `GET`    | `/magic-link/rate-limit/stats`        | `settings.read`   | Limiter statistics                                                                          |
-| `POST`   | `/magic-link/rate-limit/cleanup`      | `settings.update` | Drop expired limiter entries                                                                |
-| `POST`   | `/magic-link/rate-limit/reset`        | `settings.update` | Reset all limits                                                                            |
-| `GET`    | `/magic-link/totp/enrollment-summary` | `settings.read`   | `{ data: { enrolled, enrollmentDuringLogin } }`                                             |
-| `GET`    | `/magic-link/license/status`          | `settings.read`   | License state; full key only with `settings.update`                                         |
-| `POST`   | `/magic-link/license/store-key`       | `settings.update` | Save a license key                                                                          |
-| `GET`    | `/magic-link/otp/totp/status`         | `read`            | The calling admin's own authenticator                                                       |
-| `POST`   | `/magic-link/otp/totp/setup`          | `read`            | Start setup (`{ token }` when one is active)                                                |
-| `POST`   | `/magic-link/otp/totp/verify`         | `read`            | Confirm setup, returns backup codes                                                         |
-| `POST`   | `/magic-link/otp/totp/disable`        | `read`            | `{ token }`                                                                                 |
-| `POST`   | `/magic-link/otp/totp/backup-codes`   | `read`            | `{ token }`                                                                                 |
+| Method   | Path                                  | Permission        | Purpose                                                                                                    |
+| -------- | ------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------- |
+| `GET`    | `/magic-link/tokens`                  | `read`            | Newest 1000 tokens, or `?page=&pageSize=` (max 1000)                                                       |
+| `POST`   | `/magic-link/tokens`                  | `manage`          | Create a link: `{ email, ttl?, send_email?, context? }` (ttl in hours, 1-720)                              |
+| `POST`   | `/magic-link/tokens/:id/block`        | `manage`          | Deactivate a link                                                                                          |
+| `POST`   | `/magic-link/tokens/:id/activate`     | `manage`          | Re-activate (refused for used single-use or expired links)                                                 |
+| `POST`   | `/magic-link/tokens/:id/extend`       | `manage`          | `{ days }`, 1-365 (default 7)                                                                              |
+| `DELETE` | `/magic-link/tokens/:id`              | `manage`          | Delete a link                                                                                              |
+| `GET`    | `/magic-link/jwt-sessions`            | `read`            | Newest 1000 sessions issued by Magic Link, or `?page=&pageSize=&status=&userId=`; total in `X-Total-Count` |
+| `POST`   | `/magic-link/revoke-jwt`              | `manage`          | `{ sessionId }` or `{ token }`                                                                             |
+| `POST`   | `/magic-link/unrevoke-jwt`            | `manage`          | `{ sessionId }` (not for refresh-mode sessions)                                                            |
+| `POST`   | `/magic-link/cleanup-sessions`        | `manage`          | Remove expired session records                                                                             |
+| `GET`    | `/magic-link/banned-ips`              | `read`            | `{ ips: [...] }`                                                                                           |
+| `POST`   | `/magic-link/ban-ip`                  | `manage`          | `{ data: { ip } }`                                                                                         |
+| `POST`   | `/magic-link/unban-ip`                | `manage`          | `{ data: { ip } }`                                                                                         |
+| `GET`    | `/magic-link/otp/codes`               | `read`            | `?page=&pageSize=&email=&type=&status=`; codes, stats and pagination (no code hashes)                      |
+| `DELETE` | `/magic-link/otp/codes/:id`           | `manage`          | Delete one code                                                                                            |
+| `POST`   | `/magic-link/otp/cleanup`             | `manage`          | Remove expired codes                                                                                       |
+| `GET`    | `/magic-link/settings`                | `settings.read`   | Read settings                                                                                              |
+| `PUT`    | `/magic-link/settings`                | `settings.update` | Save settings (only known keys, validated); security settings also need `settings.security`                |
+| `POST`   | `/magic-link/reset-data`              | `settings.update` | Restore defaults: `{ confirm: 'RESET', resetSecurity? }`; also needs `settings.security`                   |
+| `GET`    | `/magic-link/rate-limit/stats`        | `settings.read`   | Limiter statistics                                                                                         |
+| `POST`   | `/magic-link/rate-limit/cleanup`      | `settings.update` | Drop expired limiter entries                                                                               |
+| `POST`   | `/magic-link/rate-limit/reset`        | `settings.update` | Reset all limits                                                                                           |
+| `GET`    | `/magic-link/totp/enrollment-summary` | `settings.read`   | `{ data: { enrolled, enrollmentDuringLogin } }`                                                            |
+| `GET`    | `/magic-link/license/status`          | `settings.read`   | License state; full key only with `settings.update`                                                        |
+| `POST`   | `/magic-link/license/store-key`       | `settings.update` | Save a license key                                                                                         |
+| `GET`    | `/magic-link/otp/totp/status`         | `read`            | The calling admin's own authenticator                                                                      |
+| `POST`   | `/magic-link/otp/totp/setup`          | `read`            | Start setup (`{ token }` when one is active)                                                               |
+| `POST`   | `/magic-link/otp/totp/verify`         | `read`            | Confirm setup, returns backup codes                                                                        |
+| `POST`   | `/magic-link/otp/totp/disable`        | `read`            | `{ token }`                                                                                                |
+| `POST`   | `/magic-link/otp/totp/backup-codes`   | `read`            | `{ token }`                                                                                                |
 
 A missing permission answers `403`; a missing or expired admin token answers `401`.
 
@@ -818,6 +818,8 @@ Without `maxIpsCount`, clients can spoof `X-Forwarded-For`. The plugin logs a wa
 
 Magic Link works with any number of Strapi processes on **one shared database**, for example 2 Railway replicas with 4 pm2 cluster workers each (8 processes). Requests may land on any process; sticky sessions are not needed and Redis is optional. Every piece of shared state lives in the database, and every write that reads before it writes runs under a database lock.
 
+**Logins do not wait for each other.** Each login stores its JWT session record as one new row in the table `magic_link_jwt_sessions` (a plain `INSERT`, no lock). Up to 6.1 every login appended to one shared JSON list under a cluster-wide lock, so the logins of all processes ran one after another and the list kept at most 1000 records. Measured with 4 Strapi processes on PostgreSQL 16 and 100 users opening their magic link at the same moment, while something else held the old session-list lock for 5 seconds: 6.1 needed 5.5 s for the 100 logins (all waited for the lock), 6.2 needed 0.38 s (none waited).
+
 **1. One database for all processes.** Use PostgreSQL (recommended) or MySQL/MariaDB. SQLite works with several processes on the same machine and file (one writer at a time), but not across machines.
 
 **2. The same secrets in every process.** Strapi's own (`APP_KEYS`, `API_TOKEN_SALT`, `ADMIN_JWT_SECRET`, `JWT_SECRET`, `TRANSFER_TOKEN_SALT`, `ENCRYPTION_KEY`) and Magic Link's (`MAGIC_LINK_ENCRYPTION_KEY`, `MAGIC_LINK_OTP_PEPPER`). A process with a different `JWT_SECRET` rejects tokens issued by the others, and a different `MAGIC_LINK_ENCRYPTION_KEY` cannot read authenticator secrets.
@@ -868,17 +870,18 @@ Do not set `rateLimit: { store: 'memory' }` with several processes: each process
 
 **What is shared, and how**
 
-| State                                                        | Mechanism                                                                                                                                                                      |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Login links, e-mail OTP codes, TOTP replay, backup codes     | Conditional database updates: a link or code is accepted exactly once across all processes.                                                                                    |
-| JWT blocklist, session list, IP bans, settings               | Plugin-store keys written under a cluster-wide lock: PostgreSQL `pg_advisory_xact_lock`, MySQL `GET_LOCK`, SQLite's write lock. No revocation, ban or settings change is lost. |
-| Rate limits, including the always-on second-factor limit     | Database table `magic_link_rate_limits` (rate-limiter-flexible), or Redis with the database as fallback.                                                                       |
-| TOTP and backup-code guesses                                 | Additionally counted on the enrolment row: 10 attempts without a success lock the factor for 15 minutes, whatever limiter backend is used.                                     |
-| New accounts from magic-link requests and admin-issued links | Created under a lock, so one address never gets two accounts.                                                                                                                  |
-| Second-factor challenge start                                | Compare-and-set on the token, so parallel opens of one link send one e-mail code.                                                                                              |
-| Account claim (unconfirmed account)                          | Per-account lock; only the first login ends earlier sessions.                                                                                                                  |
-| Delivery webhooks                                            | Status changes are conditional updates; replay markers and the per-caller limit use the shared limiter store.                                                                  |
-| Cleanup jobs and startup migrations                          | Run by one process at a time (a lease in the plugin store, or the cluster lock).                                                                                               |
+| State                                                        | Mechanism                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Login links, e-mail OTP codes, TOTP replay, backup codes     | Conditional database updates: a link or code is accepted exactly once across all processes.                                                                                                                                                      |
+| JWT blocklist, IP bans, settings                             | Plugin-store keys written under a cluster-wide lock: PostgreSQL `pg_advisory_xact_lock`, MySQL `GET_LOCK`, SQLite's write lock. No revocation, ban or settings change is lost.                                                                   |
+| JWT session records (admin **JWT Sessions**)                 | One row per issued JWT in `magic_link_jwt_sessions`: logins insert without a lock; revoke and restore are conditional single-row updates; retention (7 days after expiry) and the size cap (50,000 rows) are indexed deletes of the cleanup job. |
+| Rate limits, including the always-on second-factor limit     | Database table `magic_link_rate_limits` (rate-limiter-flexible), or Redis with the database as fallback.                                                                                                                                         |
+| TOTP and backup-code guesses                                 | Additionally counted on the enrolment row: 10 attempts without a success lock the factor for 15 minutes, whatever limiter backend is used.                                                                                                       |
+| New accounts from magic-link requests and admin-issued links | Created under a lock, so one address never gets two accounts.                                                                                                                                                                                    |
+| Second-factor challenge start                                | Compare-and-set on the token, so parallel opens of one link send one e-mail code.                                                                                                                                                                |
+| Account claim (unconfirmed account)                          | Per-account lock; only the first login ends earlier sessions.                                                                                                                                                                                    |
+| Delivery webhooks                                            | Status changes are conditional updates; replay markers and the per-caller limit use the shared limiter store.                                                                                                                                    |
+| Cleanup jobs and startup migrations                          | Run by one process at a time (a lease in the plugin store, or the cluster lock).                                                                                                                                                                 |
 
 **Short, documented windows**
 
@@ -888,11 +891,11 @@ Do not set `rateLimit: { store: 'memory' }` with several processes: each process
 - License lookups are cached per process for 10 minutes.
 - Delivery feedback through Magic Mail relies on Magic Mail emitting its event in the process that received the provider webhook (Strapi's event hub is per process). Every process subscribes, so this holds today.
 
-**Upgrading an existing multi-instance install:** the first start merges plugin-store rows that earlier releases could have duplicated (list keys are merged, other keys keep the oldest row) and creates the `magic_link_rate_limits` table. Rate-limit counters start empty once.
+**Upgrading an existing multi-instance install:** the first start merges plugin-store rows that earlier releases could have duplicated (list keys are merged, other keys keep the oldest row) and creates the `magic_link_rate_limits` and `magic_link_jwt_sessions` tables. The session list of 6.1 (plugin-store key `jwt_sessions`) is moved into the table once, by one process under a lock; records already moved are skipped, plaintext JWTs of very old releases are stored as hashes only, and the key is deleted afterwards. Rate-limit counters start empty once.
 
-**First deploy and schema changes:** Strapi creates and alters its tables when it starts, and this step is not coordinated between processes. When several processes start at once on an empty database, or on the first start after an update that adds columns (this release adds three), all but one can stop with `relation ... already exists` or `column ... already exists`. Nothing is lost; the restarted process finds the finished schema. pm2 restarts such a worker on its own (seen in our test: 3 of 4 workers restarted once, then all ran). On Railway the default restart policy (on failure) does the same; alternatively deploy such an update with 1 replica and scale up afterwards.
+**First deploy and schema changes:** Strapi creates and alters its tables when it starts, and this step is not coordinated between processes. When several processes start at once on an empty database, or on the first start after an update that adds columns (this release adds three columns and two tables), all but one can stop with `relation ... already exists` or `column ... already exists`. Nothing is lost; the restarted process finds the finished schema. pm2 restarts such a worker on its own (seen in our test: 3 of 4 workers restarted once, then all ran). On Railway the default restart policy (on failure) does the same; alternatively deploy such an update with 1 replica and scale up afterwards.
 
-The behaviour is tested with 8 processes against SQLite and PostgreSQL 16 (`npm run test:cluster`, see `tests/cluster/run.cjs`). MySQL uses the same code paths with `GET_LOCK` and `RateLimiterMySQL`; it is covered by unit tests, not by a live run.
+The behaviour is tested with 8 processes against SQLite and PostgreSQL 16 (`npm run test:cluster`, see `tests/cluster/run.cjs`), including parallel logins while the old session-list lock is held, the one-time migration of the 6.1 session list started by every process, and parallel revocations of one session. MySQL uses the same code paths with `GET_LOCK` and `RateLimiterMySQL`; it is covered by unit tests, not by a live run.
 
 ## Migrating from strapi-plugin-passwordless
 

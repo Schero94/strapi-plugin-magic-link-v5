@@ -69,7 +69,9 @@ const mergeBlocklists = (values) => {
 };
 
 /**
- * Session list union by record id; a revoked copy wins (fail safe).
+ * Legacy (pre-6.2) session list union by record id; a revoked copy wins
+ * (fail safe). The merged list is then moved into the session table by
+ * migrateLegacySessions (utils/jwt-session-store.js).
  *
  * @param {Array<any>} values - Parsed values.
  * @returns {{sessions: Array<object>}} Merged list, oldest first.

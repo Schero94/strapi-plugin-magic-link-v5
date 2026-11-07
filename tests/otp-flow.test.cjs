@@ -19,6 +19,7 @@ const otpController = require('../server/src/controllers/otp');
 const createOtpService = require('../server/src/services/otp');
 const createMagicLinkService = require('../server/src/services/magic-link');
 const cryptoUtils = require('../server/src/utils/crypto');
+const { createSessionTable } = require('./helpers/session-table.cjs');
 
 const OTP_UID = 'plugin::magic-link.otp-code';
 const EMAIL = 'person@example.test';
@@ -297,6 +298,7 @@ const setupOtpController = ({ settings = {}, totpEnabled = false, binding } = {}
   const storeValues = {
     settings: { otp_strict_binding: true, jwt_token_expires_in: '2h', ...settings },
   };
+  const sessionTable = createSessionTable();
   global.strapi = {
     config: { get: (_key, fallback) => fallback },
     plugin(name) {
@@ -339,14 +341,17 @@ const setupOtpController = ({ settings = {}, totpEnabled = false, binding } = {}
         ],
       };
     },
-    db: { query: () => ({ findMany: async () => [] }) },
+    db: {
+      query: (uid) =>
+        uid === sessionTable.uid ? sessionTable.query : { findMany: async () => [] },
+    },
     log: { info() {}, warn() {}, error() {}, debug() {} },
   };
-  return { state, storeValues };
+  return { state, storeValues, sessionTable };
 };
 
 test('OTP verify binds to the stored token hash and issues a recorded session (STR-M02, FUN-11)', async () => {
-  const { state, storeValues } = setupOtpController();
+  const { state, sessionTable } = setupOtpController();
   const ctx = makeContext({
     email: EMAIL,
     code: '731204',
@@ -367,12 +372,8 @@ test('OTP verify binds to the stored token hash and issues a recorded session (S
     { redirectTo: '/account' },
     'reserved context keys are filtered'
   );
-  assert.equal(
-    storeValues.jwt_sessions.sessions.length,
-    1,
-    'the OTP login is visible and revocable'
-  );
-  assert.equal(storeValues.jwt_sessions.sessions[0].source, 'Magic Link + Email OTP');
+  assert.equal(sessionTable.records().length, 1, 'the OTP login is visible and revocable');
+  assert.equal(sessionTable.records()[0].source, 'Magic Link + Email OTP');
   // The unconfirmed account is claimed: sessions end, the password is cleared.
   assert.deepEqual(state.revokedUsers, [9]);
   assert.deepEqual(state.edits, [
@@ -610,6 +611,7 @@ test('verify-mfa-totp accepts a backup code as the recovery path', async () => {
   };
   const calls = [];
   const storeValues = {};
+  const backupSessions = createSessionTable();
   global.strapi = {
     config: { get: (_key, fallback) => fallback },
     plugin(name) {
@@ -649,6 +651,7 @@ test('verify-mfa-totp accepts a backup code as the recovery path', async () => {
     documents: () => ({
       findOne: async () => ({ id: 9, documentId: 'user-doc', email: EMAIL, confirmed: true }),
     }),
+    db: { query: () => backupSessions.query },
     log: { info() {}, warn() {}, error() {}, debug() {} },
   };
 
@@ -663,7 +666,7 @@ test('verify-mfa-totp accepts a backup code as the recovery path', async () => {
   ]);
   assert.equal(ctx.response.jwt, 'backup-jwt');
   assert.equal(ctx.response.backupCodesRemaining, 9);
-  assert.equal(storeValues.jwt_sessions.sessions[0].source, 'Magic Link + backup code (MFA)');
+  assert.equal(backupSessions.records()[0].source, 'Magic Link + backup code (MFA)');
 
   await assert.rejects(
     auth.verifyMFATOTP(

@@ -1,8 +1,21 @@
 'use strict';
 
 const cryptoUtils = require('../utils/crypto');
-const { readJwtSessions, updateJwtSessions, cleanSessions } = require('../utils/jwt-session-store');
-const { jwtRevokeSchema, jwtUnrevokeSchema, parseBody } = require('./validation');
+const {
+  expireSessions,
+  findSessionByHash,
+  findSessionById,
+  listSessions,
+  markSessionRestored,
+  markSessionsRevoked,
+  migrateLegacySessionsIfPresent,
+} = require('../utils/jwt-session-store');
+const {
+  jwtRevokeSchema,
+  jwtSessionsQuerySchema,
+  jwtUnrevokeSchema,
+  parseBody,
+} = require('./validation');
 const { CLAIM_REASON } = require('../utils/account-claim');
 
 const REVOKE_REASON = 'Manually revoked from admin UI';
@@ -72,19 +85,32 @@ const toDisplaySession = (session, now) => ({
 
 /**
  * JWT controller: lists plugin-issued sessions and revokes or restores them.
- * Every change goes through the serialised session store, and the blocklist
- * entry is written before the session is shown as revoked.
+ * Each change is a conditional UPDATE of the affected rows (no list lock),
+ * and the blocklist entry is written before the session is shown as revoked.
  */
 module.exports = {
   /**
-   * Returns all stored JWT sessions with safe display data.
+   * Returns stored JWT sessions with safe display data, newest first.
+   * Without query parameters the newest 1000 records are returned (the
+   * response shape of 6.1). Optional `page`, `pageSize`, `status` and
+   * `userId` are served from the table indexes; the total is sent in the
+   * `X-Total-Count` header, the body stays an array.
+   *
    * @param {object} ctx - Koa context
    */
   async getSessions(ctx) {
+    const query = parseBody(jwtSessionsQuerySchema, ctx.query || {});
+    try {
+      // Records a previous-release replica wrote during a rolling deploy.
+      await migrateLegacySessionsIfPresent(strapi);
+    } catch {
+      strapi.log.warn('[magic-link] Pre-6.2 JWT session records could not be moved yet');
+    }
     try {
       const now = new Date();
-      const sessions = cleanSessions(await readJwtSessions(strapi));
-      ctx.send(sessions.map((session) => toDisplaySession(session, now)));
+      const { results, total } = await listSessions(strapi, query);
+      if (typeof ctx.set === 'function') ctx.set('X-Total-Count', String(total));
+      ctx.send(results.map((session) => toDisplaySession(session, now)));
     } catch {
       strapi.log.error('[magic-link] JWT sessions could not be loaded');
       ctx.throw(500, 'Failed to load JWT sessions');
@@ -105,31 +131,19 @@ module.exports = {
 
     try {
       if (sessionId) {
-        const sessions = await readJwtSessions(strapi);
-        const session = sessions.find((candidate) => candidate.id === sessionId);
+        const session = await findSessionById(strapi, sessionId);
         if (!session) return ctx.notFound('Session not found');
 
-        const hashToBlock =
-          session.jwtTokenHash ||
-          (typeof session.jwtToken === 'string' ? cryptoUtils.hashJwt(session.jwtToken) : null);
-        if (hashToBlock) {
-          await magicLink.blockJwtTokenByHash(hashToBlock, session.userId, REVOKE_REASON, {
+        if (session.jwtTokenHash) {
+          await magicLink.blockJwtTokenByHash(session.jwtTokenHash, session.userId, REVOKE_REASON, {
             expiresAt: session.expiresAt,
           });
         }
 
-        await updateJwtSessions(strapi, (list) =>
-          list.map((candidate) =>
-            candidate.id === sessionId
-              ? {
-                  ...candidate,
-                  isRevoked: true,
-                  revokedAt: new Date().toISOString(),
-                  revokeReason: REVOKE_REASON,
-                  revokedBy,
-                }
-              : candidate
-          )
+        await markSessionsRevoked(
+          strapi,
+          { sessionId: session.id },
+          { reason: REVOKE_REASON, revokedBy }
         );
         strapi.log.info(
           `[magic-link] Admin ${revokedBy ?? 'unknown'} revoked JWT session ${sessionId}`
@@ -138,22 +152,13 @@ module.exports = {
       }
 
       const tokenHash = cryptoUtils.hashJwt(token);
-      const sessions = await readJwtSessions(strapi);
-      const owner = sessions.find((candidate) => candidate.jwtTokenHash === tokenHash);
+      const owner = await findSessionByHash(strapi, tokenHash);
       await magicLink.blockJwtToken(token, owner?.userId ?? 'unknown', REVOKE_REASON);
 
-      await updateJwtSessions(strapi, (list) =>
-        list.map((candidate) =>
-          candidate.jwtTokenHash === tokenHash
-            ? {
-                ...candidate,
-                isRevoked: true,
-                revokedAt: new Date().toISOString(),
-                revokeReason: `${REVOKE_REASON} via token`,
-                revokedBy,
-              }
-            : candidate
-        )
+      await markSessionsRevoked(
+        strapi,
+        { jwtTokenHash: tokenHash },
+        { reason: `${REVOKE_REASON} via token`, revokedBy }
       );
       strapi.log.info(`[magic-link] Admin ${revokedBy ?? 'unknown'} revoked a JWT`);
       return ctx.send({ success: true, message: 'Session revoked successfully.' });
@@ -177,8 +182,7 @@ module.exports = {
     const { sessionId } = parseBody(jwtUnrevokeSchema, ctx.request.body);
 
     try {
-      const sessions = await readJwtSessions(strapi);
-      const session = sessions.find((candidate) => candidate.id === sessionId);
+      const session = await findSessionById(strapi, sessionId);
       if (!session) return ctx.notFound('Session not found');
 
       // Sessions ended because the mailbox owner claimed an unconfirmed
@@ -186,28 +190,23 @@ module.exports = {
       const restoreBlock = getRestoreBlock(session, new Date());
       if (restoreBlock) return ctx.badRequest(RESTORE_BLOCK_MESSAGES[restoreBlock]);
 
-      const hashToUnblock =
-        session.jwtTokenHash ||
-        (typeof session.jwtToken === 'string' ? cryptoUtils.hashJwt(session.jwtToken) : null);
-      if (hashToUnblock) {
-        const magicLink = strapi.plugin('magic-link').service('magic-link');
-        await magicLink.unblockJwtTokenByHash(hashToUnblock, session.userId);
+      // Nothing to restore. A block on the JWT of a row that is not marked
+      // revoked (row update failed or still running elsewhere) stays.
+      if (!session.isRevoked) {
+        return ctx.send({ success: true, message: 'JWT session unrevoked successfully' });
       }
 
-      await updateJwtSessions(strapi, (list) =>
-        list.map((candidate) =>
-          candidate.id === sessionId
-            ? {
-                ...candidate,
-                isRevoked: false,
-                revokedAt: null,
-                revokeReason: null,
-                revokedBy: null,
-                restoredBy: actorId(ctx),
-              }
-            : candidate
-        )
-      );
+      if (session.jwtTokenHash) {
+        const magicLink = strapi.plugin('magic-link').service('magic-link');
+        const unblocked = await magicLink.unblockJwtTokenByHash(
+          session.jwtTokenHash,
+          session.userId
+        );
+        // An account claim ended this JWT after the manual revocation.
+        if (unblocked?.kept > 0) return ctx.badRequest(RESTORE_BLOCK_MESSAGES.accountClaim);
+      }
+
+      await markSessionRestored(strapi, session.id, actorId(ctx));
       strapi.log.info(
         `[magic-link] Admin ${actorId(ctx) ?? 'unknown'} restored JWT session ${sessionId}`
       );
@@ -219,30 +218,13 @@ module.exports = {
   },
 
   /**
-   * Marks expired sessions as ended and drops records past the retention
-   * period.
+   * Marks expired sessions as ended (one indexed UPDATE). Records past the
+   * retention period are deleted by the periodic cleanup job.
    * @param {object} ctx - Koa context
    */
   async cleanupSessions(ctx) {
     try {
-      const now = new Date();
-      const cleanedCount = await updateJwtSessions(strapi, (list) => {
-        let count = 0;
-        const sessions = list.map((session) => {
-          if (new Date(session.expiresAt) < now && !session.isRevoked) {
-            count += 1;
-            return {
-              ...session,
-              isRevoked: true,
-              revokedAt: now.toISOString(),
-              revokeReason: 'Automatically expired',
-            };
-          }
-          return session;
-        });
-        return { sessions, result: count };
-      });
-
+      const cleanedCount = await expireSessions(strapi, new Date());
       ctx.send({
         success: true,
         count: cleanedCount,

@@ -1,3 +1,26 @@
+## [Unreleased]
+
+Next release: **6.2.1** (patch). No breaking changes; the admin JWT Sessions view and its API keep their shape.
+
+### Performance
+
+- Logins no longer run one after another across processes. JWT session records moved from one plugin-store JSON list (`jwt_sessions`, written under a cluster-wide lock, capped at 1000 records) to the hidden content type `plugin::magic-link.jwt-session` (table `magic_link_jwt_sessions`), one row per issued JWT:
+  - a login inserts one row without a lock; revoke, restore and "clean up expired" are conditional updates of the affected rows only;
+  - retention (7 days after expiry) and a size cap of 50,000 rows are indexed deletes run by the 5-minute cleanup job (one process);
+  - the admin list reads the newest 1000 rows through the primary key, unchanged for the admin UI; `GET /magic-link/jwt-sessions` also accepts `page`, `pageSize` (max 1000), `status` (`all`, `active`, `revoked`, `expired`) and `userId`, and sends the total in `X-Total-Count`.
+
+### Fixed
+
+- An account claim can no longer be undone by restoring an earlier manual revocation of the same JWT: claim blocks are marked final (`noRestore`), the restore keeps them and answers 400, and the rows of the user show the claim as reason. Restoring a session that is not revoked no longer lifts a block on its JWT.
+- Session records that a replica of the previous release writes into the old `jwt_sessions` list during a rolling deploy (or that a failed start-up move left behind) are moved into the table before an account claim, a revocation lookup or the admin list reads it, and by the 5-minute cleanup, so no JWT is missed.
+- With the GraphQL plugin installed, Shadow CRUD is disabled for the plugin's internal content types (`token`, `otp-code`, `totp-config`, `jwt-session`): a full-access API token can no longer read or change login tokens, MFA rows or session records through `/graphql`. They were never meant to be public; use the plugin's REST routes.
+
+### Migration
+
+- The session list of 6.2.0 and earlier (plugin-store key `jwt_sessions`) is moved into `magic_link_jwt_sessions` once at startup, by one process under a lock; already moved records are skipped, plaintext JWTs of very old releases are stored as hashes only, records more than 7 days past expiry are dropped, and the key is deleted. If the move fails, it is logged and retried on the next start.
+- If several processes start at once on this update, one of them may stop once with `relation ... already exists` while Strapi creates `magic_link_jwt_sessions`; the restarted process starts normally. Or deploy with one replica and scale up afterwards.
+
+
 # [6.2.0](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v6.1.0...v6.2.0) (2026-11-07)
 
 
@@ -11,9 +34,8 @@
 * **server:** keep shared state consistent across several Strapi processes ([eae7491](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/eae7491347873d5a63ccd277fda2d293be4cccd4))
 * **server:** keep shared state consistent across several Strapi processes ([#23](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/23)) ([33799c2](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/33799c2f71d0d04f1e60caa52a2236bbf04869f9))
 
-## [Unreleased]
+## 6.2.0 details (written before the release)
 
-Next release: **6.2.0** (minor). No breaking changes: routes, responses and settings keep their contract; the new table and columns are created on start.
 
 ### Fixed
 
@@ -33,7 +55,7 @@ Next release: **6.2.0** (minor). No breaking changes: routes, responses and sett
 
 ### Migration
 
-- No action needed. The first start creates `magic_link_rate_limits` and two new private columns (`magic_link_tokens.challenge_revision`, TOTP `failed_attempts`/`locked_until`). Rate-limit counters start empty once. To keep in-memory counters, set `rateLimit: { store: 'memory' }`.
+- No action needed. The first start creates `magic_link_rate_limits`, `magic_link_jwt_sessions` and two new private columns (`magic_link_tokens.challenge_revision`, TOTP `failed_attempts`/`locked_until`). Rate-limit counters start empty once. To keep in-memory counters, set `rateLimit: { store: 'memory' }`.
 - Several processes starting at once on this update can stop once with `column ... already exists` while Strapi adds the new columns; the restarted process starts normally (pm2 and Railway's default on-failure policy restart it). Or deploy with one replica and scale up afterwards. See README, "First deploy and schema changes".
 
 # [6.1.0](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v6.0.0...v6.1.0) (2026-11-07)

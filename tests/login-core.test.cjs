@@ -360,7 +360,7 @@ test('direct login sanitizes the user, honours the JWT lifetime and records the 
   assert.equal(state.issued[0].options.expiresIn, '12h');
   const expiresMs = new Date(ctx.body.expires_at).getTime() - Date.now();
   assert.ok(expiresMs > 11.9 * 3600_000 && expiresMs <= 12 * 3600_000);
-  const session = state.stores['magic-link'].jwt_sessions.sessions[0];
+  const session = state.sessionTable.records()[0];
   assert.equal(session.expiresAt, ctx.body.expires_at);
   assert.equal(session.jwtTokenHash, cryptoUtils.hashJwt(ctx.body.jwt));
   // Claiming the unconfirmed account invalidates a password someone else may
@@ -395,7 +395,7 @@ test('two logins of one user in the same second get distinct JWTs, so revoking o
   assert.match(jtiA, /^[0-9a-f-]{36}$/);
   assert.notEqual(jtiA, jtiB);
   assert.notEqual(a.body.jwt, b.body.jwt);
-  const hashes = state.stores['magic-link'].jwt_sessions.sessions.map((s) => s.jwtTokenHash);
+  const hashes = state.sessionTable.records().map((s) => s.jwtTokenHash);
   assert.equal(new Set(hashes).size, 2);
 });
 
@@ -425,7 +425,7 @@ test('refresh mode issues tokens through the users-permissions session manager (
   assert.equal(state.upSessions[0].deviceId, 'device-1');
   assert.equal(state.upSessions[0].userId, String(VICTIM.id));
   assert.equal(ctx.body.refreshToken, 'refresh-up-session-1');
-  const session = state.stores['magic-link'].jwt_sessions.sessions[0];
+  const session = state.sessionTable.records()[0];
   assert.equal(session.upSessionId, 'up-session-1');
 
   // Revoking from the plugin also revokes the users-permissions session.

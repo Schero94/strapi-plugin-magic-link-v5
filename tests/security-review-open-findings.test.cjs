@@ -112,7 +112,7 @@ test(
     assert.ok(rotated.token);
 
     // The admin revokes the session in the Magic Link panel.
-    const sessionId = state.stores['magic-link'].jwt_sessions.sessions[0].id;
+    const sessionId = state.sessionTable.records()[0].id;
     const revokeCtx = createCtx({ method: 'POST', body: { sessionId } });
     revokeCtx.notFound = () => assert.fail('session must exist');
     await jwtController.revokeToken(revokeCtx);
@@ -146,7 +146,7 @@ test(
     const { token: secondAccess } = await manager.generateAccessToken(rotated.token);
 
     await magicLinkService.blockJwtTokenByHash(
-      state.stores['magic-link'].jwt_sessions.sessions[0].jwtTokenHash,
+      state.sessionTable.records()[0].jwtTokenHash,
       USER.id,
       'test'
     );
