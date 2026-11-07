@@ -170,27 +170,22 @@ test(
   }
 );
 
-test(
-  'second-factor verification stays throttled when public rate limits are disabled',
-  {
-    todo: 'services/rate-limiter.js returns allowed for every non-admin type when rate_limit_enabled=false, so /login-totp, /verify-mfa-totp and /totp/* become brute-forceable',
-  },
-  async () => {
-    const settings = { rate_limit_enabled: false };
-    const strapi = {
-      store: () => ({ get: async () => settings }),
-      config: { get: () => undefined },
-      log: { warn() {}, error() {}, info() {}, debug() {} },
-    };
-    const limiter = createRateLimiter({ strapi });
-    let allowed = 0;
-    for (let attempt = 0; attempt < 200; attempt += 1) {
-      const check = await limiter.checkRateLimit('totp-login-account:synthetic', 'login');
-      if (check.allowed) allowed += 1;
-    }
-    assert.ok(allowed < 200, `${allowed}/200 TOTP guesses for one account were allowed`);
+// Fixed in 5ba821e (always-on `verify` limiter); kept as a regression guard.
+test('second-factor verification stays throttled when public rate limits are disabled', async () => {
+  const settings = { rate_limit_enabled: false };
+  const strapi = {
+    store: () => ({ get: async () => settings }),
+    config: { get: () => undefined },
+    log: { warn() {}, error() {}, info() {}, debug() {} },
+  };
+  const limiter = createRateLimiter({ strapi });
+  let allowed = 0;
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const check = await limiter.checkRateLimit('totp-login-account:synthetic', 'verify');
+    if (check.allowed) allowed += 1;
   }
-);
+  assert.ok(allowed <= 10, `${allowed}/200 TOTP guesses for one account were allowed`);
+});
 
 test(
   'magic-link login does not hand over a pre-registered, unconfirmed account with a foreign password',
