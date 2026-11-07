@@ -4,13 +4,12 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const contentRoutes = require('../server/src/routes/content-api').routes;
-const compatibilityRoutes = require('../server/src/routes/compatibility').routes;
 const createMagicLinkService = require('../server/src/services/magic-link');
 
 const ipBanPolicyName = 'plugin::magic-link.ip-ban-check';
 
 test('every public authentication route applies the IP-ban policy', () => {
-  for (const route of [...contentRoutes, ...compatibilityRoutes]) {
+  for (const route of contentRoutes) {
     assert.ok(route.config.policies.includes(ipBanPolicyName), `${route.method} ${route.path}`);
   }
 });

@@ -20,7 +20,14 @@
     "settings.updateFailed": "Could not update settings",
     "settings.getFailed": "Could not get settings",
     "unauthorized": "Unauthorized access",
-    "generic.error": "An error occurred"
+    "generic.error": "An error occurred",
+    "challenge.invalid": "This verification request is invalid or has expired",
+    "mfa.setupRequired": "Two-factor authentication is required. Please set up an authenticator app first",
+    "mfa.invalidCode": "Invalid verification code",
+    "otp.deliveryFailed": "The verification code could not be sent. Please request a new code",
+    "totp.loginDisabled": "Login with an authenticator code is not enabled",
+    "credentials.invalid": "Invalid credentials",
+    "login.failed": "The login could not be completed. Please try again"
   },
   "success": {
     "token.created": "Magic Link sent successfully",

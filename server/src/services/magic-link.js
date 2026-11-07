@@ -3,814 +3,877 @@
 /**
  * magic-link.js service
  *
- * @description: A set of functions similar to controller's actions to avoid code duplication.
- * 
- * Security:
- * - Magic Link tokens are hashed before storage
- * - Uses Document Service API (strapi.documents) for Strapi v5
+ * Token lifecycle, login e-mail delivery, user resolution and the JWT
+ * revocation list.
+ *
+ * Security properties:
+ * - Login tokens are stored as salted hashes; only a short prefix is kept in
+ *   clear for the indexed lookup. Legacy unsalted rows are never accepted.
+ * - Second-factor state lives in the private `challenge` attribute, which only
+ *   the server writes. Client context can never start or skip a challenge.
+ * - Single use is enforced with conditional database updates, so parallel
+ *   requests with one link cannot both log in.
+ * - E-mail templates are rendered with an allow-listed placeholder renderer
+ *   (no code execution).
  */
 
-const _ = require('lodash');
 const createId = require('../utils/id');
-// See comment in controllers/validation.js — avoid destructuring @strapi/utils
-// so the pack-up bundler does not rewrite the import into a form that
-// resolves to undefined at runtime.
-const sanitize = require('@strapi/utils').sanitize;
 const emailHelpers = require('../utils/email-helpers');
 const cryptoUtils = require('../utils/crypto');
 const { normalizeEmail } = require('../utils/email');
 const { normalizeIpAddress } = require('../utils/ip-address');
+const { filterContext } = require('../utils/context-policy');
+const { buildLoginUrl } = require('../utils/login-url');
+const { buildTemplateVariables, escapeHtml, renderTemplate } = require('../utils/template-renderer');
+const { decodeJwtExpiry } = require('../utils/login-session');
 
-// Helper to format expiry time in human-readable format
-const formatExpiryText = (minutes) => {
-  if (!minutes || Number.isNaN(minutes)) {
-    return '1 hour';
-  }
-  const safeMinutes = Math.max(1, Math.round(minutes));
-  if (safeMinutes >= 60) {
-    const hours = Math.ceil(safeMinutes / 60);
-    return `${hours} hour${hours === 1 ? '' : 's'}`;
-  }
-  return `${safeMinutes} minute${safeMinutes === 1 ? '' : 's'}`;
+const TOKEN_UID = 'plugin::magic-link.token';
+const USER_UID = 'plugin::users-permissions.user';
+const ROLE_UID = 'plugin::users-permissions.role';
+
+const TOKEN_LENGTH = Object.freeze({ min: 22, max: 128, default: 32 });
+const TOKEN_PREFIX_LENGTH = 8;
+// Admin-created tokens of older releases may be 16 characters long; they are
+// still accepted for lookup, new tokens are generated with TOKEN_LENGTH.min+.
+const MIN_LOOKUP_LENGTH = 16;
+const CHALLENGE_TYPES = ['otp', 'totp'];
+const BLOCKLIST_KEY = 'blocked_jwt_tokens';
+const SESSIONS_KEY = 'jwt_sessions';
+// Fallback when a revoked token's expiry is unknown: keep the entry for one
+// year rather than letting a still-valid token become usable again.
+const UNKNOWN_EXPIRY_MS = 365 * 24 * 60 * 60 * 1000;
+const BLOCKLIST_CACHE_TTL_MS = 2000;
+
+const DEFAULT_SUBJECT = 'Your login link';
+const DEFAULT_HTML = '<p>Hello,</p><p><a href="{{LOGIN_URL}}">Click here to log in</a>.</p><p>This link expires in {{EXPIRY_TEXT}}.</p>';
+const DEFAULT_TEXT = 'Hello,\n\nUse this link to log in: {{LOGIN_URL}}\n\nThis link expires in {{EXPIRY_TEXT}}.';
+
+/**
+ * Clamps a configured token length into the secure range (>= 132 bits).
+ *
+ * @param {unknown} value - Configured length.
+ * @returns {number} Effective token length.
+ */
+const clampTokenLength = (value) => {
+  const n = Number(value);
+  if (!Number.isInteger(n)) return TOKEN_LENGTH.default;
+  return Math.min(TOKEN_LENGTH.max, Math.max(TOKEN_LENGTH.min, n));
 };
 
-module.exports = ({ strapi }) => ({
-  async initialize() {
-    // Initialization logic if needed
-  },
+/**
+ * Normalises a username candidate to the characters users-permissions
+ * usernames commonly allow.
+ *
+ * @param {unknown} value - Candidate username.
+ * @returns {string} Safe username base (may be empty).
+ */
+const toUsernameBase = (value) =>
+  String(value || '')
+    .normalize('NFKC')
+    .replace(/[^\p{L}\p{N}._-]/gu, '')
+    .slice(0, 48);
 
-  async settings() {
-    const pluginStore = strapi.store({
-      type: 'plugin',
-      name: 'magic-link',
-    });
-    return pluginStore.get({ key: 'settings' });
-  },
+module.exports = ({ strapi }) => {
+  // In-process serialisation of read-modify-write updates on store blobs.
+  let storeQueue = Promise.resolve();
+  const serialize = (task) => {
+    const run = storeQueue.then(task, task);
+    storeQueue = run.catch(() => {});
+    return run;
+  };
+  let blocklistCache = null;
 
-  async userSettings() {
-    const pluginStore = strapi.store({
-      type: 'plugin',
-      name: 'users-permissions',
-    });
-    return pluginStore.get({ key: 'advanced' });
-  },
+  const pluginStore = () => strapi.store({ type: 'plugin', name: 'magic-link' });
 
-  /**
-   * Returns whether the Magic Link plugin is active. In the marketplace
-   * build the plugin is always-on once installed: it cannot be disabled
-   * from the admin panel by mistake (that toggle was removed). The
-   * function is kept as a stable export so any legacy caller continues
-   * to compile.
-   *
-   * @returns {Promise<boolean>} always true
-   */
-  async isEnabled() {
-    return true;
-  },
+  return {
+    async initialize() {},
 
-  async createUser(user) {
-    const userSettings = await this.userSettings();
-    
-    // Using Document Service API for role lookup
-    const roles = await strapi.documents('plugin::users-permissions.role').findMany({
-      filters: { type: userSettings.default_role },
-      limit: 1,
-    });
-    const role = roles && roles.length > 0 ? roles[0] : null;
+    async settings() {
+      return pluginStore().get({ key: 'settings' });
+    },
 
-    if (!role) {
-      throw new Error('Default role not found');
-    }
+    async userSettings() {
+      const store = strapi.store({ type: 'plugin', name: 'users-permissions' });
+      return store.get({ key: 'advanced' });
+    },
 
-    const newUser = {
-      ...user,
-      provider: 'local',
-      confirmed: true,
-      blocked: false,
-      role: role.id,
-    };
+    /**
+     * Kept for API stability: the plugin is always active once installed.
+     *
+     * @returns {Promise<boolean>} Always true.
+     */
+    async isEnabled() {
+      return true;
+    },
 
-    // Using Document Service API
-    const createdUser = await strapi.documents('plugin::users-permissions.user').create({
-      data: newUser,
-    });
+    /**
+     * Whether a magic-link request may create a new account. Requires the
+     * plugin opt-in AND users-permissions "Enable sign-ups" (allow_register).
+     *
+     * @param {object} settings - Plugin settings.
+     * @returns {Promise<boolean>} Whether auto-registration is allowed.
+     */
+    async canAutoRegister(settings) {
+      if (settings?.createUserIfNotExists === false) return false;
+      if (settings?.allow_magic_links_on_public_registration !== true) return false;
+      const advanced = await this.userSettings();
+      return advanced?.allow_register === true;
+    },
 
-    return createdUser;
-  },
+    /**
+     * Finds a free username derived from the request or the e-mail local part.
+     *
+     * @param {string} requested - Requested username (optional).
+     * @param {string} email - Normalised e-mail.
+     * @returns {Promise<string>} Unused username.
+     */
+    async resolveUsername(requested, email) {
+      const base = toUsernameBase(requested) || toUsernameBase(email.split('@')[0]) || 'user';
+      let candidate = base;
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const existing = await strapi.documents(USER_UID).findMany({ filters: { username: candidate }, limit: 1 });
+        if (!existing || existing.length === 0) return candidate;
+        candidate = `${base}-${createId(6)}`;
+      }
+      return `${base}-${createId(12)}`;
+    },
 
-  async user(email, username) {
-    const settings = await this.settings();
-    const createUserIfNotExists = settings?.createUserIfNotExists !== false;
-
-    // Normalise email for case-insensitive lookup (fixes Postgres missing
-    // rows when the stored address was registered with different casing).
-    const normalizedEmail = normalizeEmail(email);
-
-    strapi.log.debug(`[MagicLink Service] Checking user: ${normalizedEmail || username}, createUserIfNotExists: ${createUserIfNotExists}`);
-
-    // Using Document Service API
-    const users = await strapi.documents('plugin::users-permissions.user').findMany({
-      filters: normalizedEmail ? { email: normalizedEmail } : { username },
-      limit: 1,
-    });
-    const user = users && users.length > 0 ? users[0] : null;
-    
-    strapi.log.debug(`[MagicLink Service] User found: ${!!user}`);
-
-    if (!user && !createUserIfNotExists) {
-      strapi.log.warn(`[MagicLink Service] User not found AND createUserIfNotExists is false.`);
-      throw new Error('User not found and auto-creation disabled.');
-    }
-
-    if (!user && createUserIfNotExists) {
-      strapi.log.info(`[MagicLink Service] Creating new user for: ${normalizedEmail}`);
-      const newUser = await this.createUser({
-        email: normalizedEmail,
-        username: username || normalizedEmail.split('@')[0],
+    /**
+     * Creates an unconfirmed users-permissions user with the default role.
+     * The account is confirmed only when the first magic link is used, which
+     * is the proof of e-mail ownership.
+     *
+     * @param {{email: string, username?: string}} data - New user data.
+     * @returns {Promise<object>} Created user.
+     */
+    async createUser({ email, username }) {
+      const advanced = await this.userSettings();
+      if (!advanced?.default_role) {
+        throw new Error('Default role not configured');
+      }
+      const roles = await strapi.documents(ROLE_UID).findMany({
+        filters: { type: advanced.default_role },
+        limit: 1,
       });
-      return newUser;
-    }
-
-    return user;
-  },
-
-  /**
-   * Creates a new magic link token with hashed storage and prefix for efficient lookup
-   * @param {string} email - User email address
-   * @param {object} context - Optional context data to attach to the token
-   * @returns {Promise<object>} Token object with _plaintextToken for email delivery
-   */
-  async createToken(email, context = {}) {
-    const settings = await this.settings();
-    const tokenLength = settings?.token_length || 20;
-    const token = createId(tokenLength);
-
-    // Store email lower-cased so all downstream equality lookups
-    // (fetchToken, validateBindingForChallenge, user-lookup on login)
-    // match regardless of the casing the client sent.
-    const normalizedEmail = normalizeEmail(email);
-    if (!normalizedEmail) {
-      throw new Error('createToken requires a non-empty email');
-    }
-
-    const expireSeconds = settings?.expire_period || 3600;
-    const expires = new Date();
-    expires.setSeconds(expires.getSeconds() + expireSeconds);
-
-    const { hash: tokenHash, salt: tokenSalt } = cryptoUtils.hashToken(token);
-    const tokenPrefix = token.substring(0, 8);
-
-    const tokenObject = await strapi.documents('plugin::magic-link.token').create({
-      data: {
-        email: normalizedEmail,
-        token: tokenHash,
-        token_salt: tokenSalt,
-        token_prefix: tokenPrefix,
-        expires_at: expires,
-        is_active: true,
-        is_used: false,
-        context: typeof context === 'string' ? JSON.parse(context) : context,
-      },
-    });
-
-    return { ...tokenObject, token, _plaintextToken: token };
-  },
-
-  /**
-   * Fetches a token by its plaintext value using prefix-based DB lookup.
-   * Uses token_prefix for O(1) DB narrowing, then hash verification on candidates.
-   * Falls back to email-scoped scan for legacy tokens without prefix.
-   * @param {string} token - Plaintext token value from the login URL
-   * @returns {Promise<object|null>} The matched token record or null
-   */
-  async fetchToken(token) {
-    if (!token || token.length < 8) {
-      return null;
-    }
-
-    const prefix = token.substring(0, 8);
-
-    // Primary lookup: narrow by prefix (fast, O(1) DB index hit)
-    const candidates = await strapi.documents('plugin::magic-link.token').findMany({
-      filters: { is_active: true, token_prefix: prefix },
-      sort: [{ createdAt: 'desc' }],
-      limit: 10,
-    });
-
-    const matched = candidates.find(t => {
-      if (t.token_salt) {
-        return cryptoUtils.verifyToken(token, t.token, t.token_salt);
+      const role = roles && roles.length > 0 ? roles[0] : null;
+      if (!role) {
+        throw new Error('Default role not found');
       }
-      return t.token === token;
-    });
 
-    if (matched) {
-      return matched;
-    }
-
-    // Fallback: legacy tokens without token_prefix (backwards compatibility)
-    const legacyTokens = await strapi.documents('plugin::magic-link.token').findMany({
-      filters: {
-        is_active: true,
-        token_prefix: { $null: true },
-      },
-      sort: [{ createdAt: 'desc' }],
-      limit: 50,
-    });
-
-    const legacyMatch = legacyTokens.find(t => {
-      if (t.token_salt) {
-        return cryptoUtils.verifyToken(token, t.token, t.token_salt);
-      }
-      return t.token === token;
-    });
-
-    return legacyMatch || null;
-  },
-
-  async isTokenValid(token) {
-    const { is_active, expires_at, is_used } = token;
-    const settings = await this.settings();
-    const staysValid = settings?.stays_valid || false;
-
-    // Token must be active
-    if (!is_active) {
-      return false;
-    }
-
-    // Token must not be expired (always check, regardless of stays_valid)
-    const currentTime = new Date();
-    const expiryTime = new Date(expires_at);
-    if (currentTime >= expiryTime) {
-      return false;
-    }
-
-    // If stays_valid is false, token can only be used once
-    // If stays_valid is true, token can be used multiple times until expiry
-    if (!staysValid && is_used) {
-      return false;
-    }
-
-    return true;
-  },
-
-  async deactivateToken(token) {
-    // Using Document Service API
-    return strapi.documents('plugin::magic-link.token').update({
-      documentId: token.documentId,
-      data: { is_active: false },
-    });
-  },
-
-  /**
-   * Validates that a magic-link token is the legitimate origin of an OTP
-   * or TOTP challenge. Used by the OTP endpoints to ensure every second-factor
-   * verification is tied to a prior, still-active magic-link flow.
-   *
-   * Checks performed:
-   * 1. token exists and is the one originally hashed from the plaintext
-   * 2. is_active
-   * 3. not expired
-   * 4. email on the token matches the email the OTP is being sent to
-   * 5. the stored context contains the expected flag and is not already verified
-   *
-   * Returns the token record on success so callers can reuse its context.
-   * Returns null on any failure. Never leaks the specific failure reason.
-   *
-   * @param {string} plaintextToken - The magic-link login token
-   * @param {string} email - The email the caller claims to act for
-   * @param {'otp'|'totp'} expectedChallenge - Which flag must be set in token.context
-   * @returns {Promise<object|null>}
-   */
-  async validateBindingForChallenge(plaintextToken, email, expectedChallenge = 'otp') {
-    if (!plaintextToken || !email) return null;
-
-    const token = await this.fetchToken(plaintextToken);
-    if (!token || !token.is_active) return null;
-
-    const isValid = await this.isTokenValid(token);
-    if (!isValid) return null;
-
-    const tokenEmail = String(token.email || '').toLowerCase();
-    const claimedEmail = String(email).toLowerCase();
-    if (tokenEmail !== claimedEmail) return null;
-
-    const ctx = token.context || {};
-    if (expectedChallenge === 'otp' && ctx.requiresOTP !== true) return null;
-    if (expectedChallenge === 'otp' && ctx.otpVerified === true) return null;
-    if (expectedChallenge === 'totp' && ctx.requiresTOTP !== true) return null;
-    if (expectedChallenge === 'totp' && ctx.totpVerified === true) return null;
-
-    return token;
-  },
-
-  /**
-   * Atomically consumes a pending second-factor token. The conditional database
-   * update makes a parallel replay lose even when two requests loaded the token
-   * before either request finished verification.
-   *
-   * @param {object} token - Active token record returned by fetchToken.
-   * @param {'otp'|'totp'} challenge - Required challenge type.
-   * @param {object} [requestInfo] - Optional login IP and user-agent metadata.
-   * @returns {Promise<boolean>} True only for the request that consumed the row.
-   */
-  async consumeChallenge(token, challenge, requestInfo = {}) {
-    const challengeContextKey = challenge === 'otp' ? 'requiresOTP' : 'requiresTOTP';
-    const verifiedContextKey = challenge === 'otp' ? 'otpVerified' : 'totpVerified';
-    const context = token?.context || {};
-
-    if (
-      !token?.id
-      || !['otp', 'totp'].includes(challenge)
-      || context[challengeContextKey] !== true
-      || context[verifiedContextKey] === true
-    ) {
-      return false;
-    }
-
-    const consumedAt = new Date();
-    const settings = await this.settings();
-    const data = {
-      is_active: false,
-      is_used: true,
-      used_at: token.used_at || consumedAt,
-      context: { ...context, [verifiedContextKey]: true },
-    };
-
-    if (settings?.store_login_info !== false) {
-      data.last_used_at = consumedAt;
-      if (requestInfo.userAgent) data.user_agent = requestInfo.userAgent;
-      if (requestInfo.ipAddress) data.ip_address = requestInfo.ipAddress;
-    }
-
-    const result = await strapi.db.query('plugin::magic-link.token').updateMany({
-      where: {
-        id: token.id,
-        is_active: true,
-        is_used: false,
-        expires_at: { $gt: consumedAt },
-      },
-      data,
-    });
-
-    return result?.count === 1;
-  },
-
-  async updateTokenOnLogin(token, requestInfo = null) {
-    const settings = await this.settings();
-    const staysValid = settings?.stays_valid || false;
-    const storeLoginInfo = settings?.store_login_info !== false;
-
-    // Prepare data to update
-    const updateData = { 
-      // Always mark token as used
-      is_used: true,
-      // Set first used_at if not already set
-      used_at: token.used_at || new Date(),
-      // If stays_valid is false, deactivate token after first use
-      // If stays_valid is true, keep token active for multiple uses
-      is_active: staysValid 
-    };
-
-    // Store login information if enabled
-    if (storeLoginInfo && requestInfo) {
-      updateData.last_used_at = new Date();
-      
-      if (requestInfo.userAgent) {
-        updateData.user_agent = requestInfo.userAgent;
-      }
-      
-      if (requestInfo.ipAddress) {
-        updateData.ip_address = requestInfo.ipAddress;
-      }
-    }
-    
-    strapi.log.debug(`[MagicLink] Token ${token.documentId} used. stays_valid=${staysValid}, is_active=${updateData.is_active}`);
-
-    // Using Document Service API
-    return strapi.documents('plugin::magic-link.token').update({
-      documentId: token.documentId,
-      data: updateData
-    });
-  },
-
-  async sendLoginLink(token) {
-    const settings = await this.settings();
-    const emailTemplate = {
-      subject: settings?.object || 'Your Magic Link',
-      text: settings?.message_text || 'Click here to login: <%= URL %>?loginToken=<%= CODE %>',
-      html: settings?.message_html || '<a href="<%= URL %>?loginToken=<%= CODE %>">Click here to login</a>',
-    };
-
-    const emailConfig = {
-      from: `${settings?.from_name || 'Magic Link'} <${settings?.from_email || 'noreply@example.com'}>`,
-      response_email: settings?.response_email,
-      object: settings?.object || 'Your Magic Link',
-      message: settings?.message_text || 'Click here to login',
-    };
-
-    // Replace variables in the email template
-    const url = settings?.confirmationUrl || `${process.env.URL || 'http://localhost:1337'}/api/magic-link/login`;
-    // Use plaintext token for email (from _plaintextToken or legacy token field)
-    const code = token._plaintextToken || token.token;
-
-    // Calculate expiry text early for template replacement
-    let expiryTextForTemplate = '1 hour'; // Default
-    if (token.expires_at) {
-      const expiresAt = new Date(token.expires_at);
-      const now = new Date();
-      const minutesUntilExpiry = Math.max(1, Math.floor((expiresAt - now) / (1000 * 60)));
-      expiryTextForTemplate = formatExpiryText(minutesUntilExpiry);
-    } else if (settings?.expire_period) {
-      const minutes = Math.floor(settings.expire_period / 60);
-      expiryTextForTemplate = formatExpiryText(minutes);
-    }
-    
-    // Replace variables in the email template
-    let html = _.template(emailTemplate.html)({
-      URL: url,
-      CODE: code,
-      EXPIRY_TEXT: expiryTextForTemplate,
-    });
-
-    let text = _.template(emailTemplate.text)({
-      URL: url,
-      CODE: code,
-      EXPIRY_TEXT: expiryTextForTemplate,
-    });
-
-    // Wrap HTML in email-client compatible template if not already wrapped
-    if (!html.includes('<!DOCTYPE') && !html.includes('<html')) {
-      html = emailHelpers.wrapEmailTemplate(html, {
-        title: emailConfig.object,
-        preheader: 'Your secure login link is ready'
+      return strapi.documents(USER_UID).create({
+        data: {
+          email,
+          username: await this.resolveUsername(username, email),
+          provider: 'local',
+          confirmed: false,
+          blocked: false,
+          role: role.id,
+        },
       });
-    }
+    },
 
-    // Ensure plain text version exists
-    if (!text || text.trim().length === 0) {
-      text = emailHelpers.createPlainTextVersion(html);
-    }
+    /**
+     * Resolves a user by normalised e-mail and creates one when
+     * auto-registration is allowed.
+     *
+     * @param {string} email - E-mail address.
+     * @param {string} [username] - Requested username for new accounts.
+     * @returns {Promise<object|null>} User or null.
+     */
+    async user(email, username) {
+      const normalizedEmail = normalizeEmail(email);
+      if (!normalizedEmail) return null;
 
-    // Get email headers for better deliverability
-    const headers = emailHelpers.getEmailHeaders({
-      replyTo: emailConfig.response_email
-    });
+      const users = await strapi.documents(USER_UID).findMany({
+        filters: { email: normalizedEmail },
+        limit: 1,
+      });
+      const existing = users && users.length > 0 ? users[0] : null;
+      if (existing) return existing;
 
-    // Validate email configuration
-    const validation = emailHelpers.validateEmailConfig({
-      to: token.email,
-      from: emailConfig.from,
-      subject: emailConfig.object,
-      text,
-      html
-    });
+      const settings = (await this.settings()) || {};
+      if (!(await this.canAutoRegister(settings))) return null;
+      return this.createUser({ email: normalizedEmail, username });
+    },
 
-    if (!validation.valid) {
-      strapi.log.error('Email validation errors:', validation.errors);
-      throw new Error('Invalid email configuration: ' + validation.errors.join(', '));
-    }
+    /**
+     * Handles a public send-link request. The controller answers with the
+     * same generic response for every outcome and runs this in the
+     * background, so neither status nor timing reveals whether an account
+     * exists. Nothing here logs the e-mail address.
+     *
+     * @param {{email: string, username?: string, context?: object}} params - Validated request.
+     * @returns {Promise<string>} Outcome code for tests and debug logs.
+     */
+    async requestLoginLink({ email, username, context = {} }) {
+      const normalizedEmail = normalizeEmail(email);
+      if (!normalizedEmail) return 'invalid_email';
+      const settings = (await this.settings()) || {};
 
-    if (validation.warnings.length > 0) {
-      strapi.log.warn('Email validation warnings:', validation.warnings);
-    }
+      const lookup = await strapi.documents(USER_UID).findMany({
+        filters: { email: normalizedEmail },
+        limit: 1,
+      });
+      const existingUser = (lookup && lookup[0]) || null;
 
-    // Build the full login URL for click tracking
-    const loginUrl = `${url}?loginToken=${code}`;
-    
-    const templatePayload = {
-      URL: url,
-      Url: url,
-      url,
-      BASE_URL: url,
-      baseUrl: url,
-      loginUrl,
-      login_url: loginUrl,
-      LOGIN_URL: loginUrl,
-      magicLinkUrl: loginUrl,
-      magic_link_url: loginUrl,
-      MAGIC_LINK_URL: loginUrl,
-      CODE: code,
-      Code: code,
-      code,
-      token: code,
-      TOKEN: code,
-      email: token.email,
-      recipient: token.email,
-      // Expiry text for email templates
-      EXPIRY_TEXT: expiryTextForTemplate,
-      expiryText: expiryTextForTemplate,
-      expiry_text: expiryTextForTemplate,
-    };
-    
-    // Check if MagicMail should be used
-    if (settings.use_magic_mail && strapi.plugin('magic-mail')) {
-      try {
-        strapi.log.info(`Sending Magic Link via MagicMail with click tracking...`);
-        strapi.log.info(`[DEBUG] MagicMail settings - use_magic_mail: ${settings.use_magic_mail}, template_id: ${settings.magic_mail_template_id}`);
-        
-        // Warn if MagicMail is enabled but no template selected
-        if (!settings.magic_mail_template_id) {
-          strapi.log.warn('[WARNING] MagicMail is enabled but no template ID is set. Using fallback HTML/text content.');
-        }
-
-        const numericTemplateId = settings.magic_mail_template_id
-          ? Number(settings.magic_mail_template_id)
-          : undefined;
-        let templateReferenceId = settings.magic_mail_template_reference_id || undefined;
-
-        if (numericTemplateId) {
-          try {
-            const templateRecord = await strapi
-              .plugin('magic-mail')
-              .service('email-designer')
-              .findOne(numericTemplateId);
-
-            if (templateRecord?.templateReferenceId) {
-              templateReferenceId = templateRecord.templateReferenceId;
-              strapi.log.info(
-                `[DEBUG] MagicMail template metadata resolved - id: ${numericTemplateId}, reference: ${templateReferenceId}, name: ${templateRecord.name}`
-              );
-            } else {
-              strapi.log.warn(
-                `[WARN] MagicMail template ${numericTemplateId} has no templateReferenceId. Rendering may fall back to raw HTML.`
-              );
-            }
-          } catch (lookupError) {
-            strapi.log.error(
-              `[ERROR] Failed to load MagicMail template metadata for ID ${numericTemplateId}: ${lookupError.message}`,
-              lookupError
-            );
-          }
-        }
-
-        const routerTemplateId = templateReferenceId || numericTemplateId;
-        
-        // IMPORTANT: Do NOT track magic link URLs!
-        // Tracking replaces the login URL with an ugly tracking URL which:
-        // 1. Breaks if tracking service is down
-        // 2. Looks suspicious to users
-        // 3. Can't be easily copied/shared
-        // 4. Adds unnecessary latency to login flow
-        //
-        // Instead, we pass the magic link URL directly in the template data
-        // so it renders as-is without modification.
-        
-        await strapi.plugin('magic-mail').service('email-router').send({
-          to: token.email,
-          from: emailConfig.from,
-          replyTo: emailConfig.response_email,
-          subject: emailConfig.object,
-          text,
-          html,
-          headers,
-          // CRITICAL: Skip link tracking for magic links!
-          // Link tracking replaces URLs with ugly tracking URLs which:
-          // 1. Look suspicious to users (phishing concern)
-          // 2. Break if tracking service is down
-          // 3. Can't be easily copied/shared
-          // 4. Add unnecessary latency to login flow
-          // Open tracking (pixel) is still enabled for analytics
-          skipLinkTracking: true,
-          links: [
-            {
-              original: loginUrl,
-              label: 'Magic Link Login',
-              track: false
-            }
-          ],
-          // Optional: Use selected template
-          templateId: routerTemplateId,
-          templateReferenceId,
-          templateData: templatePayload,
-          data: templatePayload,
-        });
-        
-        strapi.log.info(`Magic Link email sent via MagicMail to ${token.email}`);
-        return token;
-      } catch (error) {
-        strapi.log.error('MagicMail send failed, falling back to default provider:', error);
-        // Continue to fallback below
+      let user = existingUser;
+      if (!user) {
+        if (!(await this.canAutoRegister(settings))) return 'unknown_user';
+        user = await this.createUser({ email: normalizedEmail, username });
       }
-    }
 
-    // Email Designer 5: render & send via the email-designer-5 plugin's own
-    // delivery service. This mirrors the admin controller (`tokens.js#create`)
-    // so the public POST /api/magic-link/send-link endpoint behaves the same
-    // way as creating a token from the admin panel — fixes the follow-up
-    // reported in #17 where the public path silently fell back to plain email.
-    //
-    // Precedence: magic-mail wins if enabled (handled above), otherwise
-    // email-designer-5 wins, otherwise default provider. This preserves
-    // existing magic-mail user behaviour.
-    const wantsEmailDesigner = settings?.use_email_designer && settings?.email_designer_template_id;
-    const hasEmailDesignerPlugin = Boolean(strapi.plugin('email-designer-5'));
+      if (!user || normalizeEmail(user.email) !== normalizedEmail) return 'user_mismatch';
+      if (user.blocked) return 'blocked_user';
+      if (settings.verify_email === true && existingUser && !user.confirmed) return 'email_not_confirmed';
 
-    if (wantsEmailDesigner && hasEmailDesignerPlugin) {
-      const templateId = parseInt(settings.email_designer_template_id, 10);
+      const token = await this.createToken(user.email, context);
+      await this.sendLoginLink(token, { username: user.username });
 
-      if (!Number.isNaN(templateId) && templateId > 0) {
+      if (!existingUser && settings.welcome_email === true) {
         try {
-          await strapi
-            .plugin('email-designer-5')
-            .service('email')
-            .sendTemplatedEmail(
-              {
-                to: token.email,
-                from: settings.from_email
-                  ? `${settings.from_name || 'Magic Link'} <${settings.from_email}>`
-                  : undefined,
-                replyTo: settings.response_email || undefined,
-              },
-              {
-                templateReferenceId: templateId,
-                subject: settings.object || emailConfig.object,
-              },
-              {
-                ...templatePayload,
-                user: { email: token.email },
-                magicLink: loginUrl,
-                expiresAt: token.expires_at
-                  ? new Date(token.expires_at).toISOString()
-                  : undefined,
-                expiryText: expiryTextForTemplate,
-              }
-            );
-
-          strapi.log.info(
-            `Magic Link email sent via Email Designer 5 (template ${templateId}) to ${token.email}`
-          );
-          return token;
-        } catch (emailDesignerError) {
-          strapi.log.error(
-            'Email Designer 5 send failed, falling back to default provider:',
-            emailDesignerError
-          );
-          // Continue to default provider below
+          await this.sendWelcomeEmail(user, settings);
+        } catch {
+          strapi.log.warn('[magic-link] Welcome e-mail could not be sent');
         }
-      } else {
-        strapi.log.warn(
-          `Invalid Email Designer template ID: '${settings.email_designer_template_id}', falling back to default email`
-        );
       }
-    } else if (wantsEmailDesigner && !hasEmailDesignerPlugin) {
-      strapi.log.debug(
-        'Email Designer enabled but plugin not installed — falling back to default email'
-      );
-    }
+      return 'sent';
+    },
 
-    // Send the email via default provider
-    await strapi.plugin('email').service('email').send({
-      to: token.email,
-      from: emailConfig.from,
-      replyTo: emailConfig.response_email,
-      subject: emailConfig.object,
-      text,
-      html,
-      headers
-    });
+    /**
+     * Creates a login token. Only a salted hash and an 8-character lookup
+     * prefix are stored. The context passes the same allow/deny policy as
+     * admin-created tokens and never carries reserved keys.
+     *
+     * @param {string} email - User e-mail.
+     * @param {object} [context] - Client context.
+     * @returns {Promise<object>} Token record with `_plaintextToken` for delivery.
+     */
+    async createToken(email, context = {}) {
+      const settings = (await this.settings()) || {};
+      const token = createId(clampTokenLength(settings.token_length));
 
-    strapi.log.info(`Magic Link email sent to ${token.email}`);
-    return token;
-  },
+      const normalizedEmail = normalizeEmail(email);
+      if (!normalizedEmail) {
+        throw new Error('createToken requires a non-empty email');
+      }
 
-  /**
-   * Blocks a JWT by storing its hash in the blocklist
-   * @param {string} token - JWT to block (will be hashed before storage)
-   * @param {string} userId - Owner user ID
-   * @param {string} reason - Reason for blocking
-   */
-  async blockJwtToken(token, userId, reason = 'Manually revoked') {
-    const tokenHash = cryptoUtils.hashJwt(token);
-    return this.blockJwtTokenByHash(tokenHash, userId, reason);
-  },
+      const expireSeconds = Number.isFinite(settings.expire_period) && settings.expire_period > 0 ? settings.expire_period : 3600;
+      const expires = new Date(Date.now() + expireSeconds * 1000);
+      const { hash: tokenHash, salt: tokenSalt } = cryptoUtils.hashToken(token);
 
-  /**
-   * Blocks a JWT by its pre-computed hash (used when plaintext is unavailable)
-   * @param {string} tokenHash - SHA256 hash of the JWT
-   * @param {string} userId - Owner user ID
-   * @param {string} reason - Reason for blocking
-   */
-  async blockJwtTokenByHash(tokenHash, userId, reason = 'Manually revoked') {
-    try {
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const blockedTokens = (await pluginStore.get({ key: 'blocked_jwt_tokens' })) || { tokens: [] };
-
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30);
-
-      blockedTokens.tokens.push({
-        tokenHash,
-        userId,
-        reason,
-        blockedAt: new Date().toISOString(),
-        expiresAt: expiresAt.toISOString(),
+      const tokenObject = await strapi.documents(TOKEN_UID).create({
+        data: {
+          email: normalizedEmail,
+          token: tokenHash,
+          token_salt: tokenSalt,
+          token_prefix: token.substring(0, TOKEN_PREFIX_LENGTH),
+          expires_at: expires,
+          is_active: true,
+          is_used: false,
+          context: filterContext(context, settings),
+          challenge: null,
+        },
       });
 
-      await pluginStore.set({ key: 'blocked_jwt_tokens', value: blockedTokens });
-      return { success: true };
-    } catch (error) {
-      strapi.log.error('Error blocking JWT token:', error);
-      throw new Error('Failed to block JWT token');
-    }
-  },
+      // `token` is the plaintext value for backwards compatibility with callers
+      // of 5.x; the stored row only contains the hash.
+      return { ...tokenObject, token, _plaintextToken: token };
+    },
 
-  /**
-   * Unblocks a JWT by removing its hash from the blocklist
-   * @param {string} token - JWT to unblock (will be hashed for comparison)
-   * @param {string} userId - Owner user ID
-   */
-  async unblockJwtToken(token, userId) {
-    const tokenHash = cryptoUtils.hashJwt(token);
-    return this.unblockJwtTokenByHash(tokenHash, userId);
-  },
+    /**
+     * Looks up an active token by its plaintext value: indexed prefix lookup,
+     * then constant-time hash comparison. Legacy unsalted tokens are rejected.
+     *
+     * @param {string} token - Plaintext token from the login request.
+     * @returns {Promise<object|null>} Token record or null.
+     */
+    async fetchToken(token) {
+      if (typeof token !== 'string' || token.length < MIN_LOOKUP_LENGTH || token.length > 512) {
+        return null;
+      }
 
-  /**
-   * Unblocks a JWT by its pre-computed hash
-   * @param {string} tokenHash - SHA256 hash of the JWT
-   * @param {string} userId - Owner user ID
-   */
-  async unblockJwtTokenByHash(tokenHash, userId) {
-    try {
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const blockedTokensData = (await pluginStore.get({ key: 'blocked_jwt_tokens' })) || { tokens: [] };
+      const candidates = await strapi.documents(TOKEN_UID).findMany({
+        filters: { is_active: true, token_prefix: token.substring(0, TOKEN_PREFIX_LENGTH) },
+        sort: [{ createdAt: 'desc' }],
+        limit: 10,
+      });
 
-      blockedTokensData.tokens = blockedTokensData.tokens.filter(t =>
-        !(t.tokenHash === tokenHash && (t.userId === userId || !userId))
+      return (
+        (candidates || []).find((candidate) => {
+          if (!candidate.token_salt || !candidate.token) return false;
+          try {
+            return cryptoUtils.verifyToken(token, candidate.token, candidate.token_salt);
+          } catch {
+            return false;
+          }
+        }) || null
       );
+    },
 
-      await pluginStore.set({ key: 'blocked_jwt_tokens', value: blockedTokensData });
-      return { success: true };
-    } catch (error) {
-      strapi.log.error('Error unblocking JWT token');
-      throw new Error('Failed to unblock JWT token');
-    }
-  },
+    async isTokenValid(token) {
+      if (!token?.is_active) return false;
+      const expiry = new Date(token.expires_at);
+      if (Number.isNaN(expiry.getTime()) || Date.now() >= expiry.getTime()) return false;
+      const settings = (await this.settings()) || {};
+      if (!settings.stays_valid && token.is_used) return false;
+      return true;
+    },
 
-  /**
-   * Checks whether a JWT is on the blocklist (by hash comparison)
-   * @param {string} token - JWT to check
-   * @returns {Promise<boolean>} True if the token is blocked
-   */
-  async isJwtTokenBlocked(token) {
-    try {
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const blockedTokens = (await pluginStore.get({ key: 'blocked_jwt_tokens' })) || { tokens: [] };
+    async deactivateToken(token) {
+      return strapi.documents(TOKEN_UID).update({
+        documentId: token.documentId,
+        data: { is_active: false },
+      });
+    },
 
-      const tokenHash = cryptoUtils.hashJwt(token);
-      return blockedTokens.tokens.some(bt => bt.tokenHash === tokenHash);
-    } catch (error) {
-      // A store failure means revocation status is unknown. Never treat it as
-      // an unblocked token, or a still-valid revoked JWT could be accepted.
-      strapi.log.error('[magic-link] JWT revocation lookup failed');
-      throw new Error('Failed to verify JWT revocation status');
-    }
-  },
+    /**
+     * Builds the login-info fields that are stored when store_login_info is on.
+     *
+     * @param {object} settings - Plugin settings.
+     * @param {object} requestInfo - IP and user agent.
+     * @param {Date} at - Timestamp.
+     * @returns {object} Update fields.
+     */
+    loginInfoData(settings, requestInfo = {}, at = new Date()) {
+      if (settings?.store_login_info === false) return {};
+      const data = { last_used_at: at };
+      if (requestInfo.userAgent) data.user_agent = String(requestInfo.userAgent).slice(0, 1000);
+      if (requestInfo.ipAddress) data.ip_address = requestInfo.ipAddress;
+      return data;
+    },
 
-  /**
-   * Returns all currently blocked JWT entries (with expired entries purged)
-   * @returns {Promise<Array>} Blocked token entries
-   */
-  async getBlockedJwtTokens() {
-    try {
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const blockedTokens = (await pluginStore.get({ key: 'blocked_jwt_tokens' })) || { tokens: [] };
+    /**
+     * Atomically consumes a login token for a direct (no second factor)
+     * login. Single-use tokens must still be unused; reusable tokens
+     * (stays_valid) must still be active and unexpired.
+     *
+     * @param {object} token - Token record from fetchToken.
+     * @param {object} [requestInfo] - IP and user agent.
+     * @returns {Promise<boolean>} True only for the request that consumed it.
+     */
+    async consumeLoginToken(token, requestInfo = {}) {
+      if (!token?.id) return false;
+      const settings = (await this.settings()) || {};
+      const staysValid = settings.stays_valid === true;
+      const now = new Date();
+      const where = { id: token.id, is_active: true, expires_at: { $gt: now } };
+      if (!staysValid) where.is_used = false;
+
+      const result = await strapi.db.query(TOKEN_UID).updateMany({
+        where,
+        data: {
+          is_used: true,
+          used_at: token.used_at || now,
+          is_active: staysValid,
+          ...this.loginInfoData(settings, requestInfo, now),
+        },
+      });
+      return result?.count === 1;
+    },
+
+    /**
+     * Kept for API compatibility. Prefer consumeLoginToken, which is atomic.
+     *
+     * @param {object} token - Token record.
+     * @param {object} [requestInfo] - IP and user agent.
+     * @returns {Promise<boolean>} Whether the token was consumed.
+     */
+    async updateTokenOnLogin(token, requestInfo = {}) {
+      return this.consumeLoginToken(token, requestInfo || {});
+    },
+
+    /**
+     * Starts (or refreshes) a server-side second-factor challenge on a token.
+     * The state is written to the private `challenge` attribute only.
+     *
+     * @param {object} token - Token record.
+     * @param {object} challenge - { type: 'otp'|'totp', userId, userDocumentId, otpSentAt? }.
+     * @returns {Promise<boolean>} Whether the token was still usable.
+     */
+    async startChallenge(token, challenge) {
+      if (!token?.id || !CHALLENGE_TYPES.includes(challenge?.type)) return false;
+      const now = new Date();
+      const result = await strapi.db.query(TOKEN_UID).updateMany({
+        where: { id: token.id, is_active: true, expires_at: { $gt: now } },
+        data: {
+          challenge: {
+            type: challenge.type,
+            userId: challenge.userId,
+            userDocumentId: challenge.userDocumentId,
+            startedAt: token.challenge?.startedAt || now.toISOString(),
+            ...(challenge.otpSentAt ? { otpSentAt: challenge.otpSentAt } : {}),
+          },
+        },
+      });
+      return result?.count === 1;
+    },
+
+    /**
+     * Validates that a login token is the origin of a pending challenge of
+     * the expected type for the claimed e-mail.
+     *
+     * @param {string} plaintextToken - Login token.
+     * @param {string} email - E-mail the caller acts for.
+     * @param {'otp'|'totp'} expectedChallenge - Challenge type.
+     * @returns {Promise<object|null>} Token record or null.
+     */
+    async validateBindingForChallenge(plaintextToken, email, expectedChallenge = 'otp') {
+      if (!plaintextToken || !email || !CHALLENGE_TYPES.includes(expectedChallenge)) return null;
+
+      const token = await this.fetchToken(plaintextToken);
+      if (!token || !token.is_active) return null;
+      if (!(await this.isTokenValid({ ...token, is_used: false }))) return null;
+
+      if (normalizeEmail(token.email) !== normalizeEmail(email)) return null;
+      const challenge = token.challenge;
+      if (!challenge || challenge.type !== expectedChallenge || challenge.verifiedAt) return null;
+      return token;
+    },
+
+    /**
+     * Atomically completes a pending challenge. The token is deactivated even
+     * when reusable links are enabled, so one challenge yields one session.
+     *
+     * @param {object} token - Token record (with server challenge).
+     * @param {'otp'|'totp'} challengeType - Expected challenge.
+     * @param {object} [requestInfo] - IP and user agent.
+     * @returns {Promise<boolean>} True only for the request that consumed it.
+     */
+    async consumeChallenge(token, challengeType, requestInfo = {}) {
+      const challenge = token?.challenge;
+      if (!token?.id || !CHALLENGE_TYPES.includes(challengeType) || challenge?.type !== challengeType || challenge.verifiedAt) {
+        return false;
+      }
 
       const now = new Date();
-      blockedTokens.tokens = blockedTokens.tokens.filter(t => new Date(t.expiresAt) > now);
-
-      await pluginStore.set({ key: 'blocked_jwt_tokens', value: blockedTokens });
-      return blockedTokens.tokens;
-    } catch (error) {
-      strapi.log.error('Error getting blocked JWT tokens:', error);
-      return [];
-    }
-  },
-
-  /**
-   * Checks the canonical request IP against the stored block list.
-   * Storage errors are thrown so public authentication routes can fail closed.
-   *
-   * @param {string} ipAddress - Request IP to check.
-   * @returns {Promise<boolean>} Whether the address is blocked.
-   */
-  async isIPBanned(ipAddress) {
-    try {
-      const normalizedIpAddress = normalizeIpAddress(ipAddress);
-      if (!normalizedIpAddress) throw new Error('Invalid request IP address');
-
-      const pluginStore = strapi.store({
-        type: 'plugin',
-        name: 'magic-link',
+      const settings = (await this.settings()) || {};
+      const result = await strapi.db.query(TOKEN_UID).updateMany({
+        where: { id: token.id, is_active: true, expires_at: { $gt: now } },
+        data: {
+          is_active: false,
+          is_used: true,
+          used_at: token.used_at || now,
+          challenge: { ...challenge, verifiedAt: now.toISOString() },
+          ...this.loginInfoData(settings, requestInfo, now),
+        },
       });
+      return result?.count === 1;
+    },
 
-      const bannedIPs = (await pluginStore.get({ key: 'banned_ips' })) || { ips: [] };
-      if (!Array.isArray(bannedIPs.ips)) throw new Error('Invalid IP block-list data');
+    /**
+     * Resolves the sender: plugin setting, then the Strapi e-mail plugin
+     * default sender, otherwise undefined so the provider default applies.
+     *
+     * @param {object} settings - Plugin settings.
+     * @returns {string|undefined} From header.
+     */
+    resolveSender(settings) {
+      const fromEmail =
+        settings?.from_email ||
+        strapi.config?.get?.('plugin::email.settings.defaultFrom') ||
+        strapi.config?.get?.('plugin.email.settings.defaultFrom');
+      if (!fromEmail) return undefined;
+      const name = String(settings?.from_name || '').replace(/[\r\n"<>]/g, '').trim();
+      return name ? `"${name}" <${fromEmail}>` : fromEmail;
+    },
 
-      return bannedIPs.ips.some((bannedIp) => normalizeIpAddress(bannedIp) === normalizedIpAddress);
-    } catch {
-      strapi.log.error('[Magic-Link] IP ban lookup failed');
-      throw new Error('IP ban status could not be checked');
-    }
-  }
-});
+    /**
+     * Renders the login e-mail with the shared safe renderer. Used for real
+     * sends and available to the admin preview.
+     *
+     * @param {object} settings - Plugin settings.
+     * @param {object} variables - Output of buildTemplateVariables.
+     * @returns {{subject: string, html: string, text: string}} Rendered mail.
+     */
+    renderLoginEmail(settings, variables) {
+      const subject = renderTemplate(settings?.object || DEFAULT_SUBJECT, variables).replace(/[\r\n]+/g, ' ').trim() || DEFAULT_SUBJECT;
+      let html = renderTemplate(settings?.message_html || DEFAULT_HTML, variables, { html: true });
+      let text = renderTemplate(settings?.message_text || DEFAULT_TEXT, variables);
+
+      if (!html.includes('<!DOCTYPE') && !html.includes('<html')) {
+        html = emailHelpers.wrapEmailTemplate(html, {
+          title: escapeHtml(subject),
+          preheader: 'Your secure login link is ready',
+        });
+      }
+      if (!text || text.trim().length === 0) {
+        text = emailHelpers.createPlainTextVersion(html);
+      }
+      return { subject, html, text };
+    },
+
+    /**
+     * Sends the login e-mail through Magic Mail, Email Designer 5 or the
+     * Strapi e-mail plugin (in that order of preference).
+     *
+     * @param {object} token - Token record with `_plaintextToken`.
+     * @param {{username?: string}} [options] - Recipient details.
+     * @returns {Promise<object>} The token.
+     */
+    async sendLoginLink(token, { username } = {}) {
+      const settings = (await this.settings()) || {};
+      const code = token._plaintextToken;
+      if (!code) {
+        throw new Error('sendLoginLink requires the plaintext token');
+      }
+
+      const { baseUrl, loginUrl } = buildLoginUrl(settings, code, strapi);
+      const variables = buildTemplateVariables({
+        loginUrl,
+        baseUrl,
+        code,
+        email: token.email,
+        username,
+        expiresAt: token.expires_at,
+        expirePeriodSeconds: settings.expire_period,
+      });
+      const { subject, html, text } = this.renderLoginEmail(settings, variables);
+      const from = this.resolveSender(settings);
+      const replyTo = settings.response_email || undefined;
+      const headers = emailHelpers.getEmailHeaders({ replyTo });
+
+      const validation = emailHelpers.validateEmailConfig({ to: token.email, from: from || 'provider-default@localhost', subject, text, html });
+      if (!validation.valid) {
+        strapi.log.error('[magic-link] Login e-mail configuration is invalid');
+        throw new Error('Invalid email configuration');
+      }
+
+      // Variables for third-party template engines (Magic Mail, Email Designer).
+      const templatePayload = {
+        ...variables,
+        url: baseUrl,
+        loginUrl,
+        magicLinkUrl: loginUrl,
+        magicLink: loginUrl,
+        code,
+        token: code,
+        email: token.email,
+        expiryText: variables.EXPIRY_TEXT,
+        expiresAt: variables.EXPIRES_AT || undefined,
+        user: { email: token.email, username: username || undefined },
+      };
+
+      if (settings.use_magic_mail && strapi.plugin('magic-mail')) {
+        try {
+          let templateReferenceId = settings.magic_mail_template_reference_id || undefined;
+          const numericTemplateId = settings.magic_mail_template_id ? Number(settings.magic_mail_template_id) : undefined;
+          if (numericTemplateId && !templateReferenceId) {
+            try {
+              const record = await strapi.plugin('magic-mail').service('email-designer').findOne(numericTemplateId);
+              templateReferenceId = record?.templateReferenceId || undefined;
+            } catch {
+              strapi.log.warn('[magic-link] Magic Mail template metadata could not be loaded');
+            }
+          }
+
+          await strapi.plugin('magic-mail').service('email-router').send({
+            to: token.email,
+            from,
+            replyTo,
+            subject,
+            text,
+            html,
+            headers,
+            // Login links must never be rewritten into tracking URLs.
+            skipLinkTracking: true,
+            links: [{ original: loginUrl, label: 'Magic Link Login', track: false }],
+            templateId: templateReferenceId || numericTemplateId,
+            templateReferenceId,
+            templateData: templatePayload,
+            data: templatePayload,
+          });
+          strapi.log.debug('[magic-link] Login e-mail sent via Magic Mail');
+          return token;
+        } catch {
+          strapi.log.error('[magic-link] Magic Mail send failed, falling back to the next provider');
+        }
+      }
+
+      const wantsEmailDesigner = settings.use_email_designer && settings.email_designer_template_id;
+      if (wantsEmailDesigner && strapi.plugin('email-designer-5')) {
+        const templateId = parseInt(settings.email_designer_template_id, 10);
+        if (!Number.isNaN(templateId) && templateId > 0) {
+          try {
+            await strapi.plugin('email-designer-5').service('email').sendTemplatedEmail(
+              { to: token.email, from, replyTo },
+              { templateReferenceId: templateId, subject },
+              templatePayload
+            );
+            strapi.log.debug('[magic-link] Login e-mail sent via Email Designer 5');
+            return token;
+          } catch {
+            strapi.log.error('[magic-link] Email Designer 5 send failed, falling back to the e-mail plugin');
+          }
+        } else {
+          strapi.log.warn('[magic-link] Invalid Email Designer template id, using the e-mail plugin');
+        }
+      }
+
+      await strapi.plugin('email').service('email').send({
+        to: token.email,
+        ...(from ? { from } : {}),
+        ...(replyTo ? { replyTo } : {}),
+        subject,
+        text,
+        html,
+        headers,
+      });
+      strapi.log.debug('[magic-link] Login e-mail sent');
+      return token;
+    },
+
+    /**
+     * Sends the welcome e-mail for accounts created by a magic-link request.
+     * All user-controlled values are HTML-escaped.
+     *
+     * @param {object} user - New user.
+     * @param {object} settings - Plugin settings.
+     * @returns {Promise<void>}
+     */
+    async sendWelcomeEmail(user, settings) {
+      const name = user.username || user.email;
+      const appName = String(settings?.from_name || '').replace(/[\r\n]+/g, ' ').trim();
+      const from = this.resolveSender(settings);
+      await strapi.plugin('email').service('email').send({
+        to: user.email,
+        ...(from ? { from } : {}),
+        ...(settings?.response_email ? { replyTo: settings.response_email } : {}),
+        subject: appName ? `Welcome to ${appName}` : 'Welcome',
+        text: `Hi ${name},\n\nThanks for joining. Your login link is on the way.`,
+        html: `<p>Hi ${escapeHtml(name)},</p><p>Thanks for joining. Your login link is on the way.</p>`,
+      });
+    },
+
+    /**
+     * Deactivates legacy tokens that were stored without salt (plaintext)
+     * by plugin versions before the hashed-token migration.
+     *
+     * @returns {Promise<number>} Number of deactivated rows.
+     */
+    async deactivateLegacyTokens() {
+      const result = await strapi.db.query(TOKEN_UID).updateMany({
+        where: { is_active: true, $or: [{ token_salt: { $null: true } }, { token_salt: '' }] },
+        data: { is_active: false },
+      });
+      return result?.count || 0;
+    },
+
+    /**
+     * Deletes login tokens that expired more than 30 days ago, so the token
+     * table does not grow without bound. Recent history stays visible.
+     *
+     * @returns {Promise<number>} Number of deleted rows.
+     */
+    async cleanupExpiredTokens() {
+      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const result = await strapi.db.query(TOKEN_UID).deleteMany({
+        where: { expires_at: { $lt: cutoff } },
+      });
+      return result?.count || 0;
+    },
+
+    /**
+     * Reads the blocklist, dropping entries that have expired.
+     *
+     * @returns {Promise<{tokens: Array}>} Live blocklist.
+     */
+    async readBlocklist() {
+      const stored = (await pluginStore().get({ key: BLOCKLIST_KEY })) || { tokens: [] };
+      const tokens = Array.isArray(stored.tokens) ? stored.tokens : [];
+      const now = Date.now();
+      return {
+        tokens: tokens.filter((entry) => {
+          const exp = new Date(entry?.expiresAt).getTime();
+          return entry?.tokenHash && (!Number.isFinite(exp) || exp > now);
+        }),
+      };
+    },
+
+    /**
+     * Finds the plugin session record for a JWT hash.
+     *
+     * @param {string} tokenHash - Hash of the JWT.
+     * @returns {Promise<object|null>} Session record.
+     */
+    async findSessionByHash(tokenHash) {
+      try {
+        const stored = (await pluginStore().get({ key: SESSIONS_KEY })) || { sessions: [] };
+        const sessions = Array.isArray(stored.sessions) ? stored.sessions : [];
+        return sessions.find((session) => session?.jwtTokenHash === tokenHash) || null;
+      } catch {
+        return null;
+      }
+    },
+
+    /**
+     * Revokes the users-permissions refresh session behind a plugin session
+     * (refresh mode), so the refresh token cannot mint new access tokens.
+     *
+     * @param {object} session - Plugin session record.
+     * @returns {Promise<boolean>} Whether a session was revoked.
+     */
+    async revokeUpSession(session) {
+      if (!session?.upSessionId || typeof strapi.sessionManager !== 'function') return false;
+      try {
+        return Boolean(
+          await strapi.sessionManager('users-permissions').revokeSessionById(String(session.userId), session.upSessionId)
+        );
+      } catch {
+        strapi.log.error('[magic-link] users-permissions session could not be revoked');
+        throw new Error('Failed to revoke users-permissions session');
+      }
+    },
+
+    /**
+     * Blocks a JWT until it expires.
+     *
+     * @param {string} token - JWT to block (hashed before storage).
+     * @param {string|number} userId - Owner user id.
+     * @param {string} [reason] - Reason.
+     * @returns {Promise<{success: boolean}>}
+     */
+    async blockJwtToken(token, userId, reason = 'Manually revoked') {
+      const expiresAt = decodeJwtExpiry(token);
+      return this.blockJwtTokenByHash(cryptoUtils.hashJwt(token), userId, reason, { expiresAt });
+    },
+
+    /**
+     * Blocks a JWT by hash until the token's own expiry (taken from the
+     * option, the plugin session record, or one year when unknown) and
+     * revokes the users-permissions refresh session in refresh mode.
+     *
+     * @param {string} tokenHash - SHA-256 hash of the JWT.
+     * @param {string|number} userId - Owner user id.
+     * @param {string} [reason] - Reason.
+     * @param {{expiresAt?: Date|string|null}} [options] - Known expiry.
+     * @returns {Promise<{success: boolean}>}
+     */
+    async blockJwtTokenByHash(tokenHash, userId, reason = 'Manually revoked', options = {}) {
+      try {
+        const session = await this.findSessionByHash(tokenHash);
+        const known = options.expiresAt || session?.expiresAt;
+        const knownTime = known ? new Date(known).getTime() : NaN;
+        const expiresAt = new Date(Number.isFinite(knownTime) ? knownTime : Date.now() + UNKNOWN_EXPIRY_MS);
+
+        await serialize(async () => {
+          const blocklist = await this.readBlocklist();
+          if (!blocklist.tokens.some((entry) => entry.tokenHash === tokenHash)) {
+            blocklist.tokens.push({
+              tokenHash,
+              userId,
+              reason,
+              blockedAt: new Date().toISOString(),
+              expiresAt: expiresAt.toISOString(),
+            });
+          }
+          await pluginStore().set({ key: BLOCKLIST_KEY, value: blocklist });
+          blocklistCache = null;
+        });
+
+        if (session) await this.revokeUpSession(session);
+        return { success: true };
+      } catch {
+        blocklistCache = null;
+        strapi.log.error('[magic-link] Error blocking JWT token');
+        throw new Error('Failed to block JWT token');
+      }
+    },
+
+    async unblockJwtToken(token, userId) {
+      return this.unblockJwtTokenByHash(cryptoUtils.hashJwt(token), userId);
+    },
+
+    /**
+     * Removes a JWT hash from the blocklist.
+     *
+     * @param {string} tokenHash - SHA-256 hash of the JWT.
+     * @param {string|number} [userId] - Owner user id.
+     * @returns {Promise<{success: boolean}>}
+     */
+    async unblockJwtTokenByHash(tokenHash, userId) {
+      try {
+        await serialize(async () => {
+          const blocklist = await this.readBlocklist();
+          blocklist.tokens = blocklist.tokens.filter(
+            (entry) => !(entry.tokenHash === tokenHash && (!userId || String(entry.userId) === String(userId)))
+          );
+          await pluginStore().set({ key: BLOCKLIST_KEY, value: blocklist });
+          blocklistCache = null;
+        });
+        return { success: true };
+      } catch {
+        blocklistCache = null;
+        strapi.log.error('[magic-link] Error unblocking JWT token');
+        throw new Error('Failed to unblock JWT token');
+      }
+    },
+
+    /**
+     * Checks whether a JWT is revoked. Uses a short-lived in-process cache
+     * that is invalidated on every local revoke/unrevoke. Store failures
+     * throw so the middleware can fail closed.
+     *
+     * @param {string} token - JWT to check.
+     * @returns {Promise<boolean>} Whether the token is blocked.
+     */
+    async isJwtTokenBlocked(token) {
+      try {
+        if (!blocklistCache || blocklistCache.expiresAt <= Date.now()) {
+          const blocklist = await this.readBlocklist();
+          blocklistCache = {
+            hashes: new Set(blocklist.tokens.map((entry) => entry.tokenHash)),
+            expiresAt: Date.now() + BLOCKLIST_CACHE_TTL_MS,
+          };
+        }
+        return blocklistCache.hashes.has(cryptoUtils.hashJwt(token));
+      } catch {
+        blocklistCache = null;
+        strapi.log.error('[magic-link] JWT revocation lookup failed');
+        throw new Error('Failed to verify JWT revocation status');
+      }
+    },
+
+    /**
+     * Returns all live blocklist entries and persists the pruned list.
+     *
+     * @returns {Promise<Array>} Blocked token entries.
+     */
+    async getBlockedJwtTokens() {
+      try {
+        return await serialize(async () => {
+          const blocklist = await this.readBlocklist();
+          await pluginStore().set({ key: BLOCKLIST_KEY, value: blocklist });
+          return blocklist.tokens;
+        });
+      } catch {
+        strapi.log.error('[magic-link] Error reading blocked JWT tokens');
+        return [];
+      }
+    },
+
+    /**
+     * Checks the canonical request IP against the stored block list.
+     * Storage errors are thrown so public authentication routes can fail closed.
+     *
+     * @param {string} ipAddress - Request IP to check.
+     * @returns {Promise<boolean>} Whether the address is blocked.
+     */
+    async isIPBanned(ipAddress) {
+      try {
+        const normalizedIpAddress = normalizeIpAddress(ipAddress);
+        if (!normalizedIpAddress) throw new Error('Invalid request IP address');
+
+        const bannedIPs = (await pluginStore().get({ key: 'banned_ips' })) || { ips: [] };
+        if (!Array.isArray(bannedIPs.ips)) throw new Error('Invalid IP block-list data');
+
+        return bannedIPs.ips.some((bannedIp) => normalizeIpAddress(bannedIp) === normalizedIpAddress);
+      } catch {
+        strapi.log.error('[Magic-Link] IP ban lookup failed');
+        throw new Error('IP ban status could not be checked');
+      }
+    },
+  };
+};
+
+module.exports.clampTokenLength = clampTokenLength;
+module.exports.TOKEN_LENGTH = TOKEN_LENGTH;

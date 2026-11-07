@@ -46,7 +46,7 @@ test('JWT blocklist removal failures do not log private store details', async ()
 test('JWT middleware fails closed when revocation status cannot be verified', async () => {
   const timeouts = { setTimeout: global.setTimeout, setInterval: global.setInterval };
   const logs = [];
-  let jwtMiddleware;
+  const middlewares = [];
   let nextCalled = false;
 
   global.setTimeout = () => 0;
@@ -56,7 +56,7 @@ test('JWT middleware fails closed when revocation status cannot be verified', as
       config: { get: (_key, fallback) => fallback },
       store: () => ({ get: async ({ key }) => key === 'settings' ? { store_login_info: true } : null }),
       admin: { services: { permission: { actionProvider: { registerMany: async () => {} } } } },
-      server: { use(handler) { jwtMiddleware = handler; } },
+      server: { use(handler) { middlewares.push(handler); } },
       plugin(name) {
         assert.equal(name, 'magic-link');
         return {
@@ -72,17 +72,15 @@ test('JWT middleware fails closed when revocation status cannot be verified', as
     } });
 
     const ctx = {
-      request: { header: { authorization: 'Bearer synthetic-local-jwt' } },
-      unauthorized(message) { throw Object.assign(new Error(message), { status: 401 }); },
-      throw(status, message) { throw Object.assign(new Error(message), { status }); },
+      path: '/api/articles',
+      request: { header: { authorization: 'bearer synthetic-local-jwt' } },
     };
 
-    await assert.rejects(jwtMiddleware(ctx, async () => { nextCalled = true; }), (error) => {
-      assert.equal(error.status, 503);
-      assert.match(error.message, /verify.*revocation/i);
-      assert.equal(error.message.includes('private store detail'), false);
-      return true;
-    });
+    // The revocation middleware is registered first.
+    await middlewares[0](ctx, async () => { nextCalled = true; });
+    assert.equal(ctx.status, 503);
+    assert.match(ctx.body.error.message, /verify.*revocation/i);
+    assert.equal(JSON.stringify(ctx.body).includes('private store detail'), false);
     assert.equal(nextCalled, false, 'an unverifiable token must not reach downstream authentication');
     assert.equal(logs.join('\n').includes('private store detail'), false);
   } finally {

@@ -181,7 +181,8 @@ test('challenge validation accepts only the originating active token and rejects
     is_active: true,
     is_used: false,
     expires_at: new Date(Date.now() + 60_000),
-    context: { requiresOTP: true, otpVerified: false },
+    context: { redirectTo: '/account' },
+    challenge: { type: 'otp', userId: 9, userDocumentId: 'user-doc' },
   };
   const strapi = {
     store: () => ({ get: async () => ({ stays_valid: false }) }),
@@ -204,9 +205,16 @@ test('challenge validation accepts only the originating active token and rejects
   assert.equal(await service.validateBindingForChallenge('different-login-token-1234', 'person@example.test', 'otp'), null);
   assert.equal(await service.validateBindingForChallenge(plaintext, 'other@example.test', 'otp'), null);
 
-  record.context.otpVerified = true;
+  // A client-written context flag can never stand in for the server challenge.
+  const serverChallenge = record.challenge;
+  record.challenge = null;
+  record.context = { requiresOTP: true, otpVerified: false };
   assert.equal(await service.validateBindingForChallenge(plaintext, 'person@example.test', 'otp'), null);
-  record.context.otpVerified = false;
+  record.challenge = { ...serverChallenge, verifiedAt: new Date().toISOString() };
+  assert.equal(await service.validateBindingForChallenge(plaintext, 'person@example.test', 'otp'), null);
+  record.challenge = { ...serverChallenge, type: 'totp' };
+  assert.equal(await service.validateBindingForChallenge(plaintext, 'person@example.test', 'otp'), null);
+  record.challenge = serverChallenge;
   record.expires_at = new Date(Date.now() - 1_000);
   assert.equal(await service.validateBindingForChallenge(plaintext, 'person@example.test', 'otp'), null);
 });
@@ -231,7 +239,8 @@ test('challenge consumption is a conditional one-row update and rejects a concur
     is_active: true,
     is_used: false,
     expires_at: new Date(Date.now() + 60_000),
-    context: { requiresTOTP: true, totpVerified: false, userId: 9 },
+    context: {},
+    challenge: { type: 'totp', userId: 9, userDocumentId: 'user-doc' },
   };
 
   const consumed = await service.consumeChallenge(token, 'totp', {
@@ -245,11 +254,13 @@ test('challenge consumption is a conditional one-row update and rejects a concur
   assert.equal(queryCalls[0].uid, 'plugin::magic-link.token');
   assert.equal(queryCalls[0].params.where.id, 42);
   assert.equal(queryCalls[0].params.where.is_active, true);
-  assert.equal(queryCalls[0].params.where.is_used, false);
   assert.ok(queryCalls[0].params.where.expires_at.$gt instanceof Date);
   assert.equal(queryCalls[0].params.data.is_active, false);
   assert.equal(queryCalls[0].params.data.is_used, true);
-  assert.equal(queryCalls[0].params.data.context.totpVerified, true);
+  assert.equal(typeof queryCalls[0].params.data.challenge.verifiedAt, 'string');
+  assert.equal(queryCalls[0].params.data.context, undefined);
+  // A token carrying only client context flags is never consumable.
+  assert.equal(await service.consumeChallenge({ ...token, challenge: null, context: { requiresTOTP: true } }, 'totp'), false);
   assert.equal(queryCalls[0].params.data.user_agent, 'local-test');
 });
 
@@ -512,13 +523,9 @@ const setupTotpLogin = ({ expired = false } = {}) => {
     documentId: 'totp-token-doc',
     is_active: true,
     expires_at: new Date(now + (expired ? -1_000 : 60_000)),
-    context: {
-      requiresTOTP: true,
-      totpVerified: false,
-      userId: 9,
-      userDocumentId: 'user-doc',
-      redirectTo: '/account',
-    },
+    context: { redirectTo: '/account' },
+    email: 'person@example.test',
+    challenge: { type: 'totp', userId: 9, userDocumentId: 'user-doc' },
   };
   const state = { deactivated: 0, issued: 0, verified: 0, contextUpdates: [] };
   const storeValue = { sessions: [] };
@@ -546,7 +553,10 @@ const setupTotpLogin = ({ expired = false } = {}) => {
   const services = {
     'magic-link': {
       'magic-link': magicLink,
-      otp: { verifyTOTP: async () => { state.verified += 1; return { valid: true }; } },
+      otp: {
+        getTOTPStatus: async () => ({ configured: true, enabled: true }),
+        verifyTOTP: async () => { state.verified += 1; return { valid: true }; },
+      },
       'rate-limiter': { checkRateLimit: async () => ({ allowed: true }) },
     },
     'users-permissions': {

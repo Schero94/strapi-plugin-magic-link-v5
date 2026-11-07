@@ -57,6 +57,11 @@
     "context": {
       "type": "json"
     },
+    "challenge": {
+      "type": "json",
+      "private": true,
+      "description": "Server-only second-factor state (type, user, timestamps). Never written from client input."
+    },
     "user_agent": {
       "type": "text",
       "description": "User agent of the browser used during login"

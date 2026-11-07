@@ -1,84 +1,43 @@
 'use strict';
 
 /**
- * Passwordless Compatibility Middleware
- * 
- * Redirects /api/passwordless/* requests to /api/magic-link/* when compatibility mode is enabled.
- * This allows seamless migration from strapi-plugin-passwordless.
- * 
- * Supported routes:
- * - POST /api/passwordless/send-link → POST /api/magic-link/send-link
- * - GET /api/passwordless/login → GET /api/magic-link/login
+ * Passwordless compatibility middleware.
+ *
+ * When the `passwordlessCompatibility` setting is on, requests to
+ *   <prefix>/passwordless/send-link  and  <prefix>/passwordless/login
+ * are rewritten to the Magic Link routes, so clients migrating from
+ * strapi-plugin-passwordless keep working. <prefix> is the configured
+ * `api.rest.prefix` (default '/api').
+ *
+ * When the setting is off, the request is passed on untouched, so another
+ * installed plugin can still serve the path. Registered from bootstrap(),
+ * i.e. after Strapi's global middlewares (errors, security, CORS, logger).
  */
 
-module.exports = (config, { strapi }) => {
+const ROUTES = ['send-link', 'login'];
+
+module.exports = (_config, { strapi }) => {
   return async (ctx, next) => {
-    const { url, method } = ctx.request;
-    
-    // Only intercept /api/passwordless/* routes
-    if (!url.startsWith('/api/passwordless/')) {
+    const prefix = String(strapi.config?.get?.('api.rest.prefix', '/api') || '/api').replace(/\/+$/, '');
+    const compatBase = `${prefix}/passwordless/`;
+    const path = ctx.path || '';
+
+    if (!path.startsWith(compatBase)) {
       return next();
     }
 
-    // Check if compatibility mode is enabled
-    const pluginStore = strapi.store({
-      type: 'plugin',
-      name: 'magic-link',
-    });
+    const action = path.slice(compatBase.length).replace(/\/+$/, '');
+    if (!ROUTES.includes(action)) {
+      return next();
+    }
 
-    const settings = await pluginStore.get({ key: 'settings' });
-    
+    const settings = await strapi.store({ type: 'plugin', name: 'magic-link' }).get({ key: 'settings' });
     if (!settings?.passwordlessCompatibility) {
-      // Compatibility mode disabled - return 404
-      ctx.status = 404;
-      ctx.body = {
-        data: null,
-        error: {
-          status: 404,
-          name: 'NotFoundError',
-          message: 'Not Found',
-          details: {}
-        }
-      };
-      return;
-    }
-
-    // Map passwordless routes to magic-link routes
-    const routeMap = {
-      '/api/passwordless/send-link': '/api/magic-link/send-link',
-      '/api/passwordless/login': '/api/magic-link/login',
-    };
-
-    // Extract base path (without query string)
-    const basePath = url.split('?')[0];
-    const queryString = url.includes('?') ? url.substring(url.indexOf('?')) : '';
-
-    if (routeMap[basePath]) {
-      // Rewrite the URL to the magic-link endpoint
-      const newUrl = routeMap[basePath] + queryString;
-      
-      strapi.log.debug(`[Magic-Link Compat] Redirecting ${method} ${url} → ${newUrl}`);
-      
-      // Update request URL
-      ctx.request.url = newUrl;
-      ctx.url = newUrl;
-      ctx.path = routeMap[basePath];
-      
-      // Continue to next middleware (will now hit magic-link routes)
       return next();
     }
 
-    // Unknown passwordless route - return 404
-    ctx.status = 404;
-    ctx.body = {
-      data: null,
-      error: {
-        status: 404,
-        name: 'NotFoundError',
-        message: 'Not Found',
-        details: {}
-      }
-    };
+    // Only the path changes; Koa keeps the query string (ctx.path setter).
+    ctx.path = `${prefix}/magic-link/${action}`;
+    return next();
   };
 };
-

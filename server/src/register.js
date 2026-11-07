@@ -1,11 +1,8 @@
 'use strict';
 
-const passwordlessCompat = require('./middlewares/passwordless-compat');
-
-module.exports = ({ strapi }) => {
-  // Register passwordless compatibility middleware globally
-  // This intercepts /api/passwordless/* requests and redirects to /api/magic-link/*
-  strapi.server.use(passwordlessCompat({}, { strapi }));
-  
-  strapi.log.info('[Magic-Link] Passwordless compatibility middleware registered');
-};
+/**
+ * Register phase. Global middlewares are added in bootstrap(), which runs
+ * after Strapi's own middlewares (errors, security, CORS, logger) are set up,
+ * so plugin responses get the standard error envelope and security headers.
+ */
+module.exports = () => {};

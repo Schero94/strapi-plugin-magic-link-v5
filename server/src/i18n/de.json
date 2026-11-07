@@ -20,7 +20,14 @@
     "settings.updateFailed": "Einstellungen konnten nicht aktualisiert werden",
     "settings.getFailed": "Einstellungen konnten nicht abgerufen werden",
     "unauthorized": "Nicht autorisierter Zugriff",
-    "generic.error": "Ein Fehler ist aufgetreten"
+    "generic.error": "Ein Fehler ist aufgetreten",
+    "challenge.invalid": "Diese Bestätigungsanfrage ist ungültig oder abgelaufen",
+    "mfa.setupRequired": "Zwei-Faktor-Authentifizierung ist erforderlich. Bitte richten Sie zuerst eine Authenticator-App ein",
+    "mfa.invalidCode": "Ungültiger Bestätigungscode",
+    "otp.deliveryFailed": "Der Bestätigungscode konnte nicht gesendet werden. Bitte fordern Sie einen neuen Code an",
+    "totp.loginDisabled": "Die Anmeldung mit einem Authenticator-Code ist nicht aktiviert",
+    "credentials.invalid": "Ungültige Anmeldedaten",
+    "login.failed": "Die Anmeldung konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut"
   },
   "success": {
     "token.created": "Magic Link erfolgreich gesendet",

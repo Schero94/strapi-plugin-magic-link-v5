@@ -20,7 +20,14 @@
     "settings.updateFailed": "Impossible de mettre à jour les paramètres",
     "settings.getFailed": "Impossible de récupérer les paramètres",
     "unauthorized": "Accès non autorisé",
-    "generic.error": "Une erreur s'est produite"
+    "generic.error": "Une erreur s'est produite",
+    "challenge.invalid": "Cette demande de vérification est invalide ou a expiré",
+    "mfa.setupRequired": "L'authentification à deux facteurs est requise. Veuillez d'abord configurer une application d'authentification",
+    "mfa.invalidCode": "Code de vérification invalide",
+    "otp.deliveryFailed": "Le code de vérification n'a pas pu être envoyé. Veuillez demander un nouveau code",
+    "totp.loginDisabled": "La connexion avec un code d'authentification n'est pas activée",
+    "credentials.invalid": "Identifiants invalides",
+    "login.failed": "La connexion n'a pas pu être finalisée. Veuillez réessayer"
   },
   "success": {
     "token.created": "Magic Link envoyé avec succès",

@@ -20,7 +20,14 @@
     "settings.updateFailed": "No se pudieron actualizar las configuraciones",
     "settings.getFailed": "No se pudieron obtener las configuraciones",
     "unauthorized": "Acceso no autorizado",
-    "generic.error": "Se ha producido un error"
+    "generic.error": "Se ha producido un error",
+    "challenge.invalid": "Esta solicitud de verificación no es válida o ha caducado",
+    "mfa.setupRequired": "Se requiere autenticación de dos factores. Configure primero una aplicación de autenticación",
+    "mfa.invalidCode": "Código de verificación no válido",
+    "otp.deliveryFailed": "No se pudo enviar el código de verificación. Solicite un código nuevo",
+    "totp.loginDisabled": "El inicio de sesión con un código de autenticación no está activado",
+    "credentials.invalid": "Credenciales no válidas",
+    "login.failed": "No se pudo completar el inicio de sesión. Inténtelo de nuevo"
   },
   "success": {
     "token.created": "Magic Link enviado exitosamente",

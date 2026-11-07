@@ -15,6 +15,105 @@
   **Read** to roles that used the License page. Super Admin gets all actions
   automatically.
 
+### BREAKING CHANGES (login core)
+
+* **E-mail only: WhatsApp and SMS delivery removed.** `POST /api/magic-link/send-link`
+  now requires `email`. The fields `phoneNumber`, `phone`, `via` and
+  `delivery` values other than `"email"` are rejected with a 400
+  `ValidationError` ("Only e-mail delivery is supported ..."). The response no
+  longer contains `phoneNumber` and never `delivery: "whatsapp"`; the 503
+  `WhatsAppDeliveryError` is gone. Settings keys `whatsapp_*` and `sms_*` are
+  deleted on startup, and `otp_type` only accepts `"email"` (stored `sms` or
+  `totp` values are rewritten to `email`).
+  Migration: send e-mail addresses only. Operators who used the built-in
+  WhatsApp transport of releases up to 5.2.x should securely delete the
+  `.whatsapp-auth` directory in the Strapi project root.
+* **Reserved context keys are rejected.** `context` on send-link may not
+  contain `requiresOTP`, `otpVerified`, `requiresTOTP`, `totpVerified`,
+  `mfaVerified`, `totpLogin`, `userId`, `userDocumentId`, `user`,
+  `expires_at`, `expiresAt`, `ttl` or JWT claim names (`id`, `iat`, `exp`,
+  `nbf`, `iss`, `sub`, `aud`, `jti`, `sessionId`, `type`), at most 20 keys.
+  Public context now passes the same `context_whitelist` /
+  `context_blacklist` policy as admin-created tokens. Second-factor state is
+  stored in the new private token attribute `challenge`; old tokens whose
+  context still carries such flags cannot complete a challenge (open the link
+  again to start a new one).
+* **E-mail templates no longer execute code.** `message_html`,
+  `message_text` and `object` are rendered with a placeholder renderer:
+  `{{LOGIN_URL}}`, `{{URL}}`, `{{CODE}}`, `{{EXPIRY_TEXT}}`, `{{EXPIRES_AT}}`,
+  `{{EMAIL}}`, `{{USER}}` (values are HTML-escaped in HTML bodies). Legacy
+  `<%= VAR %>` placeholders still render and are converted on startup;
+  `<%= URL %>?loginToken=<%= CODE %>` becomes `{{LOGIN_URL}}`. Any other
+  `<% ... %>` block is printed as text. Unknown placeholders render empty
+  instead of failing the send.
+  Migration: replace JavaScript expressions in templates with placeholders.
+* **Login links are built by one URL builder.** Precedence:
+  `frontend_url` + `frontend_login_path`, then `confirmationUrl`, then
+  `<server.url><api.rest.prefix>/magic-link/login`. Existing query strings
+  are kept. `confirmationUrl`, `frontend_url` and `callback_url` must be
+  `https` URLs (`http` only for localhost); invalid stored values are
+  ignored when building links and rejected when saving settings. The old
+  default `confirmationUrl` (the bare server URL) is cleared on startup.
+* **`token_length` is 22 to 128** (132+ bits). Stored smaller values are
+  raised to 22. Legacy unhashed login tokens are deactivated and no longer
+  accepted.
+* **Login responses changed.** The user object is sanitized with Strapi's
+  content-API sanitizer (private attributes are no longer returned).
+  `expiry_formatted` was removed (format `expires_at` on the client). With
+  `use_jwt_token: false` no JWT is minted; the response carries
+  `jwtIssued: false` instead of `tokenIssued: true`. The TOTP challenge
+  response no longer includes `userId`. Errors use the Strapi envelope
+  `{ data: null, error: { status, name, message, details: { key } } }`
+  (`error.key` is kept) with translated messages.
+* **JWT lifetime and refresh mode.** In users-permissions `legacy-support`
+  mode the JWT now expires after `jwt_token_expires_in` (`15m`, `12h`,
+  `30d`, ...). In `jwtManagement: 'refresh'` mode Magic Link logins issue a
+  refresh session through the users-permissions session manager and return
+  `refreshToken` (or set the refresh cookie when `sessions.httpOnly` or the
+  `x-strapi-refresh-cookie: httpOnly` header asks for it), exactly like
+  `/api/auth/local`; `context` is only in the response body there.
+  Revoking a session in the plugin also revokes the users-permissions
+  session, and revocation entries now live until the token expires (not a
+  fixed 30 days).
+* **MFA precedence.** A user with an enabled authenticator always gets the
+  TOTP challenge after the link click, even when e-mail OTP is enabled
+  (previously `optional` mode silently skipped TOTP). In `required` mode a
+  user without an authenticator gets 403 `mfa.setupRequired`.
+* **Auto-registration** needs `allow_magic_links_on_public_registration`,
+  `createUserIfNotExists` and users-permissions "Enable sign-ups"
+  (`allow_register`). New accounts are created unconfirmed and confirmed on
+  their first magic-link login; colliding usernames get a random suffix.
+  `username` on send-link may only contain letters, digits, `.`, `_`, `-`.
+  TOTP-only login no longer confirms accounts and honours users-permissions
+  "email confirmation".
+* **Passwordless compatibility** is served only by the
+  `/<api prefix>/passwordless/{send-link,login}` rewrite (now honouring
+  `api.rest.prefix`); the duplicate `/api/magic-link/passwordless/*` routes
+  and the `compatibility-check` policy were removed. With the setting off,
+  the path is passed on instead of answering 404.
+
+### Security and fixes (login core)
+
+* `POST /api/magic-link/login { loginToken }` added for frontend landing
+  pages, so tokens stay out of access logs and Referer headers; `GET` keeps
+  working. Login responses send `Cache-Control: no-store` and
+  `Referrer-Policy: no-referrer`.
+* Single-use links are consumed with a conditional update: parallel requests
+  with one link yield exactly one session.
+* Re-opening a link with a pending e-mail OTP no longer sends a new code
+  while the current one is valid.
+* send-link answers before any lookup or delivery, so neither status nor
+  timing reveals whether an account exists; delivery errors are only logged.
+* The JWT revocation check parses `Authorization` like users-permissions
+  (any case, any whitespace), skips admin-panel requests and fails closed
+  with 503 only for API requests.
+* Plugin logs no longer contain e-mail addresses, URLs with tokens or
+  provider errors from the login core.
+* Sender falls back to the e-mail plugin `defaultFrom` instead of
+  `noreply@example.com`; the default expiry text reads "1 hour".
+* Server error messages are translated (de, en, es, fr, pt); unknown
+  `?locale=` values fall back to English.
+
 # [5.6.0](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v5.5.9...v5.6.0) (2026-10-15)
 
 

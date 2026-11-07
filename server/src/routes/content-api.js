@@ -12,6 +12,18 @@
 module.exports = {
   type: 'content-api',
   routes: [
+    // Recommended: the frontend landing page POSTs { loginToken } so the
+    // token never appears in access logs, caches or Referer headers.
+    {
+      method: 'POST',
+      path: '/login',
+      handler: 'auth.login',
+      config: {
+        auth: false,
+        policies: ['plugin::magic-link.ip-ban-check'],
+      },
+    },
+    // Compatibility: GET /login?loginToken=... (token ends up in access logs).
     {
       method: 'GET',
       path: '/login',
