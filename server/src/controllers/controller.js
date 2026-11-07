@@ -6,8 +6,75 @@ const {
   parseBody,
   SETTINGS_KEYS,
 } = require('./validation');
+const { errors } = require('@strapi/utils');
 const { normalizeMfaSettings } = require('../utils/mfa-mode');
 const { createDefaultSettings } = require('../utils/default-settings');
+
+const SECURITY_ACTION = 'plugin::magic-link.settings.security';
+
+/**
+ * Settings that can redirect login links (and with them the login token),
+ * hand a link to someone else, or change who may log in and with which
+ * factors. Changing any of them needs `plugin::magic-link.settings.security`
+ * in addition to `settings.update`; resending them unchanged does not.
+ */
+const SECURITY_SETTING_KEYS = Object.freeze([
+  // Where the login link (and token) goes.
+  'confirmationUrl',
+  'callback_url',
+  'frontend_url',
+  'frontend_login_path',
+  'login_path',
+  'passwordlessCompatibility',
+  // Templates can embed {{CODE}} / {{LOGIN_URL}} in any URL.
+  'message_html',
+  'message_text',
+  'use_email_designer',
+  'email_designer_template_id',
+  'emailDesignerCompatibility',
+  'use_magic_mail',
+  'magic_mail_template_id',
+  'magic_mail_template_reference_id',
+  // Who can log in, how long a link and a session live.
+  'enabled',
+  'createUserIfNotExists',
+  'user_creation_strategy',
+  'allow_magic_links_on_public_registration',
+  'verify_email',
+  'stays_valid',
+  'expire_period',
+  'token_length',
+  'use_jwt_token',
+  'jwt_token_expires_in',
+  'context_whitelist',
+  'context_blacklist',
+  // Second factors.
+  'mfa_mode',
+  'mfa_require_totp',
+  'totp_as_primary_auth',
+  'otp_enabled',
+  'otp_strict_binding',
+]);
+
+/** URL settings checked against the server-side `allowedLinkOrigins`. */
+const LINK_URL_KEYS = Object.freeze(['confirmationUrl', 'frontend_url', 'callback_url']);
+
+/**
+ * Whether the admin holds an RBAC action.
+ *
+ * @param {object} ctx - Koa context.
+ * @param {string} action - Action uid.
+ * @returns {boolean} True when allowed.
+ */
+const can = (ctx, action) => {
+  try {
+    return ctx?.state?.userAbility?.can?.(action) === true;
+  } catch {
+    return false;
+  }
+};
+
+const sameValue = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 const BOOLEAN_FIELDS = [
   'enabled',
@@ -91,7 +158,58 @@ const toResponseSettings = (stored) => {
   return settings;
 };
 
+/**
+ * Server-side checks for a settings update, before anything is written:
+ * - security settings that would change need `settings.security`
+ *   (403, key `settings.security.forbidden`),
+ * - changed link URLs must use an origin from the server config
+ *   `allowedLinkOrigins` when that list is set (400).
+ * Values are compared in their effective, normalised form, so the admin UI
+ * can send the whole form back unchanged.
+ *
+ * @param {object} ctx - Koa context.
+ * @param {object} existing - Stored settings.
+ * @param {object} patch - Validated patch.
+ * @throws {errors.ForbiddenError|errors.ValidationError} When refused.
+ */
+const assertSettingsChangeAllowed = (ctx, existing, patch) => {
+  const defaults = createDefaultSettings();
+  const before = toResponseSettings({ ...defaults, ...existing });
+  const after = toResponseSettings(
+    normalizeMfaSettings({ ...defaults, ...existing, ...patch }, patch)
+  );
+  const changed = (key) => !sameValue(before[key], after[key]);
+
+  const securityChanges = SECURITY_SETTING_KEYS.filter(changed);
+  if (securityChanges.length > 0 && !can(ctx, SECURITY_ACTION)) {
+    throw new errors.ForbiddenError(
+      'Changing login link targets, templates, account or MFA rules requires the "Settings: Security" permission',
+      { key: 'settings.security.forbidden', fields: securityChanges }
+    );
+  }
+
+  const configured = strapi.config?.get?.('plugin::magic-link.allowedLinkOrigins', []);
+  const allowedOrigins = Array.isArray(configured) ? configured : [];
+  if (allowedOrigins.length === 0) return;
+  const outside = LINK_URL_KEYS.filter((key) => {
+    if (!changed(key) || !after[key]) return false;
+    try {
+      return !allowedOrigins.includes(new URL(after[key]).origin);
+    } catch {
+      return true;
+    }
+  });
+  if (outside.length > 0) {
+    throw new errors.ValidationError('Login link URLs must use an allowed origin', {
+      key: 'settings.linkOrigin.notAllowed',
+      fields: outside,
+    });
+  }
+};
+
 module.exports = {
+  SECURITY_SETTING_KEYS,
+
   /**
    * Returns normalized plugin settings and integration availability metadata.
    * Legacy required-TOTP settings are exposed in their effective canonical form.
@@ -142,10 +260,11 @@ module.exports = {
    */
   async updateSettings(ctx) {
     const settingsPatch = parseBody(settingsUpdateSchema, ctx.request.body);
+    const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
+    const existingSettings = (await pluginStore.get({ key: 'settings' })) || {};
+    assertSettingsChangeAllowed(ctx, existingSettings, settingsPatch);
 
     try {
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const existingSettings = (await pluginStore.get({ key: 'settings' })) || {};
       const processedBody = normalizeBooleans(
         pickKnownSettings(
           normalizeMfaSettings({ ...existingSettings, ...settingsPatch }, settingsPatch)
@@ -181,6 +300,12 @@ module.exports = {
    */
   async resetData(ctx) {
     const { resetSecurity } = parseBody(adminResetSchema, ctx.request?.body);
+    if (resetSecurity && !can(ctx, SECURITY_ACTION)) {
+      throw new errors.ForbiddenError(
+        'Resetting the MFA settings requires the "Settings: Security" permission',
+        { key: 'settings.security.forbidden', fields: [...MFA_SETTING_KEYS] }
+      );
+    }
     try {
       const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
       const defaults = createDefaultSettings();

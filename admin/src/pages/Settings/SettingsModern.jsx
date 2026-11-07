@@ -486,7 +486,25 @@ const SettingsModern = () => {
       });
     } catch (error) {
       const field = getServerErrorField(error);
-      if (field) {
+      const errorKey = error?.response?.data?.error?.details?.key;
+      if (
+        errorKey === 'settings.security.forbidden' ||
+        errorKey === 'settings.linkOrigin.notAllowed'
+      ) {
+        toggleNotification({
+          type: 'danger',
+          message:
+            errorKey === 'settings.security.forbidden'
+              ? t(
+                  'settings.save.securityForbidden',
+                  'Changing link targets, templates, account or MFA rules needs the "Settings: Security" permission.'
+                )
+              : t(
+                  'settings.save.linkOriginNotAllowed',
+                  'Login link URLs must use an origin allowed in the server configuration.'
+                ),
+        });
+      } else if (field) {
         setServerErrors({ [field]: true });
         focusField(field);
         toggleNotification({

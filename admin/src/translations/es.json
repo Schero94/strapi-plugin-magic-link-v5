@@ -665,5 +665,7 @@
   "magic-link.tokens.tabs.otpCodesShort": "OTP",
   "magic-link.tokens.title": "Tokens Magic Link",
   "magic-link.tokens.user.id": "ID de usuario: {id}",
-  "magic-link.tokens.user.new": "Nuevo usuario"
+  "magic-link.tokens.user.new": "Nuevo usuario",
+  "magic-link.settings.save.securityForbidden": "Cambiar destinos de enlaces, plantillas o reglas de cuenta o MFA requiere el permiso «Configuración: Seguridad».",
+  "magic-link.settings.save.linkOriginNotAllowed": "Las URL de los enlaces de inicio de sesión deben usar un origen permitido en la configuración del servidor."
 }

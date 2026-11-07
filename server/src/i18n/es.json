@@ -33,7 +33,9 @@
     "totp.noPendingSetup": "No hay ninguna configuración de aplicación de autenticación en curso. Inicie la configuración de nuevo",
     "totp.invalidEmailCode": "El código del correo electrónico no es válido o ha caducado",
     "totp.alreadyEnrolled": "Ya hay una aplicación de autenticación configurada para esta cuenta",
-    "auth.required": "Inicie sesión para continuar"
+    "auth.required": "Inicie sesión para continuar",
+    "settings.security.forbidden": "Cambiar destinos de enlaces, plantillas o reglas de cuenta o MFA requiere el permiso Configuración: Seguridad",
+    "settings.linkOrigin.notAllowed": "Las URL de los enlaces de inicio de sesión deben usar un origen permitido"
   },
   "success": {
     "token.created": "Magic Link enviado exitosamente",
@@ -45,5 +47,21 @@
     "settings.updated": "Configuraciones actualizadas exitosamente",
     "license.created": "Licencia creada exitosamente",
     "license.verified": "Licencia verificada exitosamente"
+  },
+  "mail": {
+    "otp.subject": "Tu código de verificación",
+    "otp.heading": "Tu código de verificación",
+    "otp.intro": "Introduce este código para completar el inicio de sesión:",
+    "otp.expires": "Este código caduca en {minutes}.",
+    "otp.ignore": "Si no has solicitado este código, puedes ignorar este correo.",
+    "otp.preheader": "Tu código de verificación: {code}",
+    "setup.subject": "Confirma tu aplicación de autenticación",
+    "setup.intro": "Introduce este código para confirmar la nueva aplicación de autenticación de tu cuenta:",
+    "unit.minute": "{count} minuto",
+    "unit.minutes": "{count} minutos",
+    "welcome.subject": "Bienvenido",
+    "welcome.subjectApp": "Bienvenido a {app}",
+    "welcome.greeting": "Hola {name}:",
+    "welcome.body": "Gracias por registrarte. Tu enlace de inicio de sesión está en camino."
   }
 }

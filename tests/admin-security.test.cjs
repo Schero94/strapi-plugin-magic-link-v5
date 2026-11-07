@@ -100,6 +100,8 @@ test('settings writes normalize legacy required TOTP, keep known settings and dr
     log: { info() {} },
   };
   const ctx = {
+    // MFA and context lists are security settings (settings.security).
+    state: { userAbility: { can: () => true } },
     request: {
       body: {
         mfa_mode: 'disabled',
@@ -164,6 +166,7 @@ test('a legacy-only TOTP disable update clears a previously required mode', asyn
     log: { info() {} },
   };
   const ctx = {
+    state: { userAbility: { can: () => true } },
     request: { body: { mfa_require_totp: false } },
     send(payload) {
       this.response = payload;
@@ -304,7 +307,8 @@ test('reset-data preserves unexpired JWT revocations and writes the install defa
     log: { info() {}, warn() {}, error() {} },
   };
   const ctx = {
-    state: { user: { id: 7 } },
+    // resetSecurity needs settings.security.
+    state: { user: { id: 7 }, userAbility: { can: () => true } },
     request: { body: { confirm: 'RESET', resetSecurity: true } },
     send(payload) {
       this.response = payload;

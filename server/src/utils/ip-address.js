@@ -83,4 +83,15 @@ const ipRateLimitKey = (value) => {
   return `${expandIpv6(withoutZone).slice(0, 4).join(':')}::/64`;
 };
 
-module.exports = { normalizeIpAddress, ipRateLimitKey };
+/**
+ * Key used to match IP bans, with the same granularity as the rate limits:
+ * IPv4 (and IPv4-mapped IPv6) is matched exactly, IPv6 per /64 network. A
+ * ban on one IPv6 address therefore covers its whole /64, so a client
+ * cannot escape a ban by rotating addresses inside its own prefix.
+ *
+ * @param {unknown} value - Stored ban or request address.
+ * @returns {string|null} Match key, or null for invalid input.
+ */
+const ipBanKey = (value) => (normalizeIpAddress(value) ? ipRateLimitKey(value) : null);
+
+module.exports = { normalizeIpAddress, ipRateLimitKey, ipBanKey };

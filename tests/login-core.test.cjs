@@ -363,7 +363,14 @@ test('direct login sanitizes the user, honours the JWT lifetime and records the 
   const session = state.stores['magic-link'].jwt_sessions.sessions[0];
   assert.equal(session.expiresAt, ctx.body.expires_at);
   assert.equal(session.jwtTokenHash, cryptoUtils.hashJwt(ctx.body.jwt));
-  assert.deepEqual(state.edits, [{ id: VICTIM.id, data: { confirmed: true } }]);
+  // Claiming the unconfirmed account invalidates a password someone else may
+  // have set (pre-account hijacking, utils/account-claim.js).
+  assert.deepEqual(state.edits, [
+    {
+      id: VICTIM.id,
+      data: { confirmed: true, password: null, resetPasswordToken: null, confirmationToken: null },
+    },
+  ]);
   assert.equal(ctx.responseHeaders['Referrer-Policy'], 'no-referrer');
 });
 
@@ -402,7 +409,13 @@ test('refresh mode issues tokens through the users-permissions session manager (
     { userId: String(VICTIM.id), sessionId: 'up-session-1' },
   ]);
   const entry = state.stores['magic-link'].blocked_jwt_tokens.tokens[0];
-  assert.equal(entry.expiresAt, session.expiresAt);
+  // Family expiry plus one access-token lifespan (users-permissions default
+  // 10 minutes), so access tokens minted just before the end die as well.
+  assert.equal(
+    new Date(entry.expiresAt).getTime(),
+    new Date(session.expiresAt).getTime() + 10 * 60 * 1000
+  );
+  assert.equal(entry.upUserId, String(VICTIM.id));
   assert.equal(await magicLinkService.isJwtTokenBlocked(ctx.body.jwt), true);
 });
 

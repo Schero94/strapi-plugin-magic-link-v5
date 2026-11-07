@@ -3,9 +3,9 @@
 /**
  * Adversarial security review (6.0.0 branch): reproductions of findings that
  * live outside server/src/utils and still need a fix in services,
- * controllers or middlewares. Each test asserts the SECURE behaviour and is
- * marked `todo`, so it reports the gap without failing `npm test`. Remove
- * the `todo` option when the fix lands. Synthetic data only.
+ * controllers or middlewares. Each test asserts the SECURE behaviour; they
+ * were `todo` until the fixes landed and are now regular regression tests
+ * (see also security-open-items.test.cjs). Synthetic data only.
  */
 
 const assert = require('node:assert/strict');
@@ -92,9 +92,7 @@ const createRotatingSessionManager = () => {
 
 test(
   'refresh mode: revoking a plugin session after a token refresh ends the refresh family',
-  {
-    todo: 'services/magic-link.js revokeUpSession revokes only the root sessionId; rotated children stay valid',
-  },
+  {},
   async () => {
     const { strapi, magicLinkService, state, setConfig } = createLoginCoreStrapi({
       users: [USER],
@@ -131,9 +129,7 @@ test(
 
 test(
   'refresh mode: access tokens minted after a refresh are rejected once the session is revoked',
-  {
-    todo: 'middlewares/jwt-revocation.js only blocks the first access token hash; it should reject access tokens whose users-permissions session (payload.sessionId) is no longer active',
-  },
+  {},
   async () => {
     const { strapi, magicLinkService, state, setConfig } = createLoginCoreStrapi({
       users: [USER],
@@ -189,9 +185,7 @@ test('second-factor verification stays throttled when public rate limits are dis
 
 test(
   'magic-link login does not hand over a pre-registered, unconfirmed account with a foreign password',
-  {
-    todo: 'controllers/auth.js confirmUser marks an unconfirmed local account confirmed without invalidating the password an attacker may have set at /auth/local/register (pre-account hijacking)',
-  },
+  {},
   async () => {
     const preRegistered = { ...USER, confirmed: false, password: 'attacker-chosen-hash' };
     const { magicLinkService, state } = createLoginCoreStrapi({

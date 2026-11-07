@@ -291,7 +291,9 @@ module.exports = {
 
 - The response contains a short-lived `jwt` and a `refreshToken`. With `sessions.httpOnly: true`, or the request header `x-strapi-refresh-cookie: httpOnly`, the refresh token is set as an httpOnly cookie instead.
 - Renew with the native `POST /api/auth/refresh`.
-- Revoking a session in **Magic Link > JWT Sessions** also revokes the users-permissions session.
+- Revoking a session in **Magic Link > JWT Sessions** ends the whole users-permissions refresh family: the first refresh token and every token rotated from it (`POST /api/auth/refresh` creates a new session id with the same device id; the plugin revokes by user and device id). Each Magic Link login gets its own device id unless the client sends `deviceId`; a client that reuses one `deviceId` for several logins gets all of them ended, like the users-permissions device logout.
+- Access tokens minted from a revoked family are rejected as well. users-permissions itself accepts an access token until it expires; while a user has a revoked family (until the family's maximum lifetime plus one access-token lifespan), the plugin checks the users-permissions session of each of that user's access tokens (`isSessionActive`, one database lookup per request for that user only) and answers `401` when it is gone, `503` when the state cannot be read.
+- Session records written before the device id was stored can only revoke the first refresh token.
 
 In the default `legacy-support` mode the JWT lifetime comes from the plugin setting `jwt_token_expires_in` (for example `15m`, `12h`, `30d`).
 
@@ -367,38 +369,38 @@ The user object passes Strapi's content-API sanitizer, so private fields are nev
 
 Admin routes live under `/magic-link` on the admin server. They require an admin JWT and the listed plugin permission. They are what the admin pages call; you rarely need them directly.
 
-| Method   | Path                                  | Permission        | Purpose                                                                       |
-| -------- | ------------------------------------- | ----------------- | ----------------------------------------------------------------------------- |
-| `GET`    | `/magic-link/tokens`                  | `read`            | Newest 1000 tokens, or `?page=&pageSize=` (max 1000)                          |
-| `POST`   | `/magic-link/tokens`                  | `manage`          | Create a link: `{ email, ttl?, send_email?, context? }` (ttl in hours, 1-720) |
-| `POST`   | `/magic-link/tokens/:id/block`        | `manage`          | Deactivate a link                                                             |
-| `POST`   | `/magic-link/tokens/:id/activate`     | `manage`          | Re-activate (refused for used single-use or expired links)                    |
-| `POST`   | `/magic-link/tokens/:id/extend`       | `manage`          | `{ days }`, 1-365                                                             |
-| `DELETE` | `/magic-link/tokens/:id`              | `manage`          | Delete a link                                                                 |
-| `GET`    | `/magic-link/jwt-sessions`            | `read`            | Sessions issued by Magic Link                                                 |
-| `POST`   | `/magic-link/revoke-jwt`              | `manage`          | `{ sessionId }` or `{ token }`                                                |
-| `POST`   | `/magic-link/unrevoke-jwt`            | `manage`          | `{ sessionId }` (not for refresh-mode sessions)                               |
-| `POST`   | `/magic-link/cleanup-sessions`        | `manage`          | Remove expired session records                                                |
-| `GET`    | `/magic-link/banned-ips`              | `read`            | List bans                                                                     |
-| `POST`   | `/magic-link/ban-ip`                  | `manage`          | `{ data: { ip } }`                                                            |
-| `POST`   | `/magic-link/unban-ip`                | `manage`          | `{ data: { ip } }`                                                            |
-| `GET`    | `/magic-link/otp/codes`               | `read`            | `?page=&pageSize=&email=&type=` (pageSize max 100 in the UI)                  |
-| `DELETE` | `/magic-link/otp/codes/:id`           | `manage`          | Delete one code                                                               |
-| `POST`   | `/magic-link/otp/cleanup`             | `manage`          | Remove expired codes                                                          |
-| `GET`    | `/magic-link/settings`                | `settings.read`   | Read settings                                                                 |
-| `PUT`    | `/magic-link/settings`                | `settings.update` | Save settings (only known keys, validated)                                    |
-| `POST`   | `/magic-link/reset-data`              | `settings.update` | Restore defaults: `{ confirm: 'RESET', resetSecurity? }`                      |
-| `GET`    | `/magic-link/rate-limit/stats`        | `settings.read`   | Limiter statistics                                                            |
-| `POST`   | `/magic-link/rate-limit/cleanup`      | `settings.update` | Drop expired limiter entries                                                  |
-| `POST`   | `/magic-link/rate-limit/reset`        | `settings.update` | Reset all limits                                                              |
-| `GET`    | `/magic-link/totp/enrollment-summary` | `settings.read`   | `{ data: { enrolled, enrollmentDuringLogin } }`                               |
-| `GET`    | `/magic-link/license/status`          | `settings.read`   | License state; full key only with `settings.update`                           |
-| `POST`   | `/magic-link/license/store-key`       | `settings.update` | Save a license key                                                            |
-| `GET`    | `/magic-link/otp/totp/status`         | `read`            | The calling admin's own authenticator                                         |
-| `POST`   | `/magic-link/otp/totp/setup`          | `read`            | Start setup (`{ token }` when one is active)                                  |
-| `POST`   | `/magic-link/otp/totp/verify`         | `read`            | Confirm setup, returns backup codes                                           |
-| `POST`   | `/magic-link/otp/totp/disable`        | `read`            | `{ token }`                                                                   |
-| `POST`   | `/magic-link/otp/totp/backup-codes`   | `read`            | `{ token }`                                                                   |
+| Method   | Path                                  | Permission        | Purpose                                                                                              |
+| -------- | ------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------- |
+| `GET`    | `/magic-link/tokens`                  | `read`            | Newest 1000 tokens, or `?page=&pageSize=` (max 1000)                                                 |
+| `POST`   | `/magic-link/tokens`                  | `manage`          | Create a link: `{ email, ttl?, send_email?, context? }` (ttl in hours, 1-720)                        |
+| `POST`   | `/magic-link/tokens/:id/block`        | `manage`          | Deactivate a link                                                                                    |
+| `POST`   | `/magic-link/tokens/:id/activate`     | `manage`          | Re-activate (refused for used single-use or expired links)                                           |
+| `POST`   | `/magic-link/tokens/:id/extend`       | `manage`          | `{ days }`, 1-365                                                                                    |
+| `DELETE` | `/magic-link/tokens/:id`              | `manage`          | Delete a link                                                                                        |
+| `GET`    | `/magic-link/jwt-sessions`            | `read`            | Sessions issued by Magic Link                                                                        |
+| `POST`   | `/magic-link/revoke-jwt`              | `manage`          | `{ sessionId }` or `{ token }`                                                                       |
+| `POST`   | `/magic-link/unrevoke-jwt`            | `manage`          | `{ sessionId }` (not for refresh-mode sessions)                                                      |
+| `POST`   | `/magic-link/cleanup-sessions`        | `manage`          | Remove expired session records                                                                       |
+| `GET`    | `/magic-link/banned-ips`              | `read`            | List bans                                                                                            |
+| `POST`   | `/magic-link/ban-ip`                  | `manage`          | `{ data: { ip } }`                                                                                   |
+| `POST`   | `/magic-link/unban-ip`                | `manage`          | `{ data: { ip } }`                                                                                   |
+| `GET`    | `/magic-link/otp/codes`               | `read`            | `?page=&pageSize=&email=&type=` (pageSize max 100 in the UI)                                         |
+| `DELETE` | `/magic-link/otp/codes/:id`           | `manage`          | Delete one code                                                                                      |
+| `POST`   | `/magic-link/otp/cleanup`             | `manage`          | Remove expired codes                                                                                 |
+| `GET`    | `/magic-link/settings`                | `settings.read`   | Read settings                                                                                        |
+| `PUT`    | `/magic-link/settings`                | `settings.update` | Save settings (only known keys, validated); security settings also need `settings.security`          |
+| `POST`   | `/magic-link/reset-data`              | `settings.update` | Restore defaults: `{ confirm: 'RESET', resetSecurity? }` (`resetSecurity` needs `settings.security`) |
+| `GET`    | `/magic-link/rate-limit/stats`        | `settings.read`   | Limiter statistics                                                                                   |
+| `POST`   | `/magic-link/rate-limit/cleanup`      | `settings.update` | Drop expired limiter entries                                                                         |
+| `POST`   | `/magic-link/rate-limit/reset`        | `settings.update` | Reset all limits                                                                                     |
+| `GET`    | `/magic-link/totp/enrollment-summary` | `settings.read`   | `{ data: { enrolled, enrollmentDuringLogin } }`                                                      |
+| `GET`    | `/magic-link/license/status`          | `settings.read`   | License state; full key only with `settings.update`                                                  |
+| `POST`   | `/magic-link/license/store-key`       | `settings.update` | Save a license key                                                                                   |
+| `GET`    | `/magic-link/otp/totp/status`         | `read`            | The calling admin's own authenticator                                                                |
+| `POST`   | `/magic-link/otp/totp/setup`          | `read`            | Start setup (`{ token }` when one is active)                                                         |
+| `POST`   | `/magic-link/otp/totp/verify`         | `read`            | Confirm setup, returns backup codes                                                                  |
+| `POST`   | `/magic-link/otp/totp/disable`        | `read`            | `{ token }`                                                                                          |
+| `POST`   | `/magic-link/otp/totp/backup-codes`   | `read`            | `{ token }`                                                                                          |
 
 **Creating a link without sending it** (`send_email: false`) returns `token` and `loginUrl` once, which lets the admin log in as that user. It therefore also needs the separate `tokens.issue` permission. Admin creation is limited to 60 per admin per 15 minutes.
 
@@ -406,15 +408,20 @@ Admin routes live under `/magic-link` on the admin server. They require an admin
 
 ### Admin roles (Settings > Administration Panel > Roles > Plugins > Magic Link)
 
-| Action                               | Grants                                                                   |
-| ------------------------------------ | ------------------------------------------------------------------------ |
-| `plugin::magic-link.read`            | Menu entry and Tokens page: tokens, OTP codes, JWT sessions, IP bans     |
-| `plugin::magic-link.manage`          | Create, block, extend, delete tokens; revoke sessions; ban IPs; cleanups |
-| `plugin::magic-link.tokens.issue`    | Create links without e-mail (impersonation). Grant sparingly.            |
-| `plugin::magic-link.settings.read`   | Settings and License pages                                               |
-| `plugin::magic-link.settings.update` | Save settings, rate-limit actions, license changes                       |
+| Action                                 | Grants                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------ |
+| `plugin::magic-link.read`              | Menu entry and Tokens page: tokens, OTP codes, JWT sessions, IP bans     |
+| `plugin::magic-link.manage`            | Create, block, extend, delete tokens; revoke sessions; ban IPs; cleanups |
+| `plugin::magic-link.tokens.issue`      | Create links without e-mail (impersonation). Grant sparingly.            |
+| `plugin::magic-link.settings.read`     | Settings and License pages                                               |
+| `plugin::magic-link.settings.update`   | Save settings, rate-limit actions, license changes                       |
+| `plugin::magic-link.settings.security` | Change security settings (see below), reset MFA settings                 |
 
 The server enforces these on every route; the admin pages hide what a role cannot do. Super Admin has all of them.
+
+**Security settings** need `settings.security` in addition to `settings.update`, because they can redirect login links (and the login token in them) to another site, put the raw token into a template, or change who may log in and with which factors: `confirmationUrl`, `callback_url`, `frontend_url`, `frontend_login_path`, `login_path`, `passwordlessCompatibility`, `message_html`, `message_text`, the Email Designer and Magic Mail template fields, `enabled`, `createUserIfNotExists`, `user_creation_strategy`, `allow_magic_links_on_public_registration`, `verify_email`, `stays_valid`, `expire_period`, `token_length`, `use_jwt_token`, `jwt_token_expires_in`, `context_whitelist`, `context_blacklist`, `mfa_mode`, `mfa_require_totp`, `totp_as_primary_auth`, `otp_enabled`, `otp_strict_binding`. Sending them unchanged is allowed, so a role with `settings.update` only can still save the sender, rate limits and OTP/TOTP parameters. A refused change answers `403` with `error.details.key: 'settings.security.forbidden'` and the field names; nothing is written. `settings.security` is never granted automatically: grant it only to roles that may decide where login links point (Super Admin has it).
+
+For a hard limit that no admin can change, list the allowed link origins in the server config (`allowedLinkOrigins`, see [Plugin config](#plugin-config-configpluginsjs)).
 
 ### Users & Permissions roles
 
@@ -466,6 +473,10 @@ module.exports = ({ env }) => ({
       rateLimit: { redis: { storeClient: redisClient, useRedisPackage: true } },
       // Disable all calls to the license server.
       license: { remoteLookup: false },
+      // Optional: login links may only point at these origins. A changed
+      // confirmationUrl, frontend_url or callback_url outside the list is
+      // rejected with 400 (key settings.linkOrigin.notAllowed).
+      allowedLinkOrigins: ['https://app.example.com'],
     },
   },
 });
@@ -536,15 +547,17 @@ Templates from 5.x that use `<%= URL %>?loginToken=<%= CODE %>` are converted to
   - Backup codes are owner-bound HMACs.
   - Admin and end-user authenticators live in separate namespaces (`admin:<id>`, `up:<id>`).
 - **Sessions**
-  - The JWT lifetime is honoured, and a revoked token stays blocked until it would have expired.
-  - In refresh mode, revocation also deletes the users-permissions session.
+  - The JWT lifetime is honoured, and a revoked token stays blocked until it would have expired. A legacy JWT without `exp` (users-permissions configured without `expiresIn`) is blocked permanently, so its revocation never lapses; remove such an entry only with "restore".
+  - In refresh mode, revocation ends the whole refresh family (rotated tokens included) and rejects access tokens minted from it (see [Refresh mode](#refresh-mode-users-permissions-sessions)).
+- **Pre-account hijacking.** With e-mail confirmation on, someone can register `/api/auth/local/register` with another person's address and a password of their choice. When the mailbox owner then confirms that unconfirmed account through a magic link, an e-mail OTP or the TOTP enrolment during login, the plugin first ends every existing session of the account (plugin JWTs and all users-permissions refresh families), then confirms it with the password, reset token and confirmation token cleared. The owner sets a password through "forgot password" if they want password login. Already confirmed accounts are not touched.
+- **MFA policy changes.** A challenge that was started before the MFA settings (or the user's authenticator) changed is re-checked when it completes. An e-mail OTP no longer completes a login once MFA is required or the user enrolled an authenticator; opening the link again starts the required challenge.
   - The `Authorization` header is parsed like users-permissions does it. The revocation check runs on Content API requests (REST and GraphQL) only and fails closed (503) there; admin routes are never affected.
 - **Transport and logs**
-  - Login responses send `Cache-Control: no-store` and `Referrer-Policy: no-referrer`.
+  - Every login, OTP and TOTP response (including `totp/status` and `totp/disable`) sends `Cache-Control: no-store` and `Referrer-Policy: no-referrer`.
   - Plugin logs contain no e-mail addresses, tokens or URLs with tokens.
 - **Admin**
   - RBAC is enforced server-side on every route.
-  - Impersonation needs its own permission.
+  - Impersonation needs its own permission, and so do settings that redirect links or change identity rules (`settings.security`).
   - The license key is masked for readers.
 - **Templates.** Placeholder rendering only; there is no code execution.
 
@@ -563,10 +576,14 @@ module.exports = ({ env }) => ({
 
 Without `maxIpsCount`, clients can spoof `X-Forwarded-For`. The plugin logs a warning at startup when `proxy.koa` is on and `maxIpsCount` is missing.
 
+**IP bans** match like the rate limits: IPv4 (and IPv4-mapped IPv6) exactly, IPv6 per /64 network. Banning one IPv6 address bans its whole /64, and unbanning any address of that /64 removes the ban.
+
 **Several instances:**
 
 - Limits are in memory by default. For shared limits, set `rateLimit.redis` in the plugin config.
-- The session list, the JWT blocklist and the ban list are stored in the plugin store. Writes are serialised within one process only, so concurrent writes from several instances can still overwrite each other.
+- The session list, the JWT blocklist and the ban list are stored in the plugin store. Writes are serialised within one process only, so concurrent writes from several instances can still overwrite each other (AUTH-14, not solved). In practice: two admins revoking sessions or banning IPs on different instances at the same moment can lose one of the two changes; repeat the action and check the list afterwards. Logins only append session records and are not affected by a lost revocation, but a lost revocation leaves that token valid.
+- Each instance caches the JWT blocklist for up to 2 seconds, so a revocation reaches other instances within that time.
+- Login tokens and OTP codes are single use across instances (conditional database updates).
 
 ## Migrating from strapi-plugin-passwordless
 
@@ -597,9 +614,10 @@ When the setting is off, those paths are passed on to Strapi untouched.
 1. **Runtime.** Node.js 22+ and Strapi 5.24.0+.
 2. **Secrets.** Set `MAGIC_LINK_ENCRYPTION_KEY` and `MAGIC_LINK_OTP_PEPPER` (32+ characters each). If your old encryption key was shorter, or you relied on the development fallback, put the old value in `MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS` for the first start. For the old fallback that value is your `ADMIN_JWT_SECRET`.
 3. **E-mail only.** Remove WhatsApp/SMS fields from `send-link` calls. Delete a leftover `.whatsapp-auth` folder from releases up to 5.2.x.
-4. **Admin roles.** `access` became `read`, `manage`, `settings.read` and `settings.update`, plus `tokens.issue` for impersonation.
+4. **Admin roles.** `access` became `read`, `manage`, `settings.read` and `settings.update`, plus `tokens.issue` for impersonation and `settings.security` for security settings.
    - On startup, roles holding `access` get **Read** and **Manage** automatically.
    - Check each role, and grant **Settings > Read** to roles that used the License page.
+   - Grant **Settings > Security** only to roles that may change link targets, templates, account and MFA rules. It is never granted automatically.
 5. **Frontend.**
    - Exchange the token with `POST /login { loginToken }`.
    - Handle `requiresTOTPSetup` if you use required MFA.

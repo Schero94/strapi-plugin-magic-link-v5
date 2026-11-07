@@ -33,7 +33,9 @@
     "totp.noPendingSetup": "Não existe nenhuma configuração de aplicação de autenticação em curso. Inicie a configuração novamente",
     "totp.invalidEmailCode": "O código do e-mail é inválido ou expirou",
     "totp.alreadyEnrolled": "Já existe uma aplicação de autenticação configurada para esta conta",
-    "auth.required": "Inicie sessão para continuar"
+    "auth.required": "Inicie sessão para continuar",
+    "settings.security.forbidden": "Alterar destinos de links, modelos ou regras de conta ou MFA exige a permissão Configurações: Segurança",
+    "settings.linkOrigin.notAllowed": "As URLs dos links de login devem usar uma origem permitida"
   },
   "success": {
     "token.created": "Magic Link enviado com sucesso",
@@ -45,5 +47,21 @@
     "settings.updated": "Configurações atualizadas com sucesso",
     "license.created": "Licença criada com sucesso",
     "license.verified": "Licença verificada com sucesso"
+  },
+  "mail": {
+    "otp.subject": "Seu código de verificação",
+    "otp.heading": "Seu código de verificação",
+    "otp.intro": "Digite este código para concluir o login:",
+    "otp.expires": "Este código expira em {minutes}.",
+    "otp.ignore": "Se você não solicitou este código, pode ignorar este e-mail.",
+    "otp.preheader": "Seu código de verificação: {code}",
+    "setup.subject": "Confirme seu aplicativo autenticador",
+    "setup.intro": "Digite este código para confirmar o novo aplicativo autenticador da sua conta:",
+    "unit.minute": "{count} minuto",
+    "unit.minutes": "{count} minutos",
+    "welcome.subject": "Bem-vindo",
+    "welcome.subjectApp": "Bem-vindo a {app}",
+    "welcome.greeting": "Olá {name},",
+    "welcome.body": "Obrigado por se cadastrar. Seu link de login está a caminho."
   }
 }

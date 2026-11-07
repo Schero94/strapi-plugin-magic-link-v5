@@ -11,6 +11,8 @@
  * |                |                                    | sessions, ban and unban IPs, delete OTP codes, clean |
  * | settingsRead   | plugin::magic-link.settings.read   | View the Settings and License pages                  |
  * | settingsUpdate | plugin::magic-link.settings.update | Save settings, reset rate limits, change the license |
+ * | settingsSecurity | plugin::magic-link.settings.security | Change link targets, templates, account and MFA  |
+ * |                |                                    | rules (server-enforced in addition to update)        |
  *
  * `useRBAC` derives the `allowedActions` keys from the last uid segment, so
  * `read` and `settings.read` both become `canRead`. Check them in separate
@@ -22,12 +24,14 @@ const read = Object.freeze([action('read')]);
 const manage = Object.freeze([action('manage')]);
 const settingsRead = Object.freeze([action('settings.read')]);
 const settingsUpdate = Object.freeze([action('settings.update')]);
+const settingsSecurity = Object.freeze([action('settings.security')]);
 
 const pluginPermissions = Object.freeze({
   read,
   manage,
   settingsRead,
   settingsUpdate,
+  settingsSecurity,
   /**
    * Menu link and Tokens page. Every view lists data first, so it needs
    * `read`. Grant `read` together with `manage` for full access.

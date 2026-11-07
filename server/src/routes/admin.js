@@ -17,6 +17,8 @@
  * |                                      | (the login link is returned to the admin: impersonation)   |
  * | plugin::magic-link.settings.read     | settings, rate-limit stats, license status, MFA summary    |
  * | plugin::magic-link.settings.update   | save/reset settings, rate-limit cleanup/reset, license key |
+ * | plugin::magic-link.settings.security | checked in controller.updateSettings/resetData: changing   |
+ * |                                      | link targets, templates, account, session or MFA settings  |
  *
  * The admin UI only hides controls; these policies are authoritative.
  */

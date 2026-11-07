@@ -22,9 +22,10 @@
 const crypto = require('node:crypto');
 const i18n = require('../utils/i18n');
 const { normalizeEmail } = require('../utils/email');
-const { resolveMfaMode } = require('../utils/mfa-mode');
+const { requiredChallenge, challengeSatisfiesPolicy } = require('../utils/challenge-policy');
 const { filterContext } = require('../utils/context-policy');
 const { issueLoginSession, setNoStoreHeaders } = require('../utils/login-session');
+const { claimUnconfirmedAccount } = require('../utils/account-claim');
 const {
   sendLinkSchema,
   loginExchangeSchema,
@@ -92,41 +93,21 @@ const findUserByEmail = async (email) => {
 };
 
 /**
- * Marks a user as confirmed. Only called after a magic link was used, which
- * proves ownership of the e-mail address.
+ * Confirms the user after a magic link proved the mailbox. An unconfirmed
+ * account is claimed: earlier sessions end and a password someone else may
+ * have set is invalidated (utils/account-claim.js).
  *
  * @param {object} user - User entity.
  * @returns {Promise<void>}
  */
 const confirmUser = async (user) => {
-  if (user.confirmed) return;
-  await strapi.plugin('users-permissions').service('user').edit(user.id, { confirmed: true });
-  user.confirmed = true;
+  await claimUnconfirmedAccount(strapi, user);
 };
 
 const requestInfoOf = (ctx) => ({
   userAgent: ctx.request?.header?.['user-agent'],
   ipAddress: ctx.request?.ip,
 });
-
-/**
- * Decides which second factor a login needs.
- *
- * @param {object} settings - Plugin settings.
- * @param {object} user - User entity.
- * @returns {Promise<'totp'|'otp'|'setup-required'|null>} Required challenge.
- */
-const resolveChallenge = async (settings, user) => {
-  const mfaMode = resolveMfaMode(settings);
-  if (mfaMode !== 'disabled') {
-    const status = await plugin().service('otp').getTOTPStatus(user.id);
-    const totpEnabled = Boolean(status?.configured && status?.enabled);
-    if (totpEnabled) return 'totp';
-    if (mfaMode === 'required') return 'setup-required';
-  }
-  if (settings.otp_enabled === true) return 'otp';
-  return null;
-};
 
 /**
  * Creates and mails an e-mail OTP for a pending challenge.
@@ -149,7 +130,7 @@ const sendChallengeOtp = async (ctx, token, settings) => {
 
   try {
     await otpService.sendOTPEmail(token.email, otpEntry.code, {
-      subject: 'Your Verification Code',
+      locale: i18n.getLocaleFromContext(ctx),
       expiryMinutes: Math.max(1, Math.round(expirySeconds / 60)),
     });
     return true;
@@ -254,10 +235,15 @@ module.exports = {
       return i18n.sendError(ctx, 'blocked.user', 403);
     }
 
+    // The current MFA policy decides; it may have changed since the
+    // challenge started (settings, or an authenticator enrolled meanwhile).
+    const challenge = await requiredChallenge(plugin().service('otp'), settings, user.id);
+
     // A started challenge is never skipped. Repeated opens (mail scanners,
     // double clicks) answer with the same challenge without new side effects
-    // while the e-mail OTP is still valid.
-    if (pendingChallenge) {
+    // while the e-mail OTP is still valid. A pending challenge that is weaker
+    // than the current policy is replaced by the required one below.
+    if (pendingChallenge && challengeSatisfiesPolicy(pendingChallenge.type, challenge)) {
       if (pendingChallenge.type === 'totp') {
         return ctx.send(totpChallengeResponse(token, loginToken));
       }
@@ -278,9 +264,7 @@ module.exports = {
       return ctx.send(otpChallengeResponse(token, loginToken, settings));
     }
 
-    const challenge = await resolveChallenge(settings, user);
-
-    if (challenge === 'setup-required') {
+    if (challenge === 'totp-setup') {
       // The link click proves the mailbox; the user enrols an authenticator
       // before any session exists (controllers/totp.js enroll*).
       const started = await magicLink.startChallenge(token, {
@@ -339,15 +323,18 @@ module.exports = {
    * @returns {Promise<void>}
    */
   async sendLink(ctx) {
+    setNoStoreHeaders(ctx);
     const params = parseBody(sendLinkSchema, ctx.request.body);
 
     if (!(await allowRequest(ctx, ctx.request.ip, 'ip'))) return undefined;
     if (!(await allowRequest(ctx, params.email, 'email'))) return undefined;
 
     const magicLink = plugin().service('magic-link');
+    const locale = i18n.getLocaleFromContext(ctx);
     Promise.resolve()
       .then(() =>
         magicLink.requestLoginLink({
+          locale,
           email: params.email,
           username: params.username,
           context: params.context || {},

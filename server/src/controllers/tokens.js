@@ -2,7 +2,7 @@
 
 const { errors } = require('@strapi/utils');
 const { normalizeEmail } = require('../utils/email');
-const { normalizeIpAddress } = require('../utils/ip-address');
+const { normalizeIpAddress, ipBanKey } = require('../utils/ip-address');
 const { buildLoginUrl } = require('../utils/login-url');
 const {
   adminTokenCreateSchema,
@@ -318,7 +318,8 @@ module.exports = {
     }
     const lastIp = normalizeIpAddress(token.ip_address);
     if (lastIp) {
-      const banned = (await readBannedIps()).some((ip) => normalizeIpAddress(ip) === lastIp);
+      const lastKey = ipBanKey(lastIp);
+      const banned = (await readBannedIps()).some((ip) => ipBanKey(ip) === lastKey);
       if (banned) return ctx.badRequest('This link was used from a banned IP address');
     }
 
@@ -368,7 +369,9 @@ module.exports = {
 
   /**
    * Adds a canonical IP address to the block list and deactivates tokens
-   * last used from it (including the IPv4-mapped IPv6 form).
+   * last used from it (including the IPv4-mapped IPv6 form). Bans match
+   * like the rate limits (utils/ip-address.js ipBanKey): IPv4 exactly,
+   * IPv6 per /64, so an IPv6 ban covers the whole /64 network.
    * @param {object} ctx - Koa context
    */
   async banIP(ctx) {
@@ -381,7 +384,8 @@ module.exports = {
     try {
       const added = await withBanListLock(async () => {
         const ips = await readBannedIps();
-        if (ips.some((existingIp) => normalizeIpAddress(existingIp) === ipAddress)) return false;
+        const banKey = ipBanKey(ipAddress);
+        if (ips.some((existingIp) => ipBanKey(existingIp) === banKey)) return false;
         await pluginStore().set({ key: BANNED_IPS_KEY, value: { ips: [...ips, ipAddress] } });
         return true;
       });
@@ -417,7 +421,8 @@ module.exports = {
   },
 
   /**
-   * Removes a canonical IP address from the block list.
+   * Removes the ban that covers an address: every stored entry with the
+   * same ban key (the exact IPv4 address, or any address of the IPv6 /64).
    * @param {object} ctx - Koa context
    */
   async unbanIP(ctx) {
@@ -428,11 +433,12 @@ module.exports = {
     }
 
     try {
+      const banKey = ipBanKey(ipAddress);
       await withBanListLock(async () => {
         const ips = await readBannedIps();
         await pluginStore().set({
           key: BANNED_IPS_KEY,
-          value: { ips: ips.filter((existingIp) => normalizeIpAddress(existingIp) !== ipAddress) },
+          value: { ips: ips.filter((existingIp) => ipBanKey(existingIp) !== banKey) },
         });
       });
       strapi.log.info(`[magic-link] Admin ${actorId(ctx)} removed an IP ban`);

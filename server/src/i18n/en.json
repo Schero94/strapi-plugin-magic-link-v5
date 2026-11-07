@@ -33,7 +33,9 @@
     "totp.noPendingSetup": "No authenticator setup is in progress. Please start the setup again",
     "totp.invalidEmailCode": "The e-mail code is invalid or has expired",
     "totp.alreadyEnrolled": "An authenticator app is already set up for this account",
-    "auth.required": "Please log in to continue"
+    "auth.required": "Please log in to continue",
+    "settings.security.forbidden": "Changing link targets, templates, account or MFA rules requires the Settings: Security permission",
+    "settings.linkOrigin.notAllowed": "Login link URLs must use an allowed origin"
   },
   "success": {
     "token.created": "Magic Link sent successfully",
@@ -45,5 +47,21 @@
     "settings.updated": "Settings updated successfully",
     "license.created": "License created successfully",
     "license.verified": "License verified successfully"
+  },
+  "mail": {
+    "otp.subject": "Your verification code",
+    "otp.heading": "Your verification code",
+    "otp.intro": "Enter this code to complete your login:",
+    "otp.expires": "This code will expire in {minutes}.",
+    "otp.ignore": "If you didn't request this code, you can safely ignore this email.",
+    "otp.preheader": "Your verification code: {code}",
+    "setup.subject": "Confirm your authenticator app",
+    "setup.intro": "Enter this code to confirm the new authenticator app for your account:",
+    "unit.minute": "{count} minute",
+    "unit.minutes": "{count} minutes",
+    "welcome.subject": "Welcome",
+    "welcome.subjectApp": "Welcome to {app}",
+    "welcome.greeting": "Hi {name},",
+    "welcome.body": "Thanks for joining. Your login link is on the way."
   }
 }

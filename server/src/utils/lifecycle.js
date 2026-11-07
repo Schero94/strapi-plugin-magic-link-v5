@@ -119,6 +119,13 @@ const RBAC_ACTIONS = Object.freeze([
     subCategory: 'Settings',
     pluginName: 'magic-link',
   },
+  {
+    section: 'plugins',
+    displayName: 'Security (link targets, templates, account and MFA rules)',
+    uid: 'settings.security',
+    subCategory: 'Settings',
+    pluginName: 'magic-link',
+  },
 ]);
 
 const LEGACY_ACCESS_ACTION = 'plugin::magic-link.access';

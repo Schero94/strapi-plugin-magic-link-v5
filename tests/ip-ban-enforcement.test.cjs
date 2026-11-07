@@ -107,7 +107,7 @@ test('IP-ban service propagates storage failures for the route policy to deny sa
   await assert.rejects(service.isIPBanned('192.0.2.25'), /IP ban status could not be checked/);
 });
 
-test('IP-ban service matches equivalent IPv6 spellings using canonical addresses', async () => {
+test('IP-ban service matches equivalent IPv6 spellings and the same /64', async () => {
   const service = createMagicLinkService({
     strapi: {
       store: () => ({
@@ -118,6 +118,8 @@ test('IP-ban service matches equivalent IPv6 spellings using canonical addresses
   });
 
   assert.equal(await service.isIPBanned('2001:db8::1'), true);
-  assert.equal(await service.isIPBanned('2001:db8::2'), false);
+  // IPv6 bans match per /64 like the rate limits (utils/ip-address.js ipBanKey).
+  assert.equal(await service.isIPBanned('2001:db8::2'), true);
+  assert.equal(await service.isIPBanned('2001:db8:0:1::1'), false);
   assert.equal(await service.isIPBanned('192.0.2.25'), true);
 });

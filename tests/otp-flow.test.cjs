@@ -242,6 +242,7 @@ const setupOtpController = ({ settings = {}, totpEnabled = false, binding } = {}
     created: [],
     sent: 0,
     edits: [],
+    revokedUsers: [],
   };
   const boundToken =
     binding === null
@@ -278,6 +279,10 @@ const setupOtpController = ({ settings = {}, totpEnabled = false, binding } = {}
     getTOTPStatus: async () => ({ configured: totpEnabled, enabled: totpEnabled }),
   };
   const magicLink = {
+    revokeUserSessions: async (userId) => {
+      state.revokedUsers.push(userId);
+      return { revoked: 0 };
+    },
     validateBindingForChallenge: async (token, email, challenge) =>
       token === 'plaintext-login-token' && email === EMAIL && challenge === 'otp'
         ? boundToken
@@ -370,7 +375,14 @@ test('OTP verify binds to the stored token hash and issues a recorded session (S
     'the OTP login is visible and revocable'
   );
   assert.equal(storeValues.jwt_sessions.sessions[0].source, 'Magic Link + Email OTP');
-  assert.deepEqual(state.edits, [{ id: 9, data: { confirmed: true } }]);
+  // The unconfirmed account is claimed: sessions end, the password is cleared.
+  assert.deepEqual(state.revokedUsers, [9]);
+  assert.deepEqual(state.edits, [
+    {
+      id: 9,
+      data: { confirmed: true, password: null, resetPasswordToken: null, confirmationToken: null },
+    },
+  ]);
   assert.equal(ctx.headers['Cache-Control'], 'no-store');
 });
 

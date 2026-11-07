@@ -665,5 +665,7 @@
   "magic-link.tokens.tabs.otpCodesShort": "OTP",
   "magic-link.tokens.title": "Magic Link Tokens",
   "magic-link.tokens.user.id": "User ID: {id}",
-  "magic-link.tokens.user.new": "Neuer Benutzer"
+  "magic-link.tokens.user.new": "Neuer Benutzer",
+  "magic-link.settings.save.securityForbidden": "Für Änderungen an Link-Zielen, Vorlagen, Konto- oder MFA-Regeln ist die Berechtigung „Einstellungen: Sicherheit“ erforderlich.",
+  "magic-link.settings.save.linkOriginNotAllowed": "Anmeldelinks müssen einen in der Serverkonfiguration erlaubten Origin verwenden."
 }

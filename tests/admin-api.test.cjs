@@ -757,10 +757,10 @@ test('license store-key rejects malformed keys before any network call', () => {
 
 // ─────────────────────── Lifecycle ───────────────────────
 
-test('RBAC actions are read, manage, tokens.issue and settings read/update, all with a subCategory', () => {
+test('RBAC actions are read, manage, tokens.issue and settings read/update/security, all with a subCategory', () => {
   assert.deepEqual(
     lifecycle.RBAC_ACTIONS.map((action) => action.uid),
-    ['read', 'manage', 'tokens.issue', 'settings.read', 'settings.update']
+    ['read', 'manage', 'tokens.issue', 'settings.read', 'settings.update', 'settings.security']
   );
   assert.ok(
     lifecycle.RBAC_ACTIONS.every(

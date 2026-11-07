@@ -57,6 +57,26 @@ const getConfiguredExpiresIn = (settings) => {
 };
 
 /**
+ * Decodes the payload of a JWT without verifying it. Only used to read
+ * claims of tokens the plugin issued itself, or to decide whether a token
+ * must be rejected (never to accept one).
+ *
+ * @param {string} token - JWT.
+ * @returns {object|null} Payload or null.
+ */
+const decodeJwtPayload = (token) => {
+  if (typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    return payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
  * Reads the `exp` claim of a JWT without verifying it. Only used for tokens
  * the plugin itself just issued.
  *
@@ -64,16 +84,9 @@ const getConfiguredExpiresIn = (settings) => {
  * @returns {Date|null} Expiry date or null.
  */
 const decodeJwtExpiry = (token) => {
-  if (typeof token !== 'string') return null;
-  const parts = token.split('.');
-  if (parts.length !== 3) return null;
-  try {
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-    if (!Number.isFinite(payload?.exp)) return null;
-    return new Date(payload.exp * 1000);
-  } catch {
-    return null;
-  }
+  const payload = decodeJwtPayload(token);
+  if (!Number.isFinite(payload?.exp)) return null;
+  return new Date(payload.exp * 1000);
 };
 
 /**
@@ -254,6 +267,10 @@ const issueLoginSession = async (
     jwtManagement: mode,
     ...(issued.upSessionId ? { upSessionId: issued.upSessionId } : {}),
     ...(issued.deviceId ? { deviceId: issued.deviceId } : {}),
+    ...(issued.refreshExpiresAt ? { upFamilyExpiresAt: issued.refreshExpiresAt } : {}),
+    // A legacy JWT without `exp` never expires: its revocation must never
+    // lapse either (see services/magic-link.js blockJwtTokenByHash).
+    ...(issued.expiresAt ? {} : { accessTokenNonExpiring: true }),
     createdAt: now,
     expiresAt: recordExpiresAt.toISOString(),
     accessTokenExpiresAt: expiresAt.toISOString(),
@@ -286,6 +303,7 @@ const setNoStoreHeaders = (ctx) => {
 
 module.exports = {
   decodeJwtExpiry,
+  decodeJwtPayload,
   getConfiguredExpiresIn,
   getJwtManagementMode,
   issueLoginSession,

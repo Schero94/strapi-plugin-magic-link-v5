@@ -61,6 +61,30 @@ short version is the upgrade guide.
   OTP codes). Grant Settings **Read** to roles that used the License page and
   **Issue login links** only to roles that may log in as end users. Super
   Admin gets all actions automatically.
+* **New `plugin::magic-link.settings.security` action** (*Settings > Security*).
+  Changing a setting that can redirect login links (and the token in them),
+  put the raw token into a template, or change who may log in and with which
+  factors now needs it in addition to `settings.update`: `confirmationUrl`,
+  `callback_url`, `frontend_url`, `frontend_login_path`, `login_path`,
+  `passwordlessCompatibility`, `message_html`, `message_text`, the Email
+  Designer / Magic Mail template fields, `enabled`, `createUserIfNotExists`,
+  `user_creation_strategy`, `allow_magic_links_on_public_registration`,
+  `verify_email`, `stays_valid`, `expire_period`, `token_length`,
+  `use_jwt_token`, `jwt_token_expires_in`, `context_whitelist`,
+  `context_blacklist`, `mfa_mode`, `mfa_require_totp`,
+  `totp_as_primary_auth`, `otp_enabled`, `otp_strict_binding`. Sending them
+  unchanged is allowed. A refused save answers 403
+  (`error.details.key: settings.security.forbidden`, `fields`) and writes
+  nothing. `reset-data` with `resetSecurity: true` needs it as well.
+  Migration: the action is never granted automatically (Super Admin has
+  it). Grant **Settings > Security** to the roles that should keep changing
+  link targets, templates, account or MFA rules; roles with only
+  `settings.update` keep sender, rate-limit and OTP/TOTP parameter changes.
+* **Optional `allowedLinkOrigins` plugin config.** When set
+  (`config/plugins.js`, e.g. `['https://app.example.com']`), a changed
+  `confirmationUrl`, `frontend_url` or `callback_url` outside these origins
+  is rejected with 400 (`settings.linkOrigin.notAllowed`), whatever the
+  admin's permissions.
 
 ### BREAKING CHANGES (admin API)
 
@@ -101,6 +125,11 @@ short version is the upgrade guide.
   unverifiable requests now get a formatted 403 with `error.details.code`
   `IP_ADDRESS_BLOCKED` or `IP_BAN_CHECK_UNAVAILABLE` (was a generic
   "Policy Failed").
+* **IPv6 bans cover the /64.** Bans now match with the same granularity as
+  the rate limits: IPv4 exactly, IPv6 per /64 network. Banning one IPv6
+  address blocks every address of its /64; unbanning any address of that
+  /64 removes all stored bans of it. Migration: review IPv6 entries in
+  *IP bans*; an entry now also blocks its neighbours in the same /64.
 * **Settings API.** Only known settings keys are stored and returned; unknown
   and legacy keys (`create_new_user`, `remember_me`, `token_lifetime`, ...)
   are dropped on the next save. `context_whitelist`/`context_blacklist`
@@ -214,7 +243,51 @@ short version is the upgrade guide.
   and the `compatibility-check` policy were removed. With the setting off,
   the path is passed on instead of answering 404.
 
+### BREAKING CHANGES (account claim)
+
+* **Confirming an unconfirmed account clears its password.** When a magic
+  link, an e-mail OTP or the TOTP enrolment during login confirms an
+  account that was still unconfirmed, the plugin first ends every existing
+  session of the account (plugin JWTs and, in refresh mode, all
+  users-permissions refresh families), then confirms it with `password`,
+  `resetPasswordToken` and `confirmationToken` set to null. This stops
+  pre-account hijacking (someone registered the address with their own
+  password before the owner). users-permissions refuses password login
+  without a password. Migration: users who registered with a password and
+  then used a magic link before confirming set a new password through
+  "forgot password". Confirmed accounts are not changed.
+
 ### Security and fixes (login core)
+
+* **Refresh mode: revocation ends the whole refresh family.** @strapi/core
+  5.61 rotates a refresh token into a new session id with the same device
+  id; revoking only the first id left rotated tokens usable. The plugin now
+  revokes by user and device id (`invalidateRefreshToken`), deleting the
+  family including rotated rows; other devices stay logged in. Records from
+  before the device id was stored can still only revoke the first token.
+* **Refresh mode: access tokens of a revoked family are rejected.** While a
+  user has a revoked family (until its maximum lifetime plus one
+  access-token lifespan), the revocation middleware checks the
+  users-permissions session (`isSessionActive`) of that user's access
+  tokens: 401 when it is gone, 503 when the state cannot be read. Other
+  users pay no lookup. Admin routes are never checked.
+* **Legacy JWTs without `exp` stay revoked.** Revoking a JWT that never
+  expires (users-permissions without `expiresIn`) now blocks it permanently
+  instead of for 30 days.
+* **Pending challenges re-check the current MFA policy.** An e-mail OTP no
+  longer completes a login after MFA became required or the user enrolled
+  an authenticator; re-opening the link starts the required challenge.
+  Login-time TOTP enrolment is refused when the user already has an
+  active authenticator.
+* `Cache-Control: no-store` is now sent by every login, OTP and TOTP
+  endpoint, including `send-link`, `otp/send`, `otp/resend`,
+  `totp/status`, `totp/disable` and the admin TOTP status/disable routes.
+* The built-in OTP, authenticator-confirmation and welcome mails are
+  translated (de, en, es, fr, pt) from the request's `?locale=` or
+  `Accept-Language` (FUN-27); custom login templates are unchanged.
+* Multi-instance (AUTH-14) remains open: the session list, JWT blocklist
+  and ban list are plugin-store blobs serialised per process only. See
+  "Running behind a proxy or in a cluster" in the README.
 
 * `POST /api/magic-link/login { loginToken }` added for frontend landing
   pages, so tokens stay out of access logs and Referer headers; `GET` keeps

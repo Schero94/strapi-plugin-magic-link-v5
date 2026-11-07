@@ -33,6 +33,9 @@ const {
 const { resolveMfaMode } = require('../utils/mfa-mode');
 const { filterContext } = require('../utils/context-policy');
 const { issueLoginSession, setNoStoreHeaders } = require('../utils/login-session');
+const i18n = require('../utils/i18n');
+const { claimUnconfirmedAccount } = require('../utils/account-claim');
+const { requiredChallenge, challengeSatisfiesPolicy } = require('../utils/challenge-policy');
 const { normalizeBackupCode } = require('../utils/totp');
 
 const OTP_UID = 'plugin::magic-link.otp-code';
@@ -180,6 +183,7 @@ module.exports = {
    * @returns {Promise<void>}
    */
   async send(ctx) {
+    setNoStoreHeaders(ctx);
     const { email, magicLinkToken } = parseBody(otpSendSchema, ctx.request.body);
     try {
       const otpService = plugin().service('otp');
@@ -222,7 +226,7 @@ module.exports = {
 
       try {
         await otpService.sendOTPEmail(email, otpEntry.code, {
-          subject: 'Your verification code',
+          locale: i18n.getLocaleFromContext(ctx),
           expiryMinutes: minutesOf(otpSettings.expiry),
         });
       } catch {
@@ -298,11 +302,12 @@ module.exports = {
         return ctx.badRequest(GENERIC_FAILURE);
       }
 
-      // An authenticator enrolled after the challenge started always wins.
-      if (resolveMfaMode(settings) !== 'disabled') {
-        const status = await otpService.getTOTPStatus(user.id);
-        if (status?.enabled) return ctx.badRequest(GENERIC_FAILURE);
-      }
+      // Re-check the CURRENT policy: an authenticator enrolled after the
+      // challenge started, or MFA switched to required, means an e-mail code
+      // no longer completes this login (re-opening the link starts the
+      // required challenge).
+      const required = await requiredChallenge(otpService, settings, user.id);
+      if (!challengeSatisfiesPolicy('otp', required)) return ctx.badRequest(GENERIC_FAILURE);
 
       if (boundToken) {
         const consumed = await magicLinkService.consumeChallenge(boundToken, 'otp', {
@@ -312,11 +317,9 @@ module.exports = {
         if (!consumed) return ctx.badRequest(GENERIC_FAILURE);
       }
 
-      // The code was delivered to the mailbox, which proves ownership.
-      if (!user.confirmed) {
-        await strapi.plugin('users-permissions').service('user').edit(user.id, { confirmed: true });
-        user.confirmed = true;
-      }
+      // The code was delivered to the mailbox. An unconfirmed account is
+      // claimed: earlier sessions end and a foreign password is invalidated.
+      await claimUnconfirmedAccount(strapi, user);
 
       const body = await issueLoginSession(strapi, ctx, {
         user,
@@ -340,6 +343,7 @@ module.exports = {
    * @returns {Promise<void>}
    */
   async resend(ctx) {
+    setNoStoreHeaders(ctx);
     const { email, magicLinkToken } = parseBody(otpResendSchema, ctx.request.body);
     try {
       const otpService = plugin().service('otp');
@@ -397,7 +401,7 @@ module.exports = {
 
       try {
         await otpService.sendOTPEmail(email, otpEntry.code, {
-          subject: 'Your new verification code',
+          locale: i18n.getLocaleFromContext(ctx),
           expiryMinutes: minutesOf(otpSettings.expiry),
         });
       } catch {
@@ -606,6 +610,7 @@ module.exports = {
    * @returns {Promise<void>}
    */
   async disableTOTP(ctx) {
+    setNoStoreHeaders(ctx);
     const { token } = parseBody(totpTokenOnlySchema, ctx.request.body);
     try {
       const otpService = plugin().service('otp');
@@ -637,6 +642,7 @@ module.exports = {
    * @returns {Promise<void>}
    */
   async getTOTPStatus(ctx) {
+    setNoStoreHeaders(ctx);
     try {
       const status = await plugin().service('otp').getTOTPStatus(adminPrincipal(ctx));
       return ctx.send({ success: true, data: status });

@@ -31,6 +31,8 @@ const { normalizeEmail } = require('../utils/email');
 const { resolveMfaMode } = require('../utils/mfa-mode');
 const { filterContext } = require('../utils/context-policy');
 const { issueLoginSession, setNoStoreHeaders } = require('../utils/login-session');
+const { claimUnconfirmedAccount } = require('../utils/account-claim');
+const { requiredChallenge, challengeSatisfiesPolicy } = require('../utils/challenge-policy');
 const {
   totpEnrollStartSchema,
   totpEnrollConfirmSchema,
@@ -183,6 +185,15 @@ module.exports = {
     const { token, user } = loaded;
 
     const otpService = plugin().service('otp');
+    const magicLink = plugin().service('magic-link');
+    // Re-check the current policy: if the user enrolled an authenticator
+    // elsewhere meanwhile, this login must verify it, not replace it.
+    const currentSettings = (await magicLink.settings()) || {};
+    const required = await requiredChallenge(otpService, currentSettings, user.id);
+    if (!challengeSatisfiesPolicy('totp-setup', required)) {
+      return i18n.sendError(ctx, 'challenge.invalid', 400);
+    }
+
     const result = await otpService.confirmSetup(user.id, totpCode, { origin: 'login' });
     if (!result.valid) {
       return result.error === 'totp_not_setup'
@@ -190,20 +201,17 @@ module.exports = {
         : i18n.sendError(ctx, 'mfa.invalidCode', 400);
     }
 
-    const magicLink = plugin().service('magic-link');
     const consumed = await magicLink.consumeChallenge(token, 'totp-setup', {
       ipAddress: ctx.request.ip,
       userAgent: ctx.request.header?.['user-agent'],
     });
     if (!consumed) return i18n.sendError(ctx, 'challenge.invalid', 400);
 
-    // The magic link proved ownership of the address.
-    if (!user.confirmed) {
-      await strapi.plugin('users-permissions').service('user').edit(user.id, { confirmed: true });
-      user.confirmed = true;
-    }
+    // The magic link proved ownership of the address. An unconfirmed account is
+    // claimed: earlier sessions end and a foreign password is invalidated.
+    await claimUnconfirmedAccount(strapi, user);
 
-    const settings = (await magicLink.settings()) || {};
+    const settings = currentSettings;
     const body = await issueLoginSession(strapi, ctx, {
       user,
       settings,
@@ -225,6 +233,7 @@ module.exports = {
    * @returns {Promise<void>}
    */
   async status(ctx) {
+    setNoStoreHeaders(ctx);
     const user = requireUser(ctx);
     if (!user) return undefined;
     const status = await plugin().service('otp').getTOTPStatus(user.id);
@@ -281,8 +290,8 @@ module.exports = {
     });
     try {
       await otpService.sendOTPEmail(user.email, entry.code, {
-        subject: 'Confirm your authenticator app',
-        intro: 'Enter this code to confirm the new authenticator app for your account:',
+        locale: i18n.getLocaleFromContext(ctx),
+        purpose: 'setup',
         expiryMinutes: EMAIL_CODE_TTL_SECONDS / 60,
       });
     } catch {
@@ -339,6 +348,7 @@ module.exports = {
    * @returns {Promise<void>}
    */
   async disable(ctx) {
+    setNoStoreHeaders(ctx);
     const { totpCode, backupCode } = parseBody(totpDisableSchema, ctx.request.body);
     const user = requireUser(ctx);
     if (!user) return undefined;

@@ -33,6 +33,8 @@ const QRCode = require('qrcode');
 const emailHelpers = require('../utils/email-helpers');
 const cryptoUtils = require('../utils/crypto');
 const totpUtils = require('../utils/totp');
+const i18n = require('../utils/i18n');
+const { escapeHtml } = require('../utils/template-renderer');
 
 const OTP_UID = 'plugin::magic-link.otp-code';
 const TOTP_UID = 'plugin::magic-link.totp-config';
@@ -286,54 +288,56 @@ module.exports = ({ strapi }) => {
 
     /**
      * Sends a code by e-mail (MagicMail when enabled, else the Strapi e-mail
-     * plugin). Neither the code nor the address is logged.
+     * plugin). Neither the code nor the address is logged. The built-in
+     * texts come from the server translations (server/src/i18n, mail.*) in
+     * the requested locale (de, en, es, fr, pt; English otherwise).
      *
      * @param {string} email - Recipient.
      * @param {string} code - Numeric code.
-     * @param {object} [options] - { subject, expiryMinutes, intro }.
+     * @param {object} [options] - { locale, purpose: 'login'|'setup', expiryMinutes, subject?, intro? }.
      * @returns {Promise<boolean>} True when sent.
      */
     async sendOTPEmail(email, code, options = {}) {
       const settings = await readSettings();
-      const subject = options.subject || 'Your verification code';
+      const locale = options.locale;
+      const t = (key, params) => i18n.t(`mail.${key}`, locale, params);
+      const setup = options.purpose === 'setup';
+      const subject = options.subject || t(setup ? 'setup.subject' : 'otp.subject');
       const expiryMinutes = Math.max(1, Math.ceil(Number(options.expiryMinutes) || 5));
-      const intro = options.intro || 'Enter this code to complete your login:';
+      const intro = options.intro || t(setup ? 'setup.intro' : 'otp.intro');
       const safeCode = String(code).replace(/[^0-9]/g, '');
-      const minutesText = `${expiryMinutes} ${expiryMinutes === 1 ? 'minute' : 'minutes'}`;
+      const minutesText = t(expiryMinutes === 1 ? 'unit.minute' : 'unit.minutes', {
+        count: expiryMinutes,
+      });
+      const heading = t('otp.heading');
+      const expiresText = t('otp.expires', { minutes: minutesText });
+      const ignoreText = t('otp.ignore');
 
       const htmlContent = `
       <div style="text-align: center; padding: 20px;">
-        <h1 style="color: #4F46E5; margin-bottom: 20px;">Your Verification Code</h1>
-        <p style="font-size: 16px; color: #374151; margin-bottom: 30px;">${intro}</p>
+        <h1 style="color: #4F46E5; margin-bottom: 20px;">${escapeHtml(heading)}</h1>
+        <p style="font-size: 16px; color: #374151; margin-bottom: 30px;">${escapeHtml(intro)}</p>
         <div style="background: #4F46E5; color: #ffffff; font-size: 32px; font-weight: bold;
                     letter-spacing: 8px; padding: 20px 40px; border-radius: 12px;
                     display: inline-block; margin-bottom: 30px; font-family: 'Courier New', monospace;">
           ${safeCode}
         </div>
         <p style="font-size: 14px; color: #4B5563; margin-top: 20px;">
-          This code will expire in <strong>${minutesText}</strong>.
+          ${escapeHtml(expiresText)}
         </p>
         <p style="font-size: 14px; color: #4B5563; margin-top: 10px;">
-          If you didn't request this code, you can safely ignore this email.
+          ${escapeHtml(ignoreText)}
         </p>
       </div>
     `;
 
-      const textContent = [
-        'Your Verification Code',
-        '',
-        intro,
-        '',
-        safeCode,
-        '',
-        `This code will expire in ${minutesText}.`,
-        '',
-        "If you didn't request this code, you can safely ignore this email.",
-      ].join('\n');
+      const textContent = [heading, '', intro, '', safeCode, '', expiresText, '', ignoreText].join(
+        '\n'
+      );
 
       const html = emailHelpers.wrapEmailTemplate(htmlContent, {
         title: subject,
-        preheader: `Your verification code: ${safeCode}`,
+        preheader: t('otp.preheader', { code: safeCode }),
       });
       const headers = emailHelpers.getEmailHeaders({ replyTo: settings.response_email });
       const fromName = String(settings.from_name || '')

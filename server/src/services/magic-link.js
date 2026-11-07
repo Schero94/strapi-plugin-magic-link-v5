@@ -21,7 +21,7 @@ const createId = require('../utils/id');
 const emailHelpers = require('../utils/email-helpers');
 const cryptoUtils = require('../utils/crypto');
 const { normalizeEmail } = require('../utils/email');
-const { normalizeIpAddress } = require('../utils/ip-address');
+const { normalizeIpAddress, ipBanKey } = require('../utils/ip-address');
 const { filterContext } = require('../utils/context-policy');
 const { buildLoginUrl } = require('../utils/login-url');
 const {
@@ -29,7 +29,13 @@ const {
   escapeHtml,
   renderTemplate,
 } = require('../utils/template-renderer');
-const { decodeJwtExpiry } = require('../utils/login-session');
+const {
+  decodeJwtExpiry,
+  decodeJwtPayload,
+  getJwtManagementMode,
+} = require('../utils/login-session');
+const { readJwtSessions, updateJwtSessions } = require('../utils/jwt-session-store');
+const i18n = require('../utils/i18n');
 
 const TOKEN_UID = 'plugin::magic-link.token';
 const USER_UID = 'plugin::users-permissions.user';
@@ -48,6 +54,10 @@ const SESSIONS_KEY = 'jwt_sessions';
 // year rather than letting a still-valid token become usable again.
 const UNKNOWN_EXPIRY_MS = 365 * 24 * 60 * 60 * 1000;
 const BLOCKLIST_CACHE_TTL_MS = 2000;
+// users-permissions 5.61 defaults (services/constants.js), used when the
+// project does not configure `sessions.*`.
+const DEFAULT_ACCESS_TOKEN_LIFESPAN_S = 10 * 60;
+const DEFAULT_MAX_REFRESH_TOKEN_LIFESPAN_S = 30 * 24 * 60 * 60;
 
 const DEFAULT_SUBJECT = 'Your login link';
 const DEFAULT_HTML =
@@ -211,10 +221,10 @@ module.exports = ({ strapi }) => {
      * background, so neither status nor timing reveals whether an account
      * exists. Nothing here logs the e-mail address.
      *
-     * @param {{email: string, username?: string, context?: object}} params - Validated request.
+     * @param {{email: string, username?: string, context?: object, locale?: string}} params - Validated request (locale for the welcome mail).
      * @returns {Promise<string>} Outcome code for tests and debug logs.
      */
-    async requestLoginLink({ email, username, context = {} }) {
+    async requestLoginLink({ email, username, context = {}, locale }) {
       const normalizedEmail = normalizeEmail(email);
       if (!normalizedEmail) return 'invalid_email';
       const settings = (await this.settings()) || {};
@@ -241,7 +251,7 @@ module.exports = ({ strapi }) => {
 
       if (!existingUser && settings.welcome_email === true) {
         try {
-          await this.sendWelcomeEmail(user, settings);
+          await this.sendWelcomeEmail(user, settings, locale);
         } catch {
           strapi.log.warn('[magic-link] Welcome e-mail could not be sent');
         }
@@ -676,18 +686,23 @@ module.exports = ({ strapi }) => {
 
     /**
      * Sends the welcome e-mail for accounts created by a magic-link request.
-     * All user-controlled values are HTML-escaped.
+     * Texts come from the server translations (mail.welcome.*); all
+     * user-controlled values are HTML-escaped.
      *
      * @param {object} user - New user.
      * @param {object} settings - Plugin settings.
+     * @param {string} [locale] - de, en, es, fr or pt (English otherwise).
      * @returns {Promise<void>}
      */
-    async sendWelcomeEmail(user, settings) {
+    async sendWelcomeEmail(user, settings, locale) {
+      const t = (key, params) => i18n.t(`mail.${key}`, locale, params);
       const name = user.username || user.email;
       const appName = String(settings?.from_name || '')
         .replace(/[\r\n]+/g, ' ')
         .trim();
       const from = this.resolveSender(settings);
+      const greeting = t('welcome.greeting', { name });
+      const body = t('welcome.body');
       await strapi
         .plugin('email')
         .service('email')
@@ -695,9 +710,9 @@ module.exports = ({ strapi }) => {
           to: user.email,
           ...(from ? { from } : {}),
           ...(settings?.response_email ? { replyTo: settings.response_email } : {}),
-          subject: appName ? `Welcome to ${appName}` : 'Welcome',
-          text: `Hi ${name},\n\nThanks for joining. Your login link is on the way.`,
-          html: `<p>Hi ${escapeHtml(name)},</p><p>Thanks for joining. Your login link is on the way.</p>`,
+          subject: appName ? t('welcome.subjectApp', { app: appName }) : t('welcome.subject'),
+          text: `${greeting}\n\n${body}`,
+          html: `<p>${escapeHtml(greeting)}</p><p>${escapeHtml(body)}</p>`,
         });
     },
 
@@ -730,7 +745,10 @@ module.exports = ({ strapi }) => {
     },
 
     /**
-     * Reads the blocklist, dropping entries that have expired.
+     * Reads the blocklist, dropping entries that have expired. Entries are
+     * either a JWT hash (`tokenHash`) or a users-permissions user whose
+     * refresh family was revoked (`upUserId`, refresh mode). `permanent`
+     * entries (JWTs without `exp`) never expire.
      *
      * @returns {Promise<{tokens: Array}>} Live blocklist.
      */
@@ -740,10 +758,42 @@ module.exports = ({ strapi }) => {
       const now = Date.now();
       return {
         tokens: tokens.filter((entry) => {
-          const exp = new Date(entry?.expiresAt).getTime();
-          return entry?.tokenHash && (!Number.isFinite(exp) || exp > now);
+          if (!entry?.tokenHash && !entry?.upUserId) return false;
+          if (entry.permanent === true) return true;
+          const exp = new Date(entry.expiresAt).getTime();
+          return !Number.isFinite(exp) || exp > now;
         }),
       };
+    },
+
+    /**
+     * Adds blocklist entries in one serialised write. An entry for a hash
+     * that is already blocked is merged (a permanent block stays permanent,
+     * the later expiry wins).
+     *
+     * @param {Array<object>} entries - New entries.
+     * @returns {Promise<void>}
+     */
+    async addBlocklistEntries(entries) {
+      await serialize(async () => {
+        const blocklist = await this.readBlocklist();
+        for (const entry of entries) {
+          const existing = entry.tokenHash
+            ? blocklist.tokens.find((candidate) => candidate.tokenHash === entry.tokenHash)
+            : null;
+          if (!existing) {
+            blocklist.tokens.push(entry);
+            continue;
+          }
+          if (entry.permanent) Object.assign(existing, { permanent: true, expiresAt: null });
+          else if (!existing.permanent && entry.expiresAt > (existing.expiresAt || '')) {
+            existing.expiresAt = entry.expiresAt;
+          }
+          if (entry.upUserId) existing.upUserId = entry.upUserId;
+        }
+        await pluginStore().set({ key: BLOCKLIST_KEY, value: blocklist });
+        blocklistCache = null;
+      });
     },
 
     /**
@@ -763,20 +813,56 @@ module.exports = ({ strapi }) => {
     },
 
     /**
-     * Revokes the users-permissions refresh session behind a plugin session
-     * (refresh mode), so the refresh token cannot mint new access tokens.
+     * Lifespans of the users-permissions session origin in milliseconds.
+     *
+     * @returns {{access: number, maxRefresh: number}} Lifespans.
+     */
+    upLifespans() {
+      const read = (key, fallback) => {
+        const value = Number(strapi.config?.get?.(`plugin::users-permissions.sessions.${key}`));
+        return (Number.isFinite(value) && value > 0 ? value : fallback) * 1000;
+      };
+      return {
+        access: read('accessTokenLifespan', DEFAULT_ACCESS_TOKEN_LIFESPAN_S),
+        maxRefresh: read('maxRefreshTokenLifespan', DEFAULT_MAX_REFRESH_TOKEN_LIFESPAN_S),
+      };
+    },
+
+    /**
+     * Ends the users-permissions refresh family behind a plugin session
+     * (refresh mode).
+     *
+     * @strapi/core 5.61 (services/session-manager.js) rotates a refresh
+     * token by creating a child record with a NEW sessionId and the SAME
+     * deviceId and marking the parent `rotated`. Revoking only the root
+     * sessionId therefore leaves rotated children usable. The plugin gives
+     * every login its own deviceId (random UUID unless the client sends
+     * one), so `invalidateRefreshToken(userId, deviceId)` deletes exactly
+     * this family, rotated rows included, like users-permissions'
+     * device logout. A client that reuses one deviceId for several logins
+     * gets all of them ended, which is the users-permissions device
+     * semantics. Records without a deviceId (created before it was stored)
+     * can only revoke the root session.
      *
      * @param {object} session - Plugin session record.
      * @returns {Promise<boolean>} Whether a session was revoked.
      */
     async revokeUpSession(session) {
       if (!session?.upSessionId || typeof strapi.sessionManager !== 'function') return false;
+      const userId = String(session.userId);
       try {
-        return Boolean(
-          await strapi
-            .sessionManager('users-permissions')
-            .revokeSessionById(String(session.userId), session.upSessionId)
-        );
+        const manager = strapi.sessionManager('users-permissions');
+        const revoked = await manager.revokeSessionById(userId, session.upSessionId);
+        if (session.deviceId && typeof manager.invalidateRefreshToken === 'function') {
+          await manager.invalidateRefreshToken(userId, session.deviceId);
+          return true;
+        }
+        if (!session.deviceId) {
+          strapi.log.warn(
+            '[magic-link] Session record without deviceId: only the first refresh token was revoked'
+          );
+        }
+        return Boolean(revoked);
       } catch {
         strapi.log.error('[magic-link] users-permissions session could not be revoked');
         throw new Error('Failed to revoke users-permissions session');
@@ -793,43 +879,58 @@ module.exports = ({ strapi }) => {
      */
     async blockJwtToken(token, userId, reason = 'Manually revoked') {
       const expiresAt = decodeJwtExpiry(token);
-      return this.blockJwtTokenByHash(cryptoUtils.hashJwt(token), userId, reason, { expiresAt });
+      // A decodable JWT without `exp` never expires; neither may its block.
+      const permanent = !expiresAt && Boolean(decodeJwtPayload(token));
+      return this.blockJwtTokenByHash(cryptoUtils.hashJwt(token), userId, reason, {
+        expiresAt,
+        permanent,
+      });
     },
 
     /**
-     * Blocks a JWT by hash until the token's own expiry (taken from the
-     * option, the plugin session record, or one year when unknown) and
-     * revokes the users-permissions refresh session in refresh mode.
+     * Blocks a JWT by hash and, in refresh mode, ends the users-permissions
+     * refresh family behind it.
+     *
+     * - Expiring JWTs are blocked until their own expiry (taken from the
+     *   option, the plugin session record, or one year when unknown).
+     * - JWTs without `exp` (legacy mode without `expiresIn`) are blocked
+     *   permanently, so the revocation can never lapse.
+     * - Refresh mode: the entry also flags the user (`upUserId`) until the
+     *   family's absolute expiry plus one access-token lifespan. While a
+     *   user is flagged, the revocation middleware checks the
+     *   users-permissions session of each of their access tokens, so access
+     *   tokens minted from rotated refresh tokens die with the family.
      *
      * @param {string} tokenHash - SHA-256 hash of the JWT.
      * @param {string|number} userId - Owner user id.
      * @param {string} [reason] - Reason.
-     * @param {{expiresAt?: Date|string|null}} [options] - Known expiry.
+     * @param {{expiresAt?: Date|string|null, permanent?: boolean}} [options] - Known expiry.
      * @returns {Promise<{success: boolean}>}
      */
     async blockJwtTokenByHash(tokenHash, userId, reason = 'Manually revoked', options = {}) {
       try {
         const session = await this.findSessionByHash(tokenHash);
+        const permanent = options.permanent === true || session?.accessTokenNonExpiring === true;
         const known = options.expiresAt || session?.expiresAt;
         const knownTime = known ? new Date(known).getTime() : NaN;
-        const expiresAt = new Date(
-          Number.isFinite(knownTime) ? knownTime : Date.now() + UNKNOWN_EXPIRY_MS
-        );
+        let expiresMs = Number.isFinite(knownTime) ? knownTime : Date.now() + UNKNOWN_EXPIRY_MS;
+        if (session?.upSessionId) {
+          const familyTime = new Date(session.upFamilyExpiresAt || 0).getTime();
+          const familyEnd = Math.max(expiresMs, Number.isFinite(familyTime) ? familyTime : 0);
+          expiresMs = familyEnd + this.upLifespans().access;
+        }
 
-        await serialize(async () => {
-          const blocklist = await this.readBlocklist();
-          if (!blocklist.tokens.some((entry) => entry.tokenHash === tokenHash)) {
-            blocklist.tokens.push({
-              tokenHash,
-              userId,
-              reason,
-              blockedAt: new Date().toISOString(),
-              expiresAt: expiresAt.toISOString(),
-            });
-          }
-          await pluginStore().set({ key: BLOCKLIST_KEY, value: blocklist });
-          blocklistCache = null;
-        });
+        await this.addBlocklistEntries([
+          {
+            tokenHash,
+            userId,
+            reason,
+            blockedAt: new Date().toISOString(),
+            expiresAt: permanent ? null : new Date(expiresMs).toISOString(),
+            ...(permanent ? { permanent: true } : {}),
+            ...(session?.upSessionId ? { upUserId: String(session.userId) } : {}),
+          },
+        ]);
 
         if (session) await this.revokeUpSession(session);
         return { success: true };
@@ -838,6 +939,73 @@ module.exports = ({ strapi }) => {
         strapi.log.error('[magic-link] Error blocking JWT token');
         throw new Error('Failed to block JWT token');
       }
+    },
+
+    /**
+     * Ends every session of a user: blocks all plugin-issued JWTs of the
+     * user and, in refresh mode, deletes all users-permissions refresh
+     * families of the user and flags the user so access tokens of deleted
+     * sessions are rejected. Used when the mailbox owner claims an
+     * unconfirmed account (pre-account hijacking defence).
+     *
+     * @param {string|number} userId - users-permissions user id.
+     * @param {string} reason - Audit reason.
+     * @returns {Promise<{revoked: number}>} Number of plugin sessions ended.
+     */
+    async revokeUserSessions(userId, reason) {
+      const now = new Date();
+      const nowIso = now.toISOString();
+      const records = (await readJwtSessions(strapi)).filter(
+        (record) => String(record?.userId) === String(userId) && record.jwtTokenHash
+      );
+      const entries = records.map((record) => {
+        const exp = new Date(record.expiresAt).getTime();
+        const permanent = record.accessTokenNonExpiring === true;
+        return {
+          tokenHash: record.jwtTokenHash,
+          userId,
+          reason,
+          blockedAt: nowIso,
+          expiresAt: permanent
+            ? null
+            : new Date(
+                Number.isFinite(exp) ? exp : now.getTime() + UNKNOWN_EXPIRY_MS
+              ).toISOString(),
+          ...(permanent ? { permanent: true } : {}),
+        };
+      });
+
+      const refresh = getJwtManagementMode(strapi) === 'refresh';
+      if (refresh) {
+        const { access, maxRefresh } = this.upLifespans();
+        entries.push({
+          upUserId: String(userId),
+          userId,
+          reason,
+          blockedAt: nowIso,
+          expiresAt: new Date(now.getTime() + maxRefresh + access).toISOString(),
+        });
+      }
+      if (entries.length > 0) await this.addBlocklistEntries(entries);
+
+      if (refresh && typeof strapi.sessionManager === 'function') {
+        const manager = strapi.sessionManager('users-permissions');
+        if (typeof manager?.invalidateRefreshToken === 'function') {
+          await manager.invalidateRefreshToken(String(userId));
+        }
+      }
+
+      if (records.length > 0) {
+        const hashes = new Set(records.map((record) => record.jwtTokenHash));
+        await updateJwtSessions(strapi, (list) =>
+          list.map((record) =>
+            hashes.has(record.jwtTokenHash) && !record.isRevoked
+              ? { ...record, isRevoked: true, revokedAt: nowIso, revokeReason: reason }
+              : record
+          )
+        );
+      }
+      return { revoked: records.length };
     },
 
     async unblockJwtToken(token, userId) {
@@ -878,6 +1046,12 @@ module.exports = ({ strapi }) => {
      * that is invalidated on every local revoke/unrevoke. Store failures
      * throw so the middleware can fail closed.
      *
+     * Refresh mode: when the token is a users-permissions access token
+     * (`type: 'access'` with a `sessionId`) of a user with a revoked
+     * refresh family, the session behind it must still exist
+     * (`isSessionActive`). Only flagged users pay for that lookup; an
+     * unknown session state throws (fail closed).
+     *
      * @param {string} token - JWT to check.
      * @returns {Promise<boolean>} Whether the token is blocked.
      */
@@ -886,11 +1060,34 @@ module.exports = ({ strapi }) => {
         if (!blocklistCache || blocklistCache.expiresAt <= Date.now()) {
           const blocklist = await this.readBlocklist();
           blocklistCache = {
-            hashes: new Set(blocklist.tokens.map((entry) => entry.tokenHash)),
+            hashes: new Set(
+              blocklist.tokens.filter((entry) => entry.tokenHash).map((entry) => entry.tokenHash)
+            ),
+            upUsers: new Set(
+              blocklist.tokens.filter((entry) => entry.upUserId).map((entry) => entry.upUserId)
+            ),
             expiresAt: Date.now() + BLOCKLIST_CACHE_TTL_MS,
           };
         }
-        return blocklistCache.hashes.has(cryptoUtils.hashJwt(token));
+        if (blocklistCache.hashes.has(cryptoUtils.hashJwt(token))) return true;
+        if (blocklistCache.upUsers.size === 0) return false;
+
+        const payload = decodeJwtPayload(token);
+        if (
+          payload?.type !== 'access' ||
+          typeof payload.sessionId !== 'string' ||
+          !blocklistCache.upUsers.has(String(payload.userId))
+        ) {
+          return false;
+        }
+        const manager =
+          typeof strapi.sessionManager === 'function'
+            ? strapi.sessionManager('users-permissions')
+            : null;
+        if (typeof manager?.isSessionActive !== 'function') {
+          throw new Error('users-permissions session state is unavailable');
+        }
+        return !(await manager.isSessionActive(payload.sessionId));
       } catch {
         blocklistCache = null;
         strapi.log.error('[magic-link] JWT revocation lookup failed');
@@ -931,9 +1128,9 @@ module.exports = ({ strapi }) => {
         const bannedIPs = (await pluginStore().get({ key: 'banned_ips' })) || { ips: [] };
         if (!Array.isArray(bannedIPs.ips)) throw new Error('Invalid IP block-list data');
 
-        return bannedIPs.ips.some(
-          (bannedIp) => normalizeIpAddress(bannedIp) === normalizedIpAddress
-        );
+        // Same granularity as the rate limits: IPv4 exact, IPv6 per /64.
+        const requestKey = ipBanKey(normalizedIpAddress);
+        return bannedIPs.ips.some((bannedIp) => ipBanKey(bannedIp) === requestKey);
       } catch {
         strapi.log.error('[Magic-Link] IP ban lookup failed');
         throw new Error('IP ban status could not be checked');
