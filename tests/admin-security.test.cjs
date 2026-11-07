@@ -167,38 +167,28 @@ test('individual and bulk token deletion both require an explicit confirmation',
   assert.ok(bulk.indexOf('window.confirm(') < bulk.indexOf('del('));
 });
 
-test('JWT revoke and unrevoke require localized confirmation before changing access', () => {
+test('JWT revoke, unrevoke and cleanup run only from the manage-gated ConfirmDialog', () => {
   const jwtSessions = source('admin/src/pages/Tokens/JWTSessions.jsx');
-  const revoke = jwtSessions.slice(
-    jwtSessions.indexOf('const handleRevoke ='),
-    jwtSessions.indexOf('const handleUnrevoke ='),
-  );
-  const unrevoke = jwtSessions.slice(
-    jwtSessions.indexOf('const handleUnrevoke ='),
-    jwtSessions.indexOf('const handleCleanup ='),
-  );
+  const section = (from, to) => jwtSessions.slice(jwtSessions.indexOf(from), jwtSessions.indexOf(to));
+  const revoke = section('const handleRevoke =', 'const handleUnrevoke =');
+  const unrevoke = section('const handleUnrevoke =', 'const handleCleanup =');
+  const cleanup = section('const handleCleanup =', 'const handleBulkRevoke =');
 
-  assert.ok(revoke.indexOf("window.confirm(formatMessage({ id: getTrad('jwt.confirm.revoke') }))") >= 0);
-  assert.ok(revoke.indexOf('window.confirm(') < revoke.indexOf("post('/magic-link/revoke-jwt'"));
-  assert.ok(unrevoke.indexOf("window.confirm(formatMessage({ id: getTrad('jwt.confirm.unrevoke') }))") >= 0);
-  assert.ok(unrevoke.indexOf('window.confirm(') < unrevoke.indexOf("post('/magic-link/unrevoke-jwt'"));
-
-  for (const locale of ['de', 'en', 'es', 'fr', 'pt']) {
-    const messages = JSON.parse(source(`admin/src/translations/${locale}.json`));
-    assert.ok(messages['magic-link.jwt.confirm.revoke'], `${locale} revoke confirmation is translated`);
-    assert.ok(messages['magic-link.jwt.confirm.unrevoke'], `${locale} unrevoke confirmation is translated`);
+  for (const [name, block, call] of [
+    ['revoke', revoke, "post('/magic-link/revoke-jwt'"],
+    ['unrevoke', unrevoke, "post('/magic-link/unrevoke-jwt'"],
+    ['cleanup', cleanup, "post('/magic-link/cleanup-sessions')"],
+  ]) {
+    assert.ok(block.indexOf('if (!canManage) return;') >= 0, `${name} checks manage access`);
+    assert.ok(block.indexOf('if (!canManage) return;') < block.indexOf(call), `${name} checks before the request`);
   }
-});
-
-test('JWT session cleanup requires a localized confirmation before revoking expired sessions', () => {
-  const jwtSessions = source('admin/src/pages/Tokens/JWTSessions.jsx');
-  const cleanup = jwtSessions.slice(
-    jwtSessions.indexOf('const handleCleanup ='),
-    jwtSessions.indexOf('const handleSelectAll ='),
-  );
-
-  assert.ok(cleanup.indexOf("window.confirm(formatMessage({ id: getTrad('jwt.confirm.cleanup') }))") >= 0);
-  assert.ok(cleanup.indexOf('window.confirm(') < cleanup.indexOf("post('/magic-link/cleanup-sessions')"));
+  assert.doesNotMatch(jwtSessions, /window\.confirm\(/);
+  // Every mutation is reached only through pendingAction -> ConfirmDialog.onConfirm.
+  assert.match(jwtSessions, /onClick=\{\(\) => setPendingAction\(\{ type: 'revoke', session \}\)\}/);
+  assert.match(jwtSessions, /onClick=\{\(\) => setPendingAction\(\{ type: 'unrevoke', session \}\)\}/);
+  assert.match(jwtSessions, /onClick=\{\(\) => setPendingAction\(\{ type: 'cleanup' \}\)\}/);
+  assert.match(jwtSessions, /<ConfirmDialog\s+isOpen=\{canManage && pendingAction !== null\}[\s\S]*onConfirm=\{confirmPending\}/);
+  assert.match(jwtSessions, /t\(\s*'jwt\.confirm\.cleanup'/);
 
   for (const locale of ['de', 'en', 'es', 'fr', 'pt']) {
     const messages = JSON.parse(source(`admin/src/translations/${locale}.json`));
