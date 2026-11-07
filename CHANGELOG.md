@@ -1,3 +1,17 @@
+# [6.1.0](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v6.0.0...v6.1.0) (2026-11-07)
+
+
+### Bug Fixes
+
+* **server:** fall back from Magic Mail only when nothing was sent ([f741d22](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/f741d22ec850d60fd12c03a6844578262e675a1a))
+
+
+### Features
+
+* **tokens:** bounce and spam-complaint feedback for login e-mails ([a3ab0bb](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/a3ab0bb58b4320ab6cfecb844a8e4cd8e65c2f34))
+* **tokens:** delivery status and bounce feedback for login e-mails ([#22](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/22)) ([200abb8](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/200abb8c93734b715b50b7ae9b45cc7e1ff95dee))
+* **tokens:** record the delivery status of every login e-mail ([48612e8](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/48612e848e0ddeff52cf253e42fa5b5d6855fb41))
+
 # [6.0.0](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v5.6.0...v6.0.0) (2026-11-07)
 
 
