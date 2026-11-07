@@ -28,7 +28,7 @@
       <div class="hero-wrap" id="top">
         <section class="hero" aria-labelledby="page-title">
           <div class="hero-copy">
-            <p class="eyebrow">Strapi 5 plugin · Node.js 22 to 26</p>
+            <p class="eyebrow">Strapi 5 plugin · Node.js 22 to 26 · MIT</p>
             <h1 id="page-title">Passwordless sign-in for Strapi</h1>
             <p class="lead">
               Users enter their e-mail address, click the link and get a normal Users &amp;
@@ -61,6 +61,7 @@
       <div class="layout">
         <nav class="side-nav" aria-label="Page sections">
           <a href="#features">Features</a>
+          <a href="#gallery">Gallery</a>
           <a href="#install">Install</a>
           <a href="#configuration">Configuration</a>
           <a href="#security">Security</a>
@@ -131,6 +132,128 @@
                   strapi-plugin-passwordless working while you switch.
                 </p>
               </article>
+            </div>
+          </section>
+
+          <section class="section" id="gallery" aria-labelledby="gallery-title">
+            <h2 id="gallery-title">Gallery</h2>
+            <p class="section-lead">
+              The admin panel follows the Strapi design system, in light and dark mode and on small
+              screens. All screenshots use synthetic data.
+            </p>
+            <div class="gallery">
+              <figure>
+                <a href="./img/tokens.webp"
+                  ><img
+                    src="./img/tokens.webp"
+                    width="1440"
+                    height="900"
+                    loading="lazy"
+                    alt="Tokens page with status cards for total, active, expired, used and blocked links and a filterable token table"
+                /></a>
+                <figcaption>Tokens: status at a glance, search and filters</figcaption>
+              </figure>
+              <figure>
+                <a href="./img/create-token.webp"
+                  ><img
+                    src="./img/create-token.webp"
+                    width="1440"
+                    height="900"
+                    loading="lazy"
+                    alt="Create Magic Link Token dialog with e-mail address, validity in hours, JSON context and a send-by-e-mail option"
+                /></a>
+                <figcaption>Create a link for a user, with lifetime and context</figcaption>
+              </figure>
+              <figure>
+                <a href="./img/jwt-sessions.webp"
+                  ><img
+                    src="./img/jwt-sessions.webp"
+                    width="1440"
+                    height="900"
+                    loading="lazy"
+                    alt="JWT sessions table with user, IP address, user agent, status and revoke actions"
+                /></a>
+                <figcaption>JWT sessions: revoke one session or a whole refresh family</figcaption>
+              </figure>
+              <figure>
+                <a href="./img/ip-bans.webp"
+                  ><img
+                    src="./img/ip-bans.webp"
+                    width="1440"
+                    height="900"
+                    loading="lazy"
+                    alt="IP bans list with three IPv4 addresses and one IPv6 address"
+                /></a>
+                <figcaption>IP bans for IPv4 addresses and IPv6 /64 networks</figcaption>
+              </figure>
+              <figure>
+                <a href="./img/settings-general.webp"
+                  ><img
+                    src="./img/settings-general.webp"
+                    width="1440"
+                    height="900"
+                    loading="lazy"
+                    alt="General settings with interface language, automatic user creation, reusable links and link lifetime"
+                /></a>
+                <figcaption>Settings: general options and link lifetime</figcaption>
+              </figure>
+              <figure>
+                <a href="./img/settings-mfa.webp"
+                  ><img
+                    src="./img/settings-mfa.webp"
+                    width="1440"
+                    height="900"
+                    loading="lazy"
+                    alt="Sign-in mode cards: magic link only, magic link plus e-mail code, magic link plus authenticator app, and authenticator-only sign-in"
+                /></a>
+                <figcaption>Settings: sign-in modes, e-mail OTP and TOTP MFA</figcaption>
+              </figure>
+              <figure>
+                <a href="./img/license.webp"
+                  ><img
+                    src="./img/license.webp"
+                    width="1440"
+                    height="900"
+                    loading="lazy"
+                    alt="License page stating that no key is registered and all features are available"
+                /></a>
+                <figcaption>License: every feature works without a key</figcaption>
+              </figure>
+              <figure>
+                <a href="./img/tokens-dark.webp"
+                  ><img
+                    src="./img/tokens-dark.webp"
+                    width="1440"
+                    height="900"
+                    loading="lazy"
+                    alt="Tokens page in dark mode"
+                /></a>
+                <figcaption>Dark mode follows the Strapi admin theme</figcaption>
+              </figure>
+            </div>
+            <div class="gallery gallery-mobile">
+              <figure>
+                <a href="./img/mobile-tokens.webp"
+                  ><img
+                    src="./img/mobile-tokens.webp"
+                    width="390"
+                    height="844"
+                    loading="lazy"
+                    alt="Tokens shown as cards on a 390 pixel wide phone screen"
+                /></a>
+                <figcaption>Tokens on a phone</figcaption>
+              </figure>
+              <figure>
+                <a href="./img/mobile-jwt-sessions.webp"
+                  ><img
+                    src="./img/mobile-jwt-sessions.webp"
+                    width="390"
+                    height="844"
+                    loading="lazy"
+                    alt="JWT sessions page with status cards on a 390 pixel wide phone screen"
+                /></a>
+                <figcaption>JWT sessions on a phone</figcaption>
+              </figure>
             </div>
           </section>
 
@@ -226,6 +349,77 @@ MAGIC_LINK_OTP_PEPPER=...</code></pre>
                 </tbody>
               </table>
             </div>
+            <div class="table-wrap">
+              <table>
+                <caption>
+                  Settings you will touch first
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Key</th>
+                    <th scope="col">Default</th>
+                    <th scope="col">Meaning</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>frontend_url</code>, <code>frontend_login_path</code></td>
+                    <td>empty, <code>/auth/magic-link</code></td>
+                    <td>Your landing page (https; http only for localhost)</td>
+                  </tr>
+                  <tr>
+                    <td><code>expire_period</code></td>
+                    <td><code>3600</code></td>
+                    <td>Link lifetime in seconds</td>
+                  </tr>
+                  <tr>
+                    <td><code>stays_valid</code></td>
+                    <td><code>false</code></td>
+                    <td>Allow a link to be used more than once until it expires</td>
+                  </tr>
+                  <tr>
+                    <td><code>jwt_token_expires_in</code></td>
+                    <td><code>30d</code></td>
+                    <td>JWT lifetime in legacy mode</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>rate_limit_max_attempts</code>, <code>rate_limit_window_minutes</code>
+                    </td>
+                    <td><code>5</code>, <code>15</code></td>
+                    <td>Requests per IP and per address in the window</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>createUserIfNotExists</code> +
+                      <code>allow_magic_links_on_public_registration</code>
+                    </td>
+                    <td><code>true</code>, <code>false</code></td>
+                    <td>Create accounts on first login (also needs users-permissions sign-ups)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="code-card">
+              <div class="code-label">config/plugins.js (optional)</div>
+              <pre><code>module.exports = () =&gt; ({
+  'magic-link': {
+    config: {
+      // Login links may only point at these origins.
+      allowedLinkOrigins: ['https://app.example.com'],
+      // Shared rate limits for several instances.
+      rateLimit: { redis: { storeClient: redisClient, useRedisPackage: true } },
+      // No calls to the license server.
+      license: { remoteLookup: false },
+    },
+  },
+});</code></pre>
+            </div>
+            <p>
+              Required environment: <code>MAGIC_LINK_ENCRYPTION_KEY</code> (AES-256-GCM key for TOTP
+              secrets) and <code>MAGIC_LINK_OTP_PEPPER</code> (keys the OTP and backup-code hashes).
+              <code>MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS</code> rotates the key at the next start.
+            </p>
             <p>
               E-mail templates use placeholders such as <code>{{LOGIN_URL}}</code>,
               <code>{{EXPIRY_TEXT}}</code> and <code>{{USER}}</code>. Values are HTML-escaped and no
@@ -240,30 +434,61 @@ MAGIC_LINK_OTP_PEPPER=...</code></pre>
 
           <section class="section" id="security" aria-labelledby="security-title">
             <h2 id="security-title">Security</h2>
-            <ul>
-              <li>
-                Link tokens carry at least 132 bits, are stored salted and hashed, and expire.
-              </li>
-              <li>A single-use link is consumed atomically: parallel clicks give one session.</li>
-              <li>
-                Second-factor state lives on the server. Clients cannot set reserved context keys.
-              </li>
-              <li>
-                OTP attempts are counted before comparison and TOTP codes cannot be replayed. TOTP
-                secrets are encrypted with AES-256-GCM.
-              </li>
-              <li>
-                Revoked JWTs stay blocked until they expire. In refresh mode the Users &amp;
-                Permissions session is revoked too.
-              </li>
-              <li>
-                Every admin route checks a plugin permission on the server. Issuing links without
-                e-mail, which lets an admin act as the user, needs its own permission.
-              </li>
-              <li>Plugin logs contain no e-mail addresses, tokens or login URLs.</li>
-            </ul>
+            <p class="section-lead">What is protected, and how.</p>
+            <div class="card-grid">
+              <article class="card">
+                <h3>Login links</h3>
+                <p>
+                  At least 132 bits, stored salted and hashed, expiring. A single-use link is
+                  consumed with a conditional update, so parallel clicks give one session.
+                </p>
+              </article>
+              <article class="card">
+                <h3>No account discovery</h3>
+                <p>
+                  <code>send-link</code> answers before any lookup or delivery, with the same body
+                  and timing for every address.
+                </p>
+              </article>
+              <article class="card">
+                <h3>Second factors</h3>
+                <p>
+                  Challenge state lives on the server. OTP attempts are counted before the
+                  comparison, TOTP codes cannot be replayed, and code checks are limited to 10 per
+                  account and 15 minutes even with rate limiting off.
+                </p>
+              </article>
+              <article class="card">
+                <h3>Sessions</h3>
+                <p>
+                  Revoked JWTs stay blocked until they expire. In refresh mode a revocation ends the
+                  whole users-permissions refresh family, rotated tokens included.
+                </p>
+              </article>
+              <article class="card">
+                <h3>Pre-account hijacking</h3>
+                <p>
+                  Confirming an unconfirmed account by link, OTP or enrolment first ends its
+                  sessions and clears a password someone else may have set.
+                </p>
+              </article>
+              <article class="card">
+                <h3>Admin permissions</h3>
+                <p>
+                  Every admin route checks a permission on the server. Impersonation
+                  (<code>tokens.issue</code>) and settings that redirect links
+                  (<code>settings.security</code>) have their own permissions.
+                </p>
+              </article>
+            </div>
+            <p class="callout warning">
+              Known limits: MFA covers the Magic Link login paths only, so disable password or
+              social logins you do not use. In a cluster, two admins writing the session, block or
+              ban list at the same moment on different instances can lose one change.
+            </p>
             <p>
-              Report vulnerabilities privately through
+              Plugin logs contain no e-mail addresses, tokens or login URLs. Report vulnerabilities
+              privately through
               <a
                 href="https://github.com/Schero94/strapi-plugin-magic-link-v5/security/advisories/new"
                 >GitHub security advisories</a
@@ -347,10 +572,58 @@ const result = await res.json();
               </table>
             </div>
             <p>
-              Admin routes live under <code>/magic-link</code> and require the <code>read</code>,
-              <code>manage</code>, <code>tokens.issue</code>, <code>settings.read</code> or
-              <code>settings.update</code> permission. The README lists every route with request and
-              response examples.
+              Errors use the Strapi envelope with a stable <code>error.key</code>, for example
+              <code>token.invalid</code>, <code>mfa.invalidCode</code> or
+              <code>rate.limit.exceeded</code> (with <code>details.retryAfter</code>). Messages are
+              translated into English, German, French, Spanish and Portuguese.
+            </p>
+            <p>
+              With <code>jwtManagement: 'refresh'</code> in Users &amp; Permissions, logins return a
+              short-lived JWT and a refresh token; renew with the native
+              <code>POST /api/auth/refresh</code>.
+            </p>
+            <div class="table-wrap">
+              <table>
+                <caption>
+                  Admin routes (under
+                  <code>/magic-link</code
+                  >, admin JWT required)
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Permission</th>
+                    <th scope="col">Routes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>read</code></td>
+                    <td>List tokens, OTP codes, JWT sessions and IP bans; the admin's own TOTP</td>
+                  </tr>
+                  <tr>
+                    <td><code>manage</code></td>
+                    <td>
+                      Create, block, extend and delete tokens; revoke sessions; ban IPs; cleanups
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>tokens.issue</code></td>
+                    <td>Create a link without e-mail (returns the link to the admin)</td>
+                  </tr>
+                  <tr>
+                    <td><code>settings.read</code>, <code>settings.update</code></td>
+                    <td>Settings, rate-limit statistics and reset, license</td>
+                  </tr>
+                  <tr>
+                    <td><code>settings.security</code></td>
+                    <td>Link targets, templates, account, MFA and rate-limit rules</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              The README lists every public and admin route with request and response examples and
+              all error answers.
             </p>
           </section>
 
@@ -361,6 +634,38 @@ const result = await res.json();
               the upgrade guide in the README. It covers the new secrets, admin permissions, the
               POST token exchange and template placeholders.
             </p>
+            <div class="table-wrap">
+              <table>
+                <caption>
+                  Maintenance status
+                </caption>
+                <tbody>
+                  <tr>
+                    <th scope="row">Next release</th>
+                    <td>6.0.0 (major, e-mail only, security hardening)</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Strapi</th>
+                    <td>5.24.0 or newer, tested on 5.61.0; 5.33.3+ for refresh mode</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Node.js</th>
+                    <td>22 to 26</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Dependencies</th>
+                    <td>
+                      Weekly Dependabot updates; patch and minor updates merge after lint, tests,
+                      build and verify pass
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Support</th>
+                    <td>GitHub issues; security reports through private advisories</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
             <p>
               Releases use semantic-release and Conventional Commits. The workflow installs from the
               lockfile without lifecycle scripts. It runs lint, format check, tests, build and

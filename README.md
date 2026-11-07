@@ -1,6 +1,6 @@
 # Magic Link for Strapi 5
 
-Passwordless login for Strapi 5. Users type their e-mail address, click the link in their inbox and are signed in with a normal users-permissions session. Optional second factors: an e-mailed one-time code (OTP) or an authenticator app (TOTP) with backup codes.
+Passwordless login for Strapi 5. Your users type their e-mail address, click the link in their inbox and get a normal Users & Permissions session, the same kind `/api/auth/local` creates. When you need more than a link, add a second factor: an e-mailed one-time code (OTP) or an authenticator app (TOTP) with backup codes.
 
 [![npm version](https://img.shields.io/npm/v/strapi-plugin-magic-link-v5.svg)](https://www.npmjs.com/package/strapi-plugin-magic-link-v5)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -8,17 +8,19 @@ Passwordless login for Strapi 5. Users type their e-mail address, click the link
 
 **Project site:** [schero94.github.io/strapi-plugin-magic-link-v5](https://schero94.github.io/strapi-plugin-magic-link-v5/)
 
-![Token dashboard](pics/token-dashboard.png)
+![Magic Link tokens page in the Strapi admin panel](pics/tokens.png)
 
 ## Contents
 
 - [What you get](#what-you-get)
+- [Screenshots](#screenshots)
 - [Requirements](#requirements)
 - [Quick start (5 minutes)](#quick-start-5-minutes)
 - [Frontend integration](#frontend-integration)
 - [Second factors: e-mail OTP, TOTP and backup codes](#second-factors-e-mail-otp-totp-and-backup-codes)
 - [Refresh mode (users-permissions sessions)](#refresh-mode-users-permissions-sessions)
 - [Public API](#public-api)
+- [Errors](#errors)
 - [Admin API](#admin-api)
 - [Permissions](#permissions)
 - [Configuration reference](#configuration-reference)
@@ -32,22 +34,48 @@ Passwordless login for Strapi 5. Users type their e-mail address, click the link
 
 ## What you get
 
-- **Magic links by e-mail.** One API call sends the link. Your landing page exchanges it for a JWT, the same session the native `/api/auth/local` login creates.
+- **Magic links by e-mail.** One API call sends the link. Your landing page exchanges it for a JWT.
 - **Optional second factors.**
   - E-mail OTP after the link click.
-  - Authenticator apps (TOTP) as optional or required MFA, including enrolment during sign-in, self-service for logged-in users and one-time backup codes.
-  - TOTP-only login.
+  - Authenticator apps (TOTP) as optional or required MFA: enrolment during sign-in, self-service for logged-in users, and one-time backup codes.
+  - TOTP-only login without an e-mail round trip.
 - **Built for production.**
-  - Links are hashed and single-use, and a link is consumed atomically.
-  - Rate limits apply per IP and per address.
-  - IP bans, a JWT session list with revocation, and an audit-friendly admin API.
+  - Links are stored hashed, expire, and a single-use link is consumed atomically.
+  - Rate limits per IP and per address, IP bans, and an always-on limit for code checks.
+  - A JWT session list with revocation, also for users-permissions refresh sessions.
 - **Works with your stack.** Users & Permissions (legacy JWTs and refresh-token sessions), the Strapi e-mail plugin, Magic Mail, Email Designer 5, and a `strapi-plugin-passwordless` compatibility mode.
 - **Admin panel.**
   - Pages for tokens, OTP codes, JWT sessions, IP bans, settings and license.
   - Light and dark mode, translated into English, German, French, Spanish and Portuguese.
-  - Fine-grained RBAC.
+  - Fine-grained admin permissions, enforced on the server.
 
 Magic Link is **e-mail only**. WhatsApp and SMS delivery were removed in 6.0.0.
+
+## Screenshots
+
+All screenshots use synthetic data (`example.test` addresses and documentation IP ranges).
+
+| Tokens                                                        | Create a token                                           |
+| ------------------------------------------------------------- | -------------------------------------------------------- |
+| ![Tokens list with status cards and filters](pics/tokens.png) | ![Create Magic Link Token dialog](pics/create-token.png) |
+
+| JWT sessions                                                           | IP bans                                                     |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------- |
+| ![JWT sessions with active and revoked entries](pics/jwt-sessions.png) | ![IP ban list with IPv4 and IPv6 entries](pics/ip-bans.png) |
+
+| Settings: general                                      | Settings: sign-in modes and MFA                          |
+| ------------------------------------------------------ | -------------------------------------------------------- |
+| ![General settings section](pics/settings-general.png) | ![Sign-in mode and MFA selection](pics/settings-mfa.png) |
+
+| License                           | Dark mode                                         |
+| --------------------------------- | ------------------------------------------------- |
+| ![License page](pics/license.png) | ![Tokens page in dark mode](pics/tokens-dark.png) |
+
+On phones the tables turn into cards:
+
+| Tokens on a phone                                                  | JWT sessions on a phone                                                    |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| ![Tokens as cards on a 390 px wide screen](pics/mobile-tokens.png) | ![JWT sessions page on a 390 px wide screen](pics/mobile-jwt-sessions.png) |
 
 ## Requirements
 
@@ -128,18 +156,44 @@ curl -X POST http://localhost:1337/api/magic-link/send-link \
 { "email": "ada@example.com", "username": null, "sent": true, "delivery": "email" }
 ```
 
-The answer is the same whether or not the account exists, so it cannot be used to discover users. By default only existing users get a link; see [auto-registration](#auto-registration) to create accounts on first login.
+The answer is the same whether or not the account exists, so nobody can use it to find out who has an account. By default only existing users get a link; see [auto-registration](#auto-registration) to create accounts on first login.
 
-The public routes need no role configuration. They are open by design and protected by rate limits and IP bans.
+The public routes need no role configuration. They are open by design (`auth: false`) and protected by rate limits and IP bans.
 
 ## Frontend integration
 
-Your landing page receives `?loginToken=...`, sends it to Strapi with **POST** (so it never appears in access logs, caches or `Referer` headers), and then reacts to the answer.
+A complete login has three parts: a form that requests the link, a landing page that exchanges the token, and a place to keep the JWT.
+
+### 1. Request the link
 
 ```js
-// /auth/magic-link page, framework-agnostic
+// Login form, framework-agnostic
 const API = 'https://api.example.com/api/magic-link';
 
+export async function requestMagicLink(email) {
+  const response = await fetch(`${API}/send-link`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    // Optional context comes back in the login response (see below).
+    body: JSON.stringify({ email, context: { redirectTo: '/dashboard' } }),
+  });
+  if (response.status === 429) {
+    throw new Error('Too many requests. Please wait a moment and try again.');
+  }
+  if (!response.ok) {
+    const { error } = await response.json();
+    throw new Error(error?.message || 'The link could not be requested.');
+  }
+  // Always "sent": tell the user to check their inbox.
+}
+```
+
+### 2. Exchange the token on the landing page
+
+The landing page receives `?loginToken=...`. Send the token to Strapi with **POST**, so it never shows up in access logs, caches or `Referer` headers, then react to the answer.
+
+```js
+// /auth/magic-link page
 async function post(path, body) {
   const response = await fetch(`${API}${path}`, {
     method: 'POST',
@@ -184,7 +238,24 @@ export async function completeMagicLink() {
 }
 ```
 
-Store `jwt` like any users-permissions JWT and send it as `Authorization: Bearer <jwt>`.
+`askUser`, `showQrCode` and `showBackupCodesOnce` stand for your own UI.
+
+### 3. Store the JWT and call your API
+
+The `jwt` is a normal users-permissions JWT. Send it as `Authorization: Bearer <jwt>`.
+
+```js
+const session = await completeMagicLink();
+sessionStorage.setItem('jwt', session.jwt); // or keep it in memory
+location.assign(session.context?.redirectTo || '/');
+
+// Later
+const me = await fetch('https://api.example.com/api/users/me', {
+  headers: { Authorization: `Bearer ${sessionStorage.getItem('jwt')}` },
+}).then((r) => r.json());
+```
+
+Anything in web storage can be read by a script injected into your page. If that matters for you, keep the JWT in memory and use [refresh mode](#refresh-mode-users-permissions-sessions) with the refresh token in an httpOnly cookie.
 
 `GET /api/magic-link/login?loginToken=...` still works. You can point `confirmationUrl` straight at it, but the token then ends up in server logs, so prefer the POST exchange.
 
@@ -220,9 +291,13 @@ Choose the mode in **Settings > Magic Link > Settings > Sign-in modes and MFA**.
 
 A user with an active authenticator always gets the TOTP step, even when e-mail OTP is also enabled.
 
-### Authenticator self-service for logged-in users
+### End-user TOTP enrolment
 
-These routes use the users-permissions JWT. Grant the **Magic-link > totp** actions (`status`, `setup`, `confirm`, `disable`, `backupCodes`) to the **Authenticated** role in _Settings > Users & Permissions > Roles_.
+There are two ways for a user to add an authenticator.
+
+**During sign-in (required MFA).** When `mfa_mode` is `required` and the user has no authenticator, `/login` answers `requiresTOTPSetup`. The landing page calls `POST /totp/enroll { loginToken }`, shows the QR code, and finishes with `POST /totp/enroll/confirm { loginToken, totpCode }`. That response is the session plus ten backup codes (see the [frontend example](#2-exchange-the-token-on-the-landing-page)). The pending setup is valid for 15 minutes. The link click already proved the mailbox, so no extra e-mail code is needed.
+
+**From the account (self-service).** These routes use the users-permissions JWT. Grant the **Magic-link > totp** actions (`status`, `setup`, `confirm`, `disable`, `backupCodes`) to the **Authenticated** role in _Settings > Users & Permissions > Roles_.
 
 ```js
 const auth = { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' };
@@ -234,7 +309,7 @@ const { data } = await fetch(`${API}/totp/setup`, {
   headers: auth,
   body: '{}',
 }).then((r) => r.json());
-// data: { qrCode, secret, otpauthUrl, algorithm, digits, period, expiresAt, emailCodeSent: true }
+// data: { secret, qrCode, otpauthUrl, algorithm, digits, period, expiresAt, emailCodeSent: true }
 
 // 2. Confirm with a code from the app AND the e-mailed code.
 await fetch(`${API}/totp/confirm`, {
@@ -246,6 +321,8 @@ await fetch(`${API}/totp/confirm`, {
 
 // Status, new backup codes (needs a current code), remove (TOTP or backup code)
 await fetch(`${API}/totp/status`, { headers: auth });
+// { data: { configured, enabled, pendingSetup, lastUsed, backupCodesRemaining,
+//           algorithm, digits, period, mfaMode } }
 await fetch(`${API}/totp/backup-codes`, {
   method: 'POST',
   headers: auth,
@@ -275,7 +352,7 @@ Algorithm, digits and period are stored with each enrolment, so changing the TOT
 
 ## Refresh mode (users-permissions sessions)
 
-With `jwtManagement: 'refresh'` in the users-permissions config, Magic Link logins behave exactly like `/api/auth/local`:
+With `jwtManagement: 'refresh'` in the users-permissions config, Magic Link logins behave like `/api/auth/local`: the plugin creates the session through the users-permissions session manager.
 
 ```js
 // config/plugins.js
@@ -289,54 +366,42 @@ module.exports = {
 };
 ```
 
-- The response contains a short-lived `jwt` and a `refreshToken`. With `sessions.httpOnly: true`, or the request header `x-strapi-refresh-cookie: httpOnly`, the refresh token is set as an httpOnly cookie instead.
-- Renew with the native `POST /api/auth/refresh`.
-- Revoking a session in **Magic Link > JWT Sessions** ends the whole users-permissions refresh family: the first refresh token and every token rotated from it (`POST /api/auth/refresh` creates a new session id with the same device id; the plugin revokes by user and device id). Each Magic Link login gets its own device id unless the client sends `deviceId`; a client that reuses one `deviceId` for several logins gets all of them ended, like the users-permissions device logout.
-- Access tokens minted from a revoked family are rejected as well. users-permissions itself accepts an access token until it expires; while a user has a revoked family (until the family's maximum lifetime plus one access-token lifespan), the plugin checks the users-permissions session of each of that user's access tokens (`isSessionActive`, one database lookup per request for that user only) and answers `401` when it is gone, `503` when the state cannot be read.
+- The response contains a short-lived `jwt` and a `refreshToken`. With `sessions.httpOnly: true`, or the request header `x-strapi-refresh-cookie: httpOnly`, the refresh token is set as an httpOnly cookie (default name `strapi_up_refresh`) instead and left out of the body.
+- Renew with the native `POST /api/auth/refresh`, sending `{ refreshToken }` or the cookie. Log out with `POST /api/auth/logout`.
+- You may send `deviceId` with `/login`, `/verify-mfa-totp`, `/login-totp` or `/totp/enroll/confirm`, as with `/api/auth/local`. Without it, every Magic Link login gets its own device id.
+- Revoking a session in **Magic Link > JWT Sessions** ends the whole users-permissions refresh family: the first refresh token and every token rotated from it. (`POST /api/auth/refresh` creates a new session id with the same device id; the plugin revokes by user and device id.) A client that reuses one `deviceId` for several logins gets all of them ended, like the users-permissions device logout.
+- Access tokens minted from a revoked family are rejected as well. users-permissions itself accepts an access token until it expires. While a user has a revoked family (until the family's maximum lifetime plus one access-token lifespan), the plugin checks the users-permissions session of each of that user's access tokens (`isSessionActive`, one database lookup per request for that user only). It answers `401` when the session is gone and `503` when the state cannot be read.
 - Session records written before the device id was stored can only revoke the first refresh token.
 
 In the default `legacy-support` mode the JWT lifetime comes from the plugin setting `jwt_token_expires_in` (for example `15m`, `12h`, `30d`).
 
 ## Public API
 
-All routes are under `/api/magic-link`. Errors use the Strapi envelope with a stable key:
-
-```json
-{
-  "data": null,
-  "error": {
-    "status": 400,
-    "name": "ValidationError",
-    "message": "Invalid or expired login link",
-    "key": "token.invalid",
-    "details": { "key": "token.invalid" }
-  }
-}
-```
-
-Messages are translated (`en`, `de`, `fr`, `es`, `pt`) from `?locale=` or `Accept-Language`. A rate-limited request gets `429` with `details.retryAfter` in seconds.
+All routes are under `/api/magic-link` (or your `api.rest.prefix`). Every response of these routes sends `Cache-Control: no-store` and `Referrer-Policy: no-referrer`. Unknown body fields are rejected with 400.
 
 | Method | Path                   | Auth              | Body                                                       | Success response                                                                 |
 | ------ | ---------------------- | ----------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `POST` | `/send-link`           | none              | `{ email, username?, context?, delivery? }`                | `{ email, username, sent: true, delivery: "email" }`                             |
-| `POST` | `/login`               | none              | `{ loginToken }`                                           | session, or a challenge (`requiresOTP`, `requiresTOTP`, `requiresTOTPSetup`)     |
+| `POST` | `/login`               | none              | `{ loginToken, deviceId? }`                                | session, or a challenge (`requiresOTP`, `requiresTOTP`, `requiresTOTPSetup`)     |
 | `GET`  | `/login?loginToken=`   | none              | (query)                                                    | same as `POST /login`                                                            |
 | `POST` | `/otp/send`            | none              | `{ email, magicLinkToken }`                                | `{ success, message, expiresIn, type: "email" }`                                 |
-| `POST` | `/otp/resend`          | none              | `{ email, magicLinkToken }`                                | same as `/otp/send`, after `otp_resend_cooldown`                                 |
+| `POST` | `/otp/resend`          | none              | `{ email, magicLinkToken }`                                | `{ success, message, expiresIn }`, after `otp_resend_cooldown`                   |
 | `POST` | `/otp/verify`          | none              | `{ email, code, magicLinkToken }`                          | session with `otpVerified: true`                                                 |
 | `POST` | `/verify-mfa-totp`     | none              | `{ loginToken, totpCode }` or `{ loginToken, backupCode }` | session with `mfaVerified: true`                                                 |
 | `POST` | `/login-totp`          | none              | `{ email, totpCode }`                                      | session with `loginMethod: "totp"` (TOTP-only mode)                              |
-| `POST` | `/totp/enroll`         | none (loginToken) | `{ loginToken }`                                           | `{ data: { qrCode, secret, otpauthUrl, algorithm, digits, period, expiresAt } }` |
+| `POST` | `/totp/enroll`         | none (loginToken) | `{ loginToken }`                                           | `{ data: { secret, qrCode, otpauthUrl, algorithm, digits, period, expiresAt } }` |
 | `POST` | `/totp/enroll/confirm` | none (loginToken) | `{ loginToken, totpCode }`                                 | session plus `backupCodes`                                                       |
-| `GET`  | `/totp/status`         | users-permissions |                                                            | `{ data: { enabled, ..., mfaMode } }`                                            |
-| `POST` | `/totp/setup`          | users-permissions | `{}` or `{ totpCode }` when already enrolled               | `{ data: { qrCode, secret, ..., emailCodeSent: true } }`                         |
+| `GET`  | `/totp/status`         | users-permissions |                                                            | `{ data: { configured, enabled, ..., mfaMode } }`                                |
+| `POST` | `/totp/setup`          | users-permissions | `{}` or `{ totpCode }` when already enrolled               | `{ data: { secret, qrCode, ..., emailCodeSent: true } }`                         |
 | `POST` | `/totp/confirm`        | users-permissions | `{ totpCode, emailCode }`                                  | `{ data: { enabled: true, backupCodes } }`                                       |
 | `POST` | `/totp/disable`        | users-permissions | `{ totpCode }` or `{ backupCode }`                         | `{ data: { enabled: false } }`                                                   |
 | `POST` | `/totp/backup-codes`   | users-permissions | `{ totpCode }`                                             | `{ data: { backupCodes } }`                                                      |
 
-Unknown body fields are rejected with 400. `phoneNumber`, `phone`, `via` and any `delivery` other than `"email"` return a clear "only e-mail delivery is supported" error.
+`magicLinkToken` is the `loginToken` from the `/login` challenge. It is required while `otp_strict_binding` is on (the default).
 
-**Session response** (every successful login):
+### Session response
+
+Every successful login answers like this:
 
 ```json
 {
@@ -351,23 +416,74 @@ Unknown body fields are rejected with 400. `phoneNumber`, `phone`, `via` and any
   },
   "context": { "redirectTo": "/billing" },
   "expires_at": "2026-12-07T10:00:00.000Z",
-  "refreshToken": "only in refresh mode"
+  "refreshToken": "only in refresh mode, unless the cookie is used"
 }
 ```
 
-The user object passes Strapi's content-API sanitizer, so private fields are never returned. With `use_jwt_token: false` no token is minted and the body carries `jwtIssued: false`.
+- The user object passes Strapi's content-API sanitizer, so private fields are never returned.
+- Second-factor logins add `otpVerified: true`, `mfaVerified: true` (plus `backupCodesRemaining` after a backup code) or `loginMethod: "totp"`.
+- With `use_jwt_token: false` no token is minted: the body has `user`, `context` and `jwtIssued: false`.
 
-**Challenge responses** from `/login`:
+### Challenge responses from `/login`
 
 ```json
-{ "requiresOTP": true, "email": "ada@example.com", "loginToken": "...", "expiresIn": 300 }
-{ "requiresTOTP": true, "email": "ada@example.com", "loginToken": "..." }
-{ "requiresTOTPSetup": true, "email": "ada@example.com", "loginToken": "...", "enrollEndpoint": "/api/magic-link/totp/enroll" }
+{ "requiresOTP": true, "message": "OTP verification required", "email": "ada@example.com", "loginToken": "...", "expiresIn": 300 }
+{ "requiresTOTP": true, "message": "TOTP verification required for MFA", "email": "ada@example.com", "loginToken": "..." }
+{ "requiresTOTPSetup": true, "message": "Set up an authenticator app to continue", "email": "ada@example.com", "loginToken": "...", "enrollEndpoint": "/api/magic-link/totp/enroll" }
 ```
+
+Opening the same link again while a challenge is pending returns the same challenge. It does not send a new e-mail while the code is still valid.
+
+## Errors
+
+Most errors use the Strapi error envelope with a stable `key`:
+
+```json
+{
+  "data": null,
+  "error": {
+    "status": 400,
+    "name": "ValidationError",
+    "message": "Invalid or expired token",
+    "key": "token.invalid",
+    "details": { "key": "token.invalid" }
+  }
+}
+```
+
+`message` is translated (`en`, `de`, `fr`, `es`, `pt`) from `?locale=` or `Accept-Language`. Build your UI on `key`, not on the text.
+
+| Status | `key`                      | When                                                                             |
+| ------ | -------------------------- | -------------------------------------------------------------------------------- |
+| 400    | `token.invalid`            | The link is missing, expired, used, blocked, or its account no longer exists     |
+| 400    | `challenge.invalid`        | The `loginToken` has no matching pending TOTP or enrolment step                  |
+| 400    | `mfa.invalidCode`          | Wrong TOTP or backup code                                                        |
+| 400    | `credentials.invalid`      | `/login-totp`: unknown account, no authenticator or wrong code (one answer)      |
+| 400    | `totp.noPendingSetup`      | Confirm without a started setup, or the setup expired                            |
+| 400    | `totp.invalidEmailCode`    | `/totp/confirm`: the e-mailed code is wrong or expired                           |
+| 400    | `totp.notEnrolled`         | `/totp/disable` or `/totp/backup-codes` without an authenticator                 |
+| 401    | `auth.required`            | Self-service routes without a users-permissions JWT                              |
+| 403    | `blocked.user`             | The account is blocked                                                           |
+| 403    | `totp.currentCodeRequired` | `/totp/setup` while an authenticator is active, without a current `totpCode`     |
+| 403    | `totp.loginDisabled`       | `/login-totp` while `totp_as_primary_auth` is off                                |
+| 409    | `totp.alreadyEnrolled`     | `/totp/enroll` for a user who already has an authenticator                       |
+| 429    | `rate.limit.exceeded`      | Rate limit hit; `details.retryAfter` and the `Retry-After` header give seconds   |
+| 503    | `otp.deliveryFailed`       | The OTP e-mail could not be sent (`details.resendEndpoint` points at the resend) |
+
+Some answers do not carry a `key`. Handle them by status:
+
+- **Body validation** (unknown field, bad e-mail, removed `phoneNumber`/`phone`/`via`/non-e-mail `delivery`): `400 ValidationError` with a message such as `Invalid request body at 'email': ...`.
+- **IP bans**: `403 ForbiddenError` with `details.code: "IP_ADDRESS_BLOCKED"`. When the ban list cannot be read: `403 PolicyError` with `details.code: "IP_BAN_CHECK_UNAVAILABLE"`.
+- **`/otp/send`, `/otp/resend`, `/otp/verify`**: plain Strapi errors.
+  - A wrong or expired code answers `400` "Invalid or expired verification code".
+  - Limits answer `429` with a "try again in N seconds" message and a `Retry-After` header.
+  - A failed OTP e-mail answers `503 { "success": false, "error": { "code": "OTP_EMAIL_FAILED", ... } }`.
+  - A `magicLinkToken` that does not match gets the same answer as a valid one (`{ "success": true, "message": "If the request is valid, a verification code will be sent." }`), so the route cannot be used to test tokens.
+- **Revoked JWTs** on any Content API route: `401 UnauthorizedError` "This token has been revoked"; `503` when the revocation state cannot be read.
 
 ## Admin API
 
-Admin routes live under `/magic-link` on the admin server. They require an admin JWT and the listed plugin permission. They are what the admin pages call; you rarely need them directly.
+Admin routes live under `/magic-link` on the Strapi server (not under `/api`). They need an admin JWT (`Authorization: Bearer <admin token>`) and the listed permission. The admin pages use them; you rarely need them directly.
 
 | Method   | Path                                  | Permission        | Purpose                                                                                              |
 | -------- | ------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------- |
@@ -375,16 +491,16 @@ Admin routes live under `/magic-link` on the admin server. They require an admin
 | `POST`   | `/magic-link/tokens`                  | `manage`          | Create a link: `{ email, ttl?, send_email?, context? }` (ttl in hours, 1-720)                        |
 | `POST`   | `/magic-link/tokens/:id/block`        | `manage`          | Deactivate a link                                                                                    |
 | `POST`   | `/magic-link/tokens/:id/activate`     | `manage`          | Re-activate (refused for used single-use or expired links)                                           |
-| `POST`   | `/magic-link/tokens/:id/extend`       | `manage`          | `{ days }`, 1-365                                                                                    |
+| `POST`   | `/magic-link/tokens/:id/extend`       | `manage`          | `{ days }`, 1-365 (default 7)                                                                        |
 | `DELETE` | `/magic-link/tokens/:id`              | `manage`          | Delete a link                                                                                        |
 | `GET`    | `/magic-link/jwt-sessions`            | `read`            | Sessions issued by Magic Link                                                                        |
 | `POST`   | `/magic-link/revoke-jwt`              | `manage`          | `{ sessionId }` or `{ token }`                                                                       |
 | `POST`   | `/magic-link/unrevoke-jwt`            | `manage`          | `{ sessionId }` (not for refresh-mode sessions)                                                      |
 | `POST`   | `/magic-link/cleanup-sessions`        | `manage`          | Remove expired session records                                                                       |
-| `GET`    | `/magic-link/banned-ips`              | `read`            | List bans                                                                                            |
+| `GET`    | `/magic-link/banned-ips`              | `read`            | `{ ips: [...] }`                                                                                     |
 | `POST`   | `/magic-link/ban-ip`                  | `manage`          | `{ data: { ip } }`                                                                                   |
 | `POST`   | `/magic-link/unban-ip`                | `manage`          | `{ data: { ip } }`                                                                                   |
-| `GET`    | `/magic-link/otp/codes`               | `read`            | `?page=&pageSize=&email=&type=` (pageSize max 100 in the UI)                                         |
+| `GET`    | `/magic-link/otp/codes`               | `read`            | `?page=&pageSize=&email=&type=&status=`; codes, stats and pagination (no code hashes)                |
 | `DELETE` | `/magic-link/otp/codes/:id`           | `manage`          | Delete one code                                                                                      |
 | `POST`   | `/magic-link/otp/cleanup`             | `manage`          | Remove expired codes                                                                                 |
 | `GET`    | `/magic-link/settings`                | `settings.read`   | Read settings                                                                                        |
@@ -402,7 +518,47 @@ Admin routes live under `/magic-link` on the admin server. They require an admin
 | `POST`   | `/magic-link/otp/totp/disable`        | `read`            | `{ token }`                                                                                          |
 | `POST`   | `/magic-link/otp/totp/backup-codes`   | `read`            | `{ token }`                                                                                          |
 
-**Creating a link without sending it** (`send_email: false`) returns `token` and `loginUrl` once, which lets the admin log in as that user. It therefore also needs the separate `tokens.issue` permission. Admin creation is limited to 60 per admin per 15 minutes.
+A missing permission answers `403`; a missing or expired admin token answers `401`.
+
+#### Example: create and e-mail a link
+
+```bash
+curl -X POST http://localhost:1337/magic-link/tokens \
+  -H "Authorization: Bearer $ADMIN_JWT" -H 'Content-Type: application/json' \
+  -d '{"email":"ada@example.com","ttl":24,"context":{"redirectTo":"/onboarding"}}'
+```
+
+```json
+{
+  "id": 42,
+  "documentId": "k2m9x0...",
+  "email": "ada@example.com",
+  "expires_at": "2026-11-08T10:00:00.000Z",
+  "is_active": true,
+  "is_used": false,
+  "context": { "redirectTo": "/onboarding" },
+  "sent": true
+}
+```
+
+- With `send_email: false` the link is not mailed. The response then also carries `token` and `loginUrl`, once, which lets the admin log in as that user. That needs the separate `tokens.issue` permission (otherwise `403` with `details.key: "tokens.issue.forbidden"`).
+- An unknown address gets an account only when `createUserIfNotExists` is on; otherwise `400`. A blocked user answers `400`.
+- Creation is limited to 60 per admin per 15 minutes (`429` with `details.retryAfter`).
+- If the e-mail cannot be sent, the token is deactivated and the answer is `503`.
+
+#### Example: revoke a session and ban an address
+
+```bash
+curl -X POST http://localhost:1337/magic-link/revoke-jwt \
+  -H "Authorization: Bearer $ADMIN_JWT" -H 'Content-Type: application/json' \
+  -d '{"sessionId":"session_1762500000000_a1b2c3d4e5f6"}'
+# { "success": true, "message": "JWT session revoked successfully" }   (404 when the id is unknown)
+
+curl -X POST http://localhost:1337/magic-link/ban-ip \
+  -H "Authorization: Bearer $ADMIN_JWT" -H 'Content-Type: application/json' \
+  -d '{"data":{"ip":"203.0.113.50"}}'
+# { "success": true, "message": "IP 203.0.113.50 has been banned" }   (400 for an invalid address)
+```
 
 ## Permissions
 
@@ -419,7 +575,14 @@ Admin routes live under `/magic-link` on the admin server. They require an admin
 
 The server enforces these on every route; the admin pages hide what a role cannot do. Super Admin has all of them.
 
-**Security settings** need `settings.security` in addition to `settings.update`, because they can redirect login links (and the login token in them) to another site, put the raw token into a template, or change who may log in and with which factors: `confirmationUrl`, `callback_url`, `frontend_url`, `frontend_login_path`, `login_path`, `passwordlessCompatibility`, `message_html`, `message_text`, the Email Designer and Magic Mail template fields, `enabled`, `createUserIfNotExists`, `user_creation_strategy`, `allow_magic_links_on_public_registration`, `verify_email`, `stays_valid`, `expire_period`, `token_length`, `use_jwt_token`, `jwt_token_expires_in`, `context_whitelist`, `context_blacklist`, `mfa_mode`, `mfa_require_totp`, `totp_as_primary_auth`, `otp_enabled`, `otp_strict_binding`, and the code and brute-force rules `otp_length`, `otp_expiry`, `otp_max_attempts`, `otp_resend_cooldown`, `totp_algorithm`, `totp_digits`, `totp_period`, `rate_limit_enabled`, `rate_limit_max_attempts`, `rate_limit_window_minutes`, `rate_limit_login_*` and `max_login_attempts`. Sending them unchanged is allowed, so a role with `settings.update` only can still save the sender, subject, welcome mail and TOTP issuer. `reset-data` without `settings.security` keeps every security setting. A refused change answers `403` with `error.details.key: 'settings.security.forbidden'` and the field names; nothing is written. `settings.security` is never granted automatically: grant it only to roles that may decide where login links point (Super Admin has it).
+**Role migration from 5.x.** 5.x had a single `plugin::magic-link.access` action. On the first start of 6.0.0, every admin role (and admin API token) that still holds it gets **Read** and **Manage**, and the old permission is removed. `tokens.issue`, `settings.read`, `settings.update` and `settings.security` are never granted automatically. After the upgrade, open each role and grant **Settings > Read** to roles that used the License page. If Strapi already dropped the unknown `access` action before the migration ran, there is nothing to migrate: grant the new actions by hand.
+
+**Security settings** need `settings.security` in addition to `settings.update`. They can redirect login links (and the login token in them) to another site, put the raw token into a template, or change who may log in and with which factors: `confirmationUrl`, `callback_url`, `frontend_url`, `frontend_login_path`, `login_path`, `passwordlessCompatibility`, `message_html`, `message_text`, the Email Designer and Magic Mail template fields, `enabled`, `createUserIfNotExists`, `user_creation_strategy`, `allow_magic_links_on_public_registration`, `verify_email`, `stays_valid`, `expire_period`, `token_length`, `use_jwt_token`, `jwt_token_expires_in`, `context_whitelist`, `context_blacklist`, `mfa_mode`, `mfa_require_totp`, `totp_as_primary_auth`, `otp_enabled`, `otp_strict_binding`, and the code and brute-force rules `otp_length`, `otp_expiry`, `otp_max_attempts`, `otp_resend_cooldown`, `totp_algorithm`, `totp_digits`, `totp_period`, `rate_limit_enabled`, `rate_limit_max_attempts`, `rate_limit_window_minutes`, `rate_limit_login_*` and `max_login_attempts`.
+
+- Sending them unchanged is allowed, so a role with `settings.update` only can still save the sender, subject, welcome mail and TOTP issuer.
+- `reset-data` without `settings.security` keeps every security setting.
+- A refused change answers `403` with `error.details.key: 'settings.security.forbidden'` and the field names; nothing is written.
+- `settings.security` is never granted automatically. Grant it only to roles that may decide where login links point (Super Admin has it).
 
 For a hard limit that no admin can change, list the allowed link origins in the server config (`allowedLinkOrigins`, see [Plugin config](#plugin-config-configpluginsjs)).
 
@@ -434,34 +597,35 @@ For a hard limit that no admin can change, list the allowed link origins in the 
 
 Stored in the plugin store and edited in **Settings > Magic Link > Settings**. Unknown keys are ignored.
 
-| Key                                                           | Default                         | Meaning                                                               |
-| ------------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------- |
-| `enabled`                                                     | `true`                          | Master switch                                                         |
-| `expire_period`                                               | `3600`                          | Link lifetime in seconds (10 to 31536000)                             |
-| `token_length`                                                | `32`                            | Link token length, 22 to 128 characters                               |
-| `stays_valid`                                                 | `false`                         | Allow a link to be used more than once until it expires               |
-| `frontend_url`, `frontend_login_path`                         | `''`, `/auth/magic-link`        | Landing page for links (https; http only for localhost)               |
-| `confirmationUrl`                                             | `''`                            | Alternative link target when no frontend URL is set                   |
-| `createUserIfNotExists`                                       | `true`                          | Allow auto-registration (needs the next two as well)                  |
-| `allow_magic_links_on_public_registration`                    | `false`                         | Send links to unknown addresses and create the account on first login |
-| `user_creation_strategy`                                      | `email`                         | `email`, `emailUsername` or `manual` username for new accounts        |
-| `use_jwt_token`, `jwt_token_expires_in`                       | `true`, `30d`                   | Issue a JWT; lifetime in legacy mode (`15m`, `12h`, `30d`)            |
-| `store_login_info`                                            | `true`                          | Record IP address and user agent on the token                         |
-| `context_whitelist`, `context_blacklist`                      | `[]`, `[password, ...]`         | Context keys allowed or always removed                                |
-| `from_name`, `from_email`, `response_email`                   | see admin                       | Sender; an empty `from_email` uses the e-mail plugin `defaultFrom`    |
-| `object`, `message_html`, `message_text`                      | built-in template               | Subject and bodies, see [E-mail templates](#e-mail-templates)         |
-| `use_magic_mail`, `magic_mail_template_id`                    | `false`                         | Send through Magic Mail                                               |
-| `use_email_designer`, `email_designer_template_id`            | `false`                         | Send through Email Designer 5                                         |
-| `otp_enabled`                                                 | `false`                         | E-mail OTP after the link                                             |
-| `otp_length`, `otp_expiry`                                    | `6`, `300`                      | Code length (4 to 16) and lifetime in seconds                         |
-| `otp_max_attempts`, `otp_resend_cooldown`                     | `3`, `60`                       | Attempts per code; seconds before a resend                            |
-| `otp_strict_binding`                                          | `true`                          | OTP routes need the `magicLinkToken` from `/login`. Keep it on.       |
-| `mfa_mode`                                                    | `disabled`                      | `disabled`, `optional` or `required` TOTP after the link              |
-| `totp_as_primary_auth`                                        | `false`                         | Enable `POST /login-totp`                                             |
-| `totp_issuer`, `totp_algorithm`, `totp_digits`, `totp_period` | `Magic Link`, `SHA1`, `6`, `30` | Defaults for new enrolments                                           |
-| `rate_limit_enabled`                                          | `true`                          | Rate limiting on the public routes                                    |
-| `rate_limit_max_attempts`, `rate_limit_window_minutes`        | `5`, `15`                       | Requests per IP and per address in the window                         |
-| `passwordlessCompatibility`                                   | `false`                         | Serve `/api/passwordless/*`                                           |
+| Key                                                                                                  | Default                         | Meaning                                                               |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------- |
+| `enabled`                                                                                            | `true`                          | Master switch                                                         |
+| `expire_period`                                                                                      | `3600`                          | Link lifetime in seconds (10 to 31536000)                             |
+| `token_length`                                                                                       | `32`                            | Link token length, 22 to 128 characters                               |
+| `stays_valid`                                                                                        | `false`                         | Allow a link to be used more than once until it expires               |
+| `frontend_url`, `frontend_login_path`                                                                | `''`, `/auth/magic-link`        | Landing page for links (https; http only for localhost)               |
+| `confirmationUrl`                                                                                    | `''`                            | Alternative link target when no frontend URL is set                   |
+| `createUserIfNotExists`                                                                              | `true`                          | Allow auto-registration (needs the next one and sign-ups as well)     |
+| `allow_magic_links_on_public_registration`                                                           | `false`                         | Send links to unknown addresses and create the account on first login |
+| `user_creation_strategy`                                                                             | `email`                         | `email`, `emailUsername` or `manual` username for new accounts        |
+| `use_jwt_token`, `jwt_token_expires_in`                                                              | `true`, `30d`                   | Issue a JWT; lifetime in legacy mode (`15m`, `12h`, `30d`)            |
+| `store_login_info`                                                                                   | `true`                          | Record IP address and user agent on the token                         |
+| `context_whitelist`, `context_blacklist`                                                             | `[]`, `[password, ...]`         | Context keys allowed or always removed                                |
+| `from_name`, `from_email`, `response_email`                                                          | see admin                       | Sender; an empty `from_email` uses the e-mail plugin `defaultFrom`    |
+| `object`, `message_html`, `message_text`                                                             | built-in template               | Subject and bodies, see [E-mail templates](#e-mail-templates)         |
+| `use_magic_mail`, `magic_mail_template_id`                                                           | `false`                         | Send through Magic Mail                                               |
+| `use_email_designer`, `email_designer_template_id`                                                   | `false`                         | Send through Email Designer 5                                         |
+| `otp_enabled`                                                                                        | `false`                         | E-mail OTP after the link                                             |
+| `otp_length`, `otp_expiry`                                                                           | `6`, `300`                      | Code length (4 to 16) and lifetime in seconds                         |
+| `otp_max_attempts`, `otp_resend_cooldown`                                                            | `3`, `60`                       | Attempts per code; seconds before a resend                            |
+| `otp_strict_binding`                                                                                 | `true`                          | OTP routes need the `magicLinkToken` from `/login`. Keep it on.       |
+| `mfa_mode`                                                                                           | `disabled`                      | `disabled`, `optional` or `required` TOTP after the link              |
+| `totp_as_primary_auth`                                                                               | `false`                         | Enable `POST /login-totp`                                             |
+| `totp_issuer`, `totp_algorithm`, `totp_digits`, `totp_period`                                        | `Magic Link`, `SHA1`, `6`, `30` | Defaults for new enrolments                                           |
+| `rate_limit_enabled`                                                                                 | `true`                          | Rate limiting on the public routes                                    |
+| `rate_limit_max_attempts`, `rate_limit_window_minutes`                                               | `5`, `15`                       | Requests per IP and per address in the window                         |
+| `rate_limit_login_max_attempts`, `rate_limit_login_window_minutes`, `rate_limit_login_block_minutes` | `10`, `15`, `30`                | Link exchanges and TOTP logins per IP, and the block after the limit  |
+| `passwordlessCompatibility`                                                                          | `false`                         | Serve `/api/passwordless/*`                                           |
 
 ### Plugin config (`config/plugins.js`)
 
@@ -481,6 +645,8 @@ module.exports = ({ env }) => ({
   },
 });
 ```
+
+`allowedLinkOrigins` entries must be bare origins such as `https://app.example.com`; anything else stops Strapi at startup with a clear error.
 
 ### Environment variables
 
@@ -530,11 +696,13 @@ Templates from 5.x that use `<%= URL %>?loginToken=<%= CODE %>` are converted to
 
 ## Security model
 
-- **Links**
-  - Tokens have 132 or more bits of entropy and are stored salted and hashed.
+What is protected, and how:
+
+- **Login links**
+  - Tokens have 132 or more bits of entropy and are stored salted and hashed, never in clear.
   - A single-use link is consumed with a conditional update, so parallel clicks yield exactly one session.
   - Links expire after `expire_period`.
-- **No account discovery.** `send-link` answers before any lookup or delivery: identical body, identical timing.
+- **No account discovery.** `send-link` answers before any lookup or delivery: identical body, identical timing. `/login-totp` gives one answer for unknown accounts, missing authenticators and wrong codes.
 - **Server-side challenge state.**
   - Second-factor progress lives in a private token field, never in client-supplied context.
   - Reserved context keys are rejected.
@@ -548,19 +716,22 @@ Templates from 5.x that use `<%= URL %>?loginToken=<%= CODE %>` are converted to
   - Admin and end-user authenticators live in separate namespaces (`admin:<id>`, `up:<id>`).
 - **Sessions**
   - The JWT lifetime is honoured, and a revoked token stays blocked until it would have expired. A legacy JWT without `exp` (users-permissions configured without `expiresIn`) is blocked permanently, so its revocation never lapses; remove such an entry only with "restore".
+  - Every legacy JWT carries a random `jti`, so revoking one session never ends another session of the same user.
   - In refresh mode, revocation ends the whole refresh family (rotated tokens included) and rejects access tokens minted from it (see [Refresh mode](#refresh-mode-users-permissions-sessions)).
-- **Pre-account hijacking.** With e-mail confirmation on, someone can register `/api/auth/local/register` with another person's address and a password of their choice. When the mailbox owner then confirms that unconfirmed account through a magic link, an e-mail OTP or the TOTP enrolment during login, the plugin first ends every existing session of the account (plugin JWTs and all users-permissions refresh families), then confirms it with the password, reset token and confirmation token cleared. The owner sets a password through "forgot password" if they want password login. Already confirmed accounts are not touched.
-- **MFA policy changes.** A challenge that was started before the MFA settings (or the user's authenticator) changed is re-checked when it completes. An e-mail OTP no longer completes a login once MFA is required or the user enrolled an authenticator; opening the link again starts the required challenge.
   - The `Authorization` header is parsed like users-permissions does it. The revocation check runs on Content API requests (REST and GraphQL) only and fails closed (503) there; admin routes are never affected. Paths are matched case-insensitively, like the Strapi routers (`/API/users/me` is checked too).
-- **Scope of MFA.** The MFA settings apply to the Magic Link login paths. Other ways to get a users-permissions session, such as `/api/auth/local` with a password or a social provider, do not ask for a second factor. Disable the ones you do not use (for example, no passwords: accounts created by Magic Link have none).
+- **Pre-account hijacking.** With e-mail confirmation on, someone can register through `/api/auth/local/register` with another person's address and a password of their choice. When the mailbox owner then confirms that unconfirmed account through a magic link, an e-mail OTP or the TOTP enrolment during login, the plugin first ends every existing session of the account (plugin JWTs and all users-permissions refresh families), then confirms it with the password, reset token and confirmation token cleared. The owner sets a password through "forgot password" if they want password login. Already confirmed accounts are not touched.
+- **MFA policy changes.** A challenge that was started before the MFA settings (or the user's authenticator) changed is re-checked when it completes. An e-mail OTP no longer completes a login once MFA is required or the user enrolled an authenticator; opening the link again starts the required challenge.
+- **Scope of MFA.** The MFA settings apply to the Magic Link login paths. Other ways to get a users-permissions session, such as `/api/auth/local` with a password or a social provider, do not ask for a second factor. Disable the ones you do not use (accounts created by Magic Link have no password).
 - **Transport and logs**
-  - Every login, OTP and TOTP response (including `totp/status` and `totp/disable`) sends `Cache-Control: no-store` and `Referrer-Policy: no-referrer`.
+  - Every public Magic Link response sends `Cache-Control: no-store` and `Referrer-Policy: no-referrer`.
   - Plugin logs contain no e-mail addresses, tokens or URLs with tokens.
 - **Admin**
-  - RBAC is enforced server-side on every route.
+  - Permissions are enforced on the server for every route.
   - Impersonation needs its own permission, and so do settings that redirect links or change identity rules (`settings.security`).
   - The license key is masked for readers.
 - **Templates.** Placeholder rendering only; there is no code execution.
+
+Known limitation: in a cluster, concurrent admin writes to the session list, blocklist or ban list can overwrite each other (see [cluster notes](#running-behind-a-proxy-or-in-a-cluster)).
 
 Report vulnerabilities privately through [GitHub security advisories](https://github.com/Schero94/strapi-plugin-magic-link-v5/security/advisories/new).
 
@@ -596,17 +767,19 @@ When the setting is off, those paths are passed on to Strapi untouched.
 
 ## Troubleshooting
 
-| Symptom                                                | Fix                                                                                                                                      |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Strapi does not start: "MAGIC_LINK_ENCRYPTION_KEY ..." | Set both secrets (32+ characters) or `MAGIC_LINK_ALLOW_DEV_SECRETS=true` locally                                                         |
-| `send-link` says sent but no e-mail arrives            | The address has no account (and auto-registration is off), or the e-mail provider failed. Check the Strapi log for `[magic-link]` lines. |
-| Link opens but answers `token.invalid`                 | The link expired, was already used, was blocked, or the token was cut off by the mail client                                             |
-| Settings refuse my URL                                 | Use `https://` (http only for `localhost`)                                                                                               |
-| Everyone shares one rate limit / bans hit the proxy    | Configure `server.proxy` (see above)                                                                                                     |
-| 403 `IP_ADDRESS_BLOCKED`                               | The IP is banned. Unban it in **Magic Link > IP Bans**.                                                                                  |
-| 400 "Only e-mail delivery is supported"                | Remove `phoneNumber`, `phone`, `via` and non-e-mail `delivery` from the request                                                          |
-| Users cannot reach `/totp/status` (403)                | Grant the **totp** actions to the Authenticated role                                                                                     |
-| Admins see no Magic Link menu after upgrading          | Grant **Read** (and **Manage**) to their role; see the upgrade guide                                                                     |
+| Symptom                                                   | Fix                                                                                                                                      |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Strapi does not start: "MAGIC_LINK_ENCRYPTION_KEY ..."    | Set both secrets (32+ characters) or `MAGIC_LINK_ALLOW_DEV_SECRETS=true` locally                                                         |
+| `send-link` says sent but no e-mail arrives               | The address has no account (and auto-registration is off), or the e-mail provider failed. Check the Strapi log for `[magic-link]` lines. |
+| Link opens but answers `token.invalid`                    | The link expired, was already used, was blocked, or the token was cut off by the mail client                                             |
+| `/otp/send` answers 400 "magicLinkToken is required"      | Call `/login` first and pass its `loginToken` as `magicLinkToken`                                                                        |
+| Settings refuse my URL                                    | Use `https://` (http only for `localhost`), and check `allowedLinkOrigins`                                                               |
+| Everyone shares one rate limit / bans hit the proxy       | Configure `server.proxy` (see above)                                                                                                     |
+| 403 with `IP_ADDRESS_BLOCKED`                             | The IP is banned. Unban it in **Magic Link > IP Bans**.                                                                                  |
+| 400 "Only e-mail delivery is supported"                   | Remove `phoneNumber`, `phone`, `via` and non-e-mail `delivery` from the request                                                          |
+| Users cannot reach `/totp/status` (403)                   | Grant the **totp** actions to the Authenticated role                                                                                     |
+| Saving settings answers 403 `settings.security.forbidden` | The role lacks **Settings > Security** for the listed fields                                                                             |
+| Admins see no Magic Link menu after upgrading             | Grant **Read** (and **Manage**) to their role; see the upgrade guide                                                                     |
 
 ## Upgrading from 5.x to 6.0.0
 
@@ -616,14 +789,14 @@ When the setting is off, those paths are passed on to Strapi untouched.
 2. **Secrets.** Set `MAGIC_LINK_ENCRYPTION_KEY` and `MAGIC_LINK_OTP_PEPPER` (32+ characters each). If your old encryption key was shorter, or you relied on the development fallback, put the old value in `MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS` for the first start. For the old fallback that value is your `ADMIN_JWT_SECRET`.
 3. **E-mail only.** Remove WhatsApp/SMS fields from `send-link` calls. Delete a leftover `.whatsapp-auth` folder from releases up to 5.2.x.
 4. **Admin roles.** `access` became `read`, `manage`, `settings.read` and `settings.update`, plus `tokens.issue` for impersonation and `settings.security` for security settings.
-   - On startup, roles holding `access` get **Read** and **Manage** automatically.
+   - On startup, roles holding `access` get **Read** and **Manage** automatically (see [role migration](#permissions)).
    - Check each role, and grant **Settings > Read** to roles that used the License page.
    - Grant **Settings > Security** only to roles that may change link targets, templates, account and MFA rules. It is never granted automatically.
 5. **Frontend.**
    - Exchange the token with `POST /login { loginToken }`.
    - Handle `requiresTOTPSetup` if you use required MFA.
    - Read `expires_at` instead of the removed `expiry_formatted`.
-   - Read errors from `error.key`.
+   - Read errors from `error.key` (see [Errors](#errors) for the answers without a key).
 6. **Templates.** Replace JavaScript in templates with `{{PLACEHOLDERS}}`. Plain `<%= VAR %>` placeholders are converted automatically.
 7. **URLs.** `frontend_url`, `confirmationUrl` and `callback_url` must be `https` (http only for localhost).
 8. **Tokens.** `token_length` is now 22 to 128. Unhashed links from very old releases stop working.
