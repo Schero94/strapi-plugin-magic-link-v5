@@ -1,3 +1,10 @@
+# [7.1.0](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v7.0.0...v7.1.0) (2026-11-07)
+
+
+### Features
+
+* honour the Magic Mail 4.4 outbox for login links and OTP codes ([#26](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/26)) ([9ff18b9](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/9ff18b99380e209e842e2f3a5029b3987bc6019a))
+
 ## [Unreleased]
 
 Next release: **7.1.0** (minor). Login links and OTP codes work with the Magic Mail 4.4 outbox: a captured login mail is never sent after the link or code expired, never stored twice, and never sent a second time by another provider.
