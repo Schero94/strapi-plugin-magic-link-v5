@@ -100,7 +100,7 @@ export const HeaderContent = styled(Flex)`
   }
 `;
 
-/** Large bold white text on the gradient (contrast rule: >= 18px or >= 14px bold). */
+/** White title on the gradient; both gradient stops keep it at >= 4.5:1 (see brand.gradient). */
 export const Title = styled(Typography)`
   display: flex;
   align-items: center;
@@ -142,9 +142,10 @@ export const HeaderActions = styled(Flex)`
   @media (max-width: ${breakpoints.mobile}) {
     justify-content: stretch;
 
+    /* Grow from the label width and wrap to a new row instead of squeezing a
+       label past its button (320px, or long German and French labels). */
     & > * {
-      flex: 1 1 0;
-      min-width: 0;
+      flex: 1 1 auto;
     }
   }
 `;
@@ -287,16 +288,40 @@ export const TabButton = styled.button`
 
 /* --------------------------------------------------------------- Stats */
 
+/**
+ * Five stat cards without an orphan row: 5 columns, then 3 + 2 on a 6-column
+ * grid, then on phones the total card spans the full row above 2 + 2.
+ */
 export const StatsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: stretch;
   gap: ${space(4)};
   margin-bottom: ${space(6)};
 
+  @media (max-width: ${breakpoints.statsThreeTwo}) {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+
+    & > :nth-child(-n + 3) {
+      grid-column: span 2;
+    }
+
+    & > :nth-child(n + 4) {
+      grid-column: span 3;
+    }
+  }
+
   @media (max-width: ${breakpoints.mobile}) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: ${space(2)};
+
+    & > :nth-child(n) {
+      grid-column: span 1;
+    }
+
+    & > :first-child {
+      grid-column: 1 / -1;
+    }
   }
 `;
 
@@ -395,6 +420,13 @@ export const FilterBar = styled.div`
     min-width: 0;
   }
 
+  /* The DS 2.2.4 Searchbar clear button is 22px; give it the 24px desktop
+     and 32px touch target. */
+  & > .filter-search button {
+    min-width: 24px;
+    min-height: 24px;
+  }
+
   & > .filter-select {
     flex: 0 1 200px;
     min-width: 0;
@@ -403,6 +435,11 @@ export const FilterBar = styled.div`
   @media (max-width: ${breakpoints.mobile}) {
     & > .filter-search {
       flex-basis: 100%;
+    }
+
+    & > .filter-search button {
+      min-width: 32px;
+      min-height: 32px;
     }
 
     & > .filter-select {
@@ -430,6 +467,66 @@ export const DataTable = styled.div`
   border: 1px solid ${color('neutral200')};
   border-radius: ${theme.borderRadius.xl};
   box-shadow: ${theme.shadows.sm};
+
+  /* Phones: the rows are cards of their own, so the frame around them goes
+     away and the cards line up with the filter bar. DS 2.2.4 Table renders
+     a bordered wrapper and a scroll container with 24px side padding around
+     the <table>. Loading, error and empty states keep the frame. */
+  @media (max-width: ${breakpoints.mobile}) {
+    &:has(table) {
+      overflow: visible;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    &:has(table) > div {
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+
+    & div:has(> table) {
+      padding: 0;
+    }
+  }
+`;
+
+/**
+ * Pagination below the table. Below 520px only previous, the current page and
+ * next stay visible, with a "Page x of y" line, so the row never overflows.
+ */
+export const PaginationBar = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${space(2)};
+  padding: ${space(4)};
+
+  .pagination-status {
+    display: none;
+  }
+
+  @media (max-width: ${breakpoints.mobile}) {
+    padding: ${space(4)} 0 0;
+
+    nav a,
+    nav button {
+      min-width: 32px;
+      min-height: 32px;
+    }
+  }
+
+  @media (max-width: ${breakpoints.compact}) {
+    nav li:not(:first-child):not(:last-child):not(:has([aria-current='true'])) {
+      display: none;
+    }
+
+    .pagination-status {
+      display: block;
+    }
+  }
 `;
 
 export const StyledTable = styled(Table)`
@@ -455,6 +552,22 @@ export const StyledTable = styled(Table)`
   tbody td {
     padding: ${space(4)};
     color: ${color('neutral800')};
+  }
+
+  /* 1024-1199px: 8px side padding, and the "Used ..." and IP lines of the
+     reference cell may wrap, so all seven columns, including the row actions,
+     fit inside the frame without horizontal scrolling. */
+  @media (max-width: ${breakpoints.tableCompact}) {
+    thead th,
+    tbody td {
+      padding-left: ${space(2)};
+      padding-right: ${space(2)};
+    }
+
+    tbody td.cell-reference {
+      white-space: normal;
+      text-wrap: balance;
+    }
   }
 
   .cell-label {
@@ -518,6 +631,31 @@ export const StyledTable = styled(Table)`
   }
 `;
 
+/** Token state badge: DS Badge metrics (11px semi-bold caps) in the Magic Link tints. */
+export const StatusBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 3px ${space(2)};
+  border: 1px solid ${(p) => tint[p.$tone].border(p)};
+  border-radius: ${theme.borderRadius.sm};
+  background: ${(p) => tint[p.$tone].bg(p)};
+  color: ${(p) => tint[p.$tone].fg(p)};
+  font-size: ${fontSize(0)};
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+`;
+
+/**
+ * Expiry date inside an InfoList value: same size and weight as the other
+ * values (DS Typography variants grow to 16px on phones), red when expired.
+ */
+export const ExpiryValue = styled.span`
+  color: ${(p) => (p.$expired ? color('danger600')(p) : 'inherit')};
+`;
+
 export const ReferenceChip = styled.span`
   display: inline-block;
   padding: 2px ${space(2)};
@@ -548,6 +686,17 @@ export const Avatar = styled.span`
   svg path {
     fill: ${brand.onFill};
   }
+`;
+
+/**
+ * Empty slot with the size of a DS IconButton (size S, 32px). It keeps the
+ * view and delete buttons in the same columns when a row cannot be extended.
+ */
+export const ActionSlot = styled.span`
+  display: block;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
 `;
 
 export const MetaIcon = styled.span`

@@ -626,6 +626,7 @@
   "magic-link.tokens.pagination.next": "Next page",
   "magic-link.tokens.pagination.page": "Go to page {page}",
   "magic-link.tokens.pagination.previous": "Previous page",
+  "magic-link.tokens.pagination.status": "Page {page} of {count}",
   "magic-link.tokens.reissue.body": "A new login link for {email} is created with the default validity and sent by email right away.",
   "magic-link.tokens.reissue.confirm": "Create and send",
   "magic-link.tokens.reissue.title": "Create a new token?",
@@ -664,8 +665,6 @@
   "magic-link.tokens.tabs.otpCodes": "OTP Codes",
   "magic-link.tokens.tabs.otpCodesShort": "OTP",
   "magic-link.tokens.title": "Magic Link Tokens",
-  "magic-link.tokens.user.id": "User ID: {id}",
-  "magic-link.tokens.user.new": "New User",
   "magic-link.settings.save.securityForbidden": "Changing link targets, templates, account, MFA, code or rate-limit rules needs the \"Settings: Security\" permission.",
   "magic-link.settings.save.linkOriginNotAllowed": "Login link URLs must use an origin allowed in the server configuration."
 }

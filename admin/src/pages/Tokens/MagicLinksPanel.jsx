@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Button, Flex, Typography } from '@strapi/design-system';
 import { Check, Lock, Plus, Trash } from '@strapi/icons';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
@@ -56,6 +56,24 @@ export const MagicLinksPanel = ({
   /** @type {[{type: 'delete'|'bulkDelete'|'block'|'activate'|'reissue', token?: object, keys?: string[]}|null, Function]} */
   const [pending, setPending] = useState(null);
 
+  /**
+   * Focus target when a dialog closes and its opener left the DOM (a deleted
+   * row, or a button of the details dialog that closed first): the view button
+   * of the token the dialog was about, else the search field.
+   */
+  const focusTokenKey = useRef(null);
+  const getReturnFocusFallback = useCallback(() => {
+    const key = focusTokenKey.current;
+    const viewButton =
+      key === null
+        ? null
+        : document.querySelector(`[data-token-view="${CSS.escape(String(key))}"]`);
+    return viewButton ?? document.querySelector('input[name="token-search"]');
+  }, []);
+  const rememberToken = (token) => {
+    focusTokenKey.current = token ? getTokenKey(token) : null;
+  };
+
   const stats = useMemo(() => computeTokenStats(tokens), [tokens]);
   const filtered = useMemo(
     () => filterAndSortTokens(tokens, { search, status, ...sort }),
@@ -103,10 +121,13 @@ export const MagicLinksPanel = ({
     const tokenId = getTokenKey(token);
     try {
       await del(`/magic-link/tokens/${tokenId}`);
+      // Refresh before the dialog closes: the deleted row (the opener) is then
+      // already gone, so the dialog returns focus to the fallback instead of
+      // to a button that disappears a moment later.
+      await refetch();
       setPending(null);
       setDetailsToken(null);
       notify('success', t('tokens.notifications.deleted', 'Token deleted'));
-      await refetch();
     } catch {
       notify('warning', t('tokens.notifications.deleteError', 'The token could not be deleted.'));
     }
@@ -336,7 +357,10 @@ export const MagicLinksPanel = ({
               variant="danger"
               size="M"
               startIcon={<Trash />}
-              onClick={() => setPending({ type: 'bulkDelete', keys: [...selectedKeys] })}
+              onClick={() => {
+                rememberToken(null);
+                setPending({ type: 'bulkDelete', keys: [...selectedKeys] });
+              }}
             >
               {t('tokens.actions.bulkDelete', 'Delete Selected')}
             </Button>
@@ -382,9 +406,18 @@ export const MagicLinksPanel = ({
         page={safePage}
         pageCount={pageCount}
         onPageChange={(next) => setPage(clampPage(next, pageCount))}
-        onView={setDetailsToken}
-        onExtend={setExtendToken}
-        onDelete={(token) => setPending({ type: 'delete', token })}
+        onView={(token) => {
+          rememberToken(token);
+          setDetailsToken(token);
+        }}
+        onExtend={(token) => {
+          rememberToken(token);
+          setExtendToken(token);
+        }}
+        onDelete={(token) => {
+          rememberToken(token);
+          setPending({ type: 'delete', token });
+        }}
       />
 
       <TokenDetailsModal
@@ -399,6 +432,7 @@ export const MagicLinksPanel = ({
         onBlock={(token) => setPending({ type: 'block', token })}
         onActivate={(token) => setPending({ type: 'activate', token })}
         onDelete={(token) => setPending({ type: 'delete', token })}
+        getReturnFocusFallback={getReturnFocusFallback}
       />
 
       {canManage ? (
@@ -406,6 +440,7 @@ export const MagicLinksPanel = ({
           token={extendToken}
           onClose={() => setExtendToken(null)}
           onSubmit={extend}
+          getReturnFocusFallback={getReturnFocusFallback}
         />
       ) : null}
 
@@ -418,6 +453,7 @@ export const MagicLinksPanel = ({
         variant={confirmConfig?.variant ?? 'danger'}
         onConfirm={confirmConfig?.onConfirm}
         onClose={() => setPending(null)}
+        getReturnFocusFallback={getReturnFocusFallback}
       />
     </>
   );

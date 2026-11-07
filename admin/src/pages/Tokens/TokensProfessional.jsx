@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Loader } from '@strapi/design-system';
 import { ArrowClockwise, Cog, Earth, Key, Lock, Shield, Sparkle } from '@strapi/icons';
@@ -50,6 +50,8 @@ const TokensProfessional = () => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createdToken, setCreatedToken] = useState(null);
+  const newTokenButton = useRef(null);
+  const getNewTokenButton = useCallback(() => newTokenButton.current, []);
 
   const tokenList = useTokenList({ enabled: canRead });
   const { settings, defaultTtlHours } = useTokenSettings({ enabled: canReadSettings });
@@ -199,7 +201,11 @@ const TokensProfessional = () => {
             </Box>
             <HeaderActions alignItems="center">
               {canManage ? (
-                <HeaderButton type="button" onClick={() => setIsCreateOpen(true)}>
+                <HeaderButton
+                  ref={newTokenButton}
+                  type="button"
+                  onClick={() => setIsCreateOpen(true)}
+                >
                   <Sparkle aria-hidden="true" focusable="false" />
                   {t('tokens.actions.newToken', 'New Token')}
                 </HeaderButton>
@@ -260,7 +266,11 @@ const TokensProfessional = () => {
           onSubmit={handleCreateToken}
         />
       ) : null}
-      <CreatedTokenModal data={createdToken} onClose={() => setCreatedToken(null)} />
+      <CreatedTokenModal
+        data={createdToken}
+        onClose={() => setCreatedToken(null)}
+        getReturnFocusFallback={getNewTokenButton}
+      />
     </Page.Main>
   );
 };

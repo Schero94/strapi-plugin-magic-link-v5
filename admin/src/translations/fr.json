@@ -626,6 +626,7 @@
   "magic-link.tokens.pagination.next": "Page suivante",
   "magic-link.tokens.pagination.page": "Aller à la page {page}",
   "magic-link.tokens.pagination.previous": "Page précédente",
+  "magic-link.tokens.pagination.status": "Page {page} sur {count}",
   "magic-link.tokens.reissue.body": "Un nouveau lien de connexion est créé pour {email} avec la validité par défaut et envoyé immédiatement par e-mail.",
   "magic-link.tokens.reissue.confirm": "Créer et envoyer",
   "magic-link.tokens.reissue.title": "Créer un nouveau jeton ?",
@@ -664,8 +665,6 @@
   "magic-link.tokens.tabs.otpCodes": "Codes OTP",
   "magic-link.tokens.tabs.otpCodesShort": "OTP",
   "magic-link.tokens.title": "Jetons Magic Link",
-  "magic-link.tokens.user.id": "ID utilisateur : {id}",
-  "magic-link.tokens.user.new": "Nouvel utilisateur",
   "magic-link.settings.save.securityForbidden": "Modifier les cibles des liens, les modèles ou les règles de compte, MFA, codes ou limites de requêtes nécessite l'autorisation « Paramètres : Sécurité ».",
   "magic-link.settings.save.linkOriginNotAllowed": "Les URL des liens de connexion doivent utiliser une origine autorisée dans la configuration du serveur."
 }

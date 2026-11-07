@@ -212,6 +212,23 @@ export const getPaginationItems = (activePage, pageCount) => {
 };
 
 /**
+ * Keyboard activation for buttons in a table cell that holds several buttons.
+ *
+ * DS 2.2.4 RawCell calls preventDefault() on every keydown in such a cell (it
+ * moves focus between the buttons with the arrow keys), which also cancels
+ * the native Enter and Space activation of the focused button. Run the action
+ * here instead; the cell then only handles the arrow keys.
+ *
+ * @param {() => void} action
+ * @returns {(event: import('react').KeyboardEvent) => void}
+ */
+export const activateOnEnterOrSpace = (action) => (event) => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  if (!event.repeat) action();
+};
+
+/**
  * Removes server-owned keys (see RESERVED_CONTEXT_KEYS) from a token context.
  * @param {unknown} context
  * @returns {Record<string, unknown>}

@@ -9,6 +9,7 @@ import { getTokenActions, getTokenReference, isPast, toUserContext } from '../to
 import { TokenStatusBadge } from './TokenStatus';
 import {
   CodeBlock,
+  ExpiryValue,
   HeroCloseButton,
   HeroSubtitle,
   InfoList,
@@ -32,6 +33,8 @@ import {
  * @param {(token: object) => void} props.onBlock
  * @param {(token: object) => void} props.onActivate
  * @param {(token: object) => void} props.onDelete
+ * @param {() => (HTMLElement|null|undefined)} [props.getReturnFocusFallback] - focus target
+ *   when the element that opened the dialog is gone
  */
 export const TokenDetailsModal = ({
   token,
@@ -42,11 +45,12 @@ export const TokenDetailsModal = ({
   onBlock,
   onActivate,
   onDelete,
+  getReturnFocusFallback,
 }) => {
   const { t } = useMagicLinkIntl();
   const { formatDateTime } = useFormatters();
   const isOpen = Boolean(token);
-  const returnFocus = useReturnFocus(isOpen);
+  const returnFocus = useReturnFocus(isOpen, getReturnFocusFallback);
 
   if (!token) return null;
 
@@ -58,7 +62,7 @@ export const TokenDetailsModal = ({
   return (
     <Modal.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <Modal.Content style={{ maxWidth: '60rem' }} onCloseAutoFocus={returnFocus}>
-        <ModalHero $background={brand.violetGradient}>
+        <ModalHero $background={brand.violetHeroGradient}>
           <Box minWidth={0}>
             <Modal.Title>{t('tokens.details.title', 'Token Details')}</Modal.Title>
             <HeroSubtitle>{token.email}</HeroSubtitle>
@@ -94,13 +98,9 @@ export const TokenDetailsModal = ({
                 <dt>{t('tokens.details.expiresAt', 'Valid until')}</dt>
                 <dd>
                   {token.expires_at ? (
-                    <Typography
-                      variant="omega"
-                      fontWeight="semiBold"
-                      textColor={isPast(token.expires_at) ? 'danger600' : 'neutral800'}
-                    >
+                    <ExpiryValue $expired={isPast(token.expires_at)}>
                       {formatDateTime(token.expires_at)}
-                    </Typography>
+                    </ExpiryValue>
                   ) : (
                     t('tokens.details.unlimited', 'Unlimited')
                   )}

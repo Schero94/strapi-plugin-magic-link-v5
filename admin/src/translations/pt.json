@@ -626,6 +626,7 @@
   "magic-link.tokens.pagination.next": "Próxima página",
   "magic-link.tokens.pagination.page": "Ir para a página {page}",
   "magic-link.tokens.pagination.previous": "Página anterior",
+  "magic-link.tokens.pagination.status": "Página {page} de {count}",
   "magic-link.tokens.reissue.body": "Um novo link de login é criado para {email} com a validade padrão e enviado imediatamente por e-mail.",
   "magic-link.tokens.reissue.confirm": "Criar e enviar",
   "magic-link.tokens.reissue.title": "Criar um novo token?",
@@ -664,8 +665,6 @@
   "magic-link.tokens.tabs.otpCodes": "Códigos OTP",
   "magic-link.tokens.tabs.otpCodesShort": "OTP",
   "magic-link.tokens.title": "Tokens Magic Link",
-  "magic-link.tokens.user.id": "ID do usuário: {id}",
-  "magic-link.tokens.user.new": "Novo usuário",
   "magic-link.settings.save.securityForbidden": "Alterar destinos de links, modelos ou regras de conta, MFA, códigos ou limites de pedidos exige a permissão \"Configurações: Segurança\".",
   "magic-link.settings.save.linkOriginNotAllowed": "As URLs dos links de login devem usar uma origem permitida na configuração do servidor."
 }

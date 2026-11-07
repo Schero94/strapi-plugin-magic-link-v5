@@ -422,6 +422,70 @@ test('Tokens view files use DS tokens, shared dialogs and translated, labelled c
   assert.ok(modal.includes('<Field.Label>') && modal.includes('<Field.Error />'));
 });
 
+test('row actions run on Enter and Space although the DS table cell cancels the native activation', () => {
+  const { activateOnEnterOrSpace } = model;
+  let calls = 0;
+  const handler = activateOnEnterOrSpace(() => {
+    calls += 1;
+  });
+  const keydown = (key, repeat = false) => {
+    const event = { key, repeat, defaultPrevented: false };
+    event.preventDefault = () => {
+      event.defaultPrevented = true;
+    };
+    handler(event);
+    return event;
+  };
+  assert.equal(keydown('Enter').defaultPrevented, true);
+  assert.equal(keydown(' ').defaultPrevented, true);
+  assert.equal(calls, 2);
+  assert.equal(keydown('Enter', true).defaultPrevented, true, 'auto-repeat is swallowed');
+  assert.equal(calls, 2, 'auto-repeat does not run the action again');
+  assert.equal(keydown('ArrowRight').defaultPrevented, false, 'arrow keys stay with the cell');
+  assert.equal(calls, 2);
+
+  const table = read('admin/src/pages/Tokens/components/TokensTable.jsx');
+  for (const action of ['onView', 'onExtend', 'onDelete']) {
+    assert.ok(
+      table.includes(`onKeyDown={activateOnEnterOrSpace(() => ${action}(token))}`),
+      `${action} button is keyboard operable`
+    );
+  }
+});
+
+test('Tokens list layout: no fake user line, aligned actions, no orphan stat card, compact pagination', () => {
+  const table = read('admin/src/pages/Tokens/components/TokensTable.jsx');
+  // Tokens have no user relation (toAdminToken has no user_id), so every row
+  // said "New User". The line is gone.
+  assert.equal(/user_id|tokens\.user\./.test(table), false, 'no user line in the token table');
+  assert.ok(table.includes('<ActionSlot aria-hidden="true" />'), 'slot keeps the action columns');
+  assert.ok(table.includes("t('tokens.pagination.status', 'Page {page} of {count}'"));
+
+  const styles = read('admin/src/pages/Tokens/components/tokenStyles.js');
+  assert.equal(/auto-fit/.test(styles.match(/StatsGrid = styled[\s\S]*?`;/)[0]), false);
+  assert.match(styles, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+  assert.match(
+    styles,
+    /:not\(:has\(\[aria-current='true'\]\)\)/,
+    'compact pagination keeps the current page'
+  );
+
+  // DS Badge variants use the 200 background with 700 text (warning 3.6:1,
+  // danger 3.9:1); the status badge uses the Magic Link tints instead.
+  const status = read('admin/src/pages/Tokens/components/TokenStatus.jsx');
+  assert.equal(/<Badge\b/.test(status), false, 'no DS Badge variant for token states');
+  assert.ok(status.includes('<StatusBadge $tone='));
+
+  const panel = read('admin/src/pages/Tokens/MagicLinksPanel.jsx');
+  assert.equal(
+    (panel.match(/getReturnFocusFallback=\{getReturnFocusFallback\}/g) || []).length,
+    3,
+    'details, extend and confirm dialogs return focus when their opener is gone'
+  );
+  const page = read('admin/src/pages/Tokens/TokensProfessional.jsx');
+  assert.ok(page.includes('getReturnFocusFallback={getNewTokenButton}'));
+});
+
 test('Tokens page gates every control by the 6.0 RBAC capabilities (UI-31)', () => {
   const page = read('admin/src/pages/Tokens/TokensProfessional.jsx');
   assert.ok(page.includes('useMagicLinkRBAC()'));
@@ -436,7 +500,7 @@ test('Tokens page gates every control by the 6.0 RBAC capabilities (UI-31)', () 
   );
   assert.match(
     page,
-    /\{canManage \? \(\s*<HeaderButton type="button" onClick=\{\(\) => setIsCreateOpen\(true\)\}/
+    /\{canManage \? \(\s*<HeaderButton\s+ref=\{newTokenButton\}\s+type="button"\s+onClick=\{\(\) => setIsCreateOpen\(true\)\}/
   );
   assert.ok(page.includes('<Page.NoPermissions />'));
   assert.ok(page.includes('<PluginPageTitle>'));

@@ -1,14 +1,18 @@
-import { Badge } from '@strapi/design-system';
 import { Check, Clock, Lock, Server, Sparkle } from '@strapi/icons';
 import { useMagicLinkIntl } from '../../../hooks/useMagicLinkIntl';
 import { useFormatters } from '../../../hooks/useFormatters';
 import { accent, byScheme, tint } from '../../../utils/theme';
-import { StatCard, StatIcon, StatLabel, StatValue, StatsGrid } from './tokenStyles';
+import { StatCard, StatIcon, StatLabel, StatValue, StatsGrid, StatusBadge } from './tokenStyles';
 
-const BADGE_VARIANT = Object.freeze({
+/**
+ * Badge tone per state. DS 2.2.4 Badge variants pair the 200 background with
+ * the 700 text, which is 3.6:1 for warning and 3.9:1 for danger; the Magic
+ * Link tints keep every state at >= 4.5:1 in light and dark mode.
+ */
+const BADGE_TONE = Object.freeze({
   active: 'success',
   expired: 'warning',
-  used: 'secondary',
+  used: 'primary',
   blocked: 'danger',
 });
 
@@ -33,7 +37,9 @@ export const getStatusLabel = (t, state) => {
 /** @param {{state: 'active'|'expired'|'used'|'blocked'}} props */
 export const TokenStatusBadge = ({ state }) => {
   const { t } = useMagicLinkIntl();
-  return <Badge variant={BADGE_VARIANT[state] ?? 'neutral'}>{getStatusLabel(t, state)}</Badge>;
+  return (
+    <StatusBadge $tone={BADGE_TONE[state] ?? 'primary'}>{getStatusLabel(t, state)}</StatusBadge>
+  );
 };
 
 const usedTint = byScheme('#F3E8FF', 'rgba(147, 51, 234, 0.16)');

@@ -1,5 +1,4 @@
 import {
-  Box,
   Button,
   Checkbox,
   Dots,
@@ -35,6 +34,7 @@ import { useMagicLinkIntl } from '../../../hooks/useMagicLinkIntl';
 import { useFormatters } from '../../../hooks/useFormatters';
 import { accent } from '../../../utils/theme';
 import {
+  activateOnEnterOrSpace,
   getPaginationItems,
   getTokenActions,
   getTokenKey,
@@ -43,10 +43,12 @@ import {
 } from '../tokenModel';
 import { TokenStatusBadge } from './TokenStatus';
 import {
+  ActionSlot,
   Avatar,
   DataTable,
   GradientButton,
   MetaIcon,
+  PaginationBar,
   ReferenceChip,
   StateIcon,
   StatePanel,
@@ -262,19 +264,12 @@ export const TokensTable = ({
                     <Avatar aria-hidden="true">
                       <User focusable="false" />
                     </Avatar>
-                    <Flex direction="column" alignItems="flex-start" minWidth={0}>
-                      <Typography fontWeight="semiBold" textColor="neutral800" ellipsis>
-                        {token.email}
-                      </Typography>
-                      <Typography variant="pi" textColor="neutral600">
-                        {token.user_id
-                          ? t('tokens.user.id', 'User ID: {id}', { id: token.user_id })
-                          : t('tokens.user.new', 'New User')}
-                      </Typography>
-                    </Flex>
+                    <Typography fontWeight="semiBold" textColor="neutral800" ellipsis>
+                      {token.email}
+                    </Typography>
                   </Flex>
                 </Td>
-                <Td>
+                <Td className="cell-reference">
                   <CellLabel>{labels.reference}</CellLabel>
                   <Flex direction="column" alignItems="flex-start" gap={1}>
                     <ReferenceChip>#{getTokenReference(token)}</ReferenceChip>
@@ -348,7 +343,9 @@ export const TokensTable = ({
                         email: token.email,
                       })}
                       variant="ghost"
+                      data-token-view={key}
                       onClick={() => onView(token)}
+                      onKeyDown={activateOnEnterOrSpace(() => onView(token))}
                     >
                       <Eye aria-hidden="true" />
                     </IconButton>
@@ -359,10 +356,12 @@ export const TokensTable = ({
                         })}
                         variant="ghost"
                         onClick={() => onExtend(token)}
+                        onKeyDown={activateOnEnterOrSpace(() => onExtend(token))}
                       >
                         <Clock aria-hidden="true" />
                       </IconButton>
                     ) : null}
+                    {canManage && !canExtend ? <ActionSlot aria-hidden="true" /> : null}
                     {canManage ? (
                       <IconButton
                         label={t('tokens.actions.deleteFor', 'Delete token for {email}', {
@@ -370,6 +369,7 @@ export const TokensTable = ({
                         })}
                         variant="danger-light"
                         onClick={() => onDelete(token)}
+                        onKeyDown={activateOnEnterOrSpace(() => onDelete(token))}
                       >
                         <Trash aria-hidden="true" />
                       </IconButton>
@@ -383,7 +383,7 @@ export const TokensTable = ({
       </StyledTable>
 
       {pageCount > 1 ? (
-        <Box padding={4}>
+        <PaginationBar>
           <Flex justifyContent="center">
             <Pagination
               activePage={page}
@@ -413,7 +413,10 @@ export const TokensTable = ({
               </NextLink>
             </Pagination>
           </Flex>
-        </Box>
+          <Typography className="pagination-status" variant="pi" textColor="neutral600">
+            {t('tokens.pagination.status', 'Page {page} of {count}', { page, count: pageCount })}
+          </Typography>
+        </PaginationBar>
       ) : null}
     </DataTable>
   );

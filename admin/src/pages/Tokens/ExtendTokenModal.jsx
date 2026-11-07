@@ -34,12 +34,14 @@ const PresetGrid = styled.div`
  * @param {object|null} props.token - the token to extend; null closes the dialog
  * @param {() => void} props.onClose
  * @param {(token: object, days: number) => Promise<unknown>} props.onSubmit
+ * @param {() => (HTMLElement|null|undefined)} [props.getReturnFocusFallback] - focus target
+ *   when the element that opened the dialog is gone
  */
-const ExtendTokenModal = ({ token, onClose, onSubmit }) => {
+const ExtendTokenModal = ({ token, onClose, onSubmit, getReturnFocusFallback }) => {
   const { t } = useMagicLinkIntl();
   const { formatDateTime } = useFormatters();
   const isOpen = Boolean(token);
-  const returnFocus = useReturnFocus(isOpen);
+  const returnFocus = useReturnFocus(isOpen, getReturnFocusFallback);
   const [preset, setPreset] = useState(7);
   const [customDays, setCustomDays] = useState(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);

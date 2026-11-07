@@ -18,13 +18,16 @@ const preventClose = (event) => event.preventDefault();
  * @param {object} props
  * @param {{token: string, email: string, expiresAt?: string, loginUrl: string}|null} props.data
  * @param {() => void} props.onClose
+ * @param {() => (HTMLElement|null|undefined)} [props.getReturnFocusFallback] - focus target
+ *   when the element that opened the dialog is gone (the
+ *   submit button of the closed create dialog)
  */
-export const CreatedTokenModal = ({ data, onClose }) => {
+export const CreatedTokenModal = ({ data, onClose, getReturnFocusFallback }) => {
   const { t } = useMagicLinkIntl();
   const { formatDateTime } = useFormatters();
   const copy = useCopyToClipboard();
   const isOpen = Boolean(data);
-  const returnFocus = useReturnFocus(isOpen);
+  const returnFocus = useReturnFocus(isOpen, getReturnFocusFallback);
 
   if (!data) return null;
 

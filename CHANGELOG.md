@@ -452,6 +452,21 @@ short version is the upgrade guide.
 * Admin token creation sends `ttl` as a top-level field and offers "do not
   send e-mail" only with `tokens.issue`.
 * The License page masks the key.
+* Tokens list (browser acceptance at 320 to 1440 px, light and dark):
+  * the view, extend and delete buttons in a row work with Enter and Space
+    (the design-system table cell cancelled the native key activation), and
+    they stay in fixed columns when a token cannot be extended;
+  * dialogs return focus to the row, the search field or "New token" when
+    the element that opened them is gone (deleted row, closed details or
+    create dialog);
+  * the misleading "New user" line under every e-mail is gone (tokens have
+    no user relation);
+  * white text on the header, tab, button and dialog gradients and the status
+    badges reach 4.5:1;
+  * no orphan stat card, no horizontal table scrolling from 1024 px, no
+    clipped header buttons at 320 px, a compact pagination with "Page x of y"
+    below 520 px, and 32 px touch targets for the search clear button and the
+    page links on phones.
 * All texts are translated into English, German (formal), French, Spanish
   and Portuguese, and dates follow the admin locale. A test now checks that
   every message id used by the admin exists in all five locales.

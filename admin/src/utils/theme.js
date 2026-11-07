@@ -159,12 +159,17 @@ export const useThemeColors = () => {
 /**
  * Magic Link brand colours (sky and purple), unchanged from the current look.
  *
- * - `gradient` is the hero header and active-tab fill (#0284C7 -> #9333EA).
- *   White text on it must be large (>= 18px, or >= 14px bold): 4.1:1 at the
- *   light end.
+ * - `gradient` is the hero header, active-tab and call-to-action fill
+ *   (#0369A1 -> #9333EA). Both stops keep 14px white text at >= 4.5:1
+ *   (5.9:1 and 5.4:1). WCAG "large text" is 18.66px bold or 24px, so the
+ *   14px subtitle and tab labels need the full 4.5:1.
  * - `primary`, `secondary`, `success`, `warning` and `danger` are fills for
  *   small white text (buttons, badges). Each keeps white text at >= 4.5:1.
- * - `violetGradient` is the License banner and token-details header.
+ * - `successGradient` (#15803D -> #166534) keeps the 18px email line in the
+ *   "Token created" header at >= 4.5:1.
+ * - `violetGradient` is the License banner (with its own slate layer).
+ *   `violetHeroGradient` adds the same 25 % slate layer for dialog headers,
+ *   which lifts the light end (#667EEA -> #5064BA) to 5.4:1 with white text.
  */
 export const brand = Object.freeze({
   primary: '#0369A1',
@@ -177,10 +182,12 @@ export const brand = Object.freeze({
   warningHover: '#92400E',
   danger: '#DC2626',
   dangerHover: '#B91C1C',
-  gradient: 'linear-gradient(135deg, #0284C7 0%, #9333EA 100%)',
-  gradientHover: 'linear-gradient(135deg, #0369A1 0%, #7E22CE 100%)',
-  successGradient: 'linear-gradient(135deg, #16A34A 0%, #15803D 100%)',
+  gradient: 'linear-gradient(135deg, #0369A1 0%, #9333EA 100%)',
+  gradientHover: 'linear-gradient(135deg, #075985 0%, #7E22CE 100%)',
+  successGradient: 'linear-gradient(135deg, #15803D 0%, #166534 100%)',
   violetGradient: 'linear-gradient(135deg, #667EEA 0%, #764BA2 100%)',
+  violetHeroGradient:
+    'linear-gradient(rgba(15, 23, 42, 0.25), rgba(15, 23, 42, 0.25)), linear-gradient(135deg, #667EEA 0%, #764BA2 100%)',
   onFill: '#FFFFFF',
 });
 
@@ -231,8 +238,18 @@ export const tint = Object.freeze(
   )
 );
 
-/** Layout breakpoints used by the views (max-width queries). */
-export const breakpoints = Object.freeze({ mobile: '768px', tablet: '1024px' });
+/**
+ * Media-query widths (max-width queries). `mobile` and `tablet` are the shared page breakpoints;
+ * the others are layout steps of the Tokens view (stat cards 3 + 2, compact
+ * table padding, compact pagination).
+ */
+export const breakpoints = Object.freeze({
+  mobile: '768px',
+  tablet: '1024px',
+  statsThreeTwo: '960px',
+  tableCompact: '1199px',
+  compact: '520px',
+});
 
 /** Static, scheme-independent tokens: spacing, radii, shadows, motion. */
 export const theme = Object.freeze({

@@ -321,8 +321,20 @@ test('brand fills keep white text at WCAG AA and accents are readable in both sc
     assert.ok(contrastRatio(dark, '#212134') >= 4.5, `accent.${name} on dark neutral0`);
     assert.ok(contrastRatio(dark, '#181826') >= 4.5, `accent.${name} on dark neutral100`);
   }
-  // Hero gradient start: white headline text must be large (>= 3:1).
-  assert.ok(contrastRatio('#0284C7', '#ffffff') >= 3);
+  // Gradient fills carry 14-18px white text (subtitle, tab label, dialog
+  // email line), so every stop needs 4.5:1, not the 3:1 for large text.
+  const stops = (gradient) => gradient.match(/#[0-9A-Fa-f]{6}/g);
+  for (const name of ['gradient', 'gradientHover', 'successGradient']) {
+    for (const stop of stops(t.brand[name])) {
+      assert.ok(
+        contrastRatio(stop, '#ffffff') >= 4.5,
+        `brand.${name} stop ${stop} with white text`
+      );
+    }
+  }
+  // Dialog hero: 25 % #0F172A over the light end of violetGradient -> #5064BA.
+  assert.match(t.brand.violetHeroGradient, /rgba\(15, 23, 42, 0\.25\)/);
+  assert.ok(contrastRatio('#5064BA', '#ffffff') >= 4.5);
 });
 
 // ---------------------------------------------------------------------------
