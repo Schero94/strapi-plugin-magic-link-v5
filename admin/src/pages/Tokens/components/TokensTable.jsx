@@ -214,7 +214,11 @@ export const TokensTable = ({
 
   return (
     <DataTable aria-busy={isLoading ? 'true' : undefined}>
-      <StyledTable colCount={columns} rowCount={rows.length + 1}>
+      {/* DS 2.2.4 RawTable focuses the first [tabindex="0"] after an arrow key, and
+          the select-all cell keeps a stale tabindex="0" from mount, so arrows
+          snapped back to it. Starting on the second column avoids that (same as
+          the OTP and JWT tabs). */}
+      <StyledTable initialCol={canManage ? 1 : 0} colCount={columns} rowCount={rows.length + 1}>
         <Thead>
           <Tr>
             {canManage ? (
