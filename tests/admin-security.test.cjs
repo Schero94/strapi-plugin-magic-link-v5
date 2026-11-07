@@ -290,7 +290,7 @@ test('reset-data preserves unexpired JWT revocations and writes the install defa
     ['blocked_jwt_tokens', blockedTokens],
     ['jwt_sessions', { sessions: [] }],
   ]);
-  let deleteManyWhere;
+  const deletes = [];
   global.strapi = {
     store: () => ({
       get: async ({ key }) => values.get(key),
@@ -298,10 +298,10 @@ test('reset-data preserves unexpired JWT revocations and writes the install defa
       delete: async ({ key }) => values.delete(key),
     }),
     db: {
-      query: () => ({
+      query: (uid) => ({
         deleteMany: async ({ where }) => {
-          deleteManyWhere = where;
-          return { count: 3 };
+          deletes.push([uid, where]);
+          return { count: uid === 'plugin::magic-link.token' ? 3 : 5 };
         },
       }),
     },
@@ -332,7 +332,10 @@ test('reset-data preserves unexpired JWT revocations and writes the install defa
   );
   assert.deepEqual(values.get('banned_ips'), { ips: [] });
   assert.equal(values.has('jwt_sessions'), false);
-  assert.deepEqual(deleteManyWhere, {});
+  assert.deepEqual(deletes, [
+    ['plugin::magic-link.token', {}],
+    ['plugin::magic-link.jwt-session', {}],
+  ]);
   assert.equal(ctx.response.deletedTokens, 3);
   assert.match(ctx.response.message, /revoked jwts stay blocked/i);
 });
@@ -395,7 +398,7 @@ test('reset-data needs an explicit confirmation and keeps MFA settings by defaul
   assert.equal(settings.mfa_mode, 'required', 'a reset never switches MFA off silently');
   assert.equal(settings.mfa_require_totp, true);
   assert.equal(settings.otp_enabled, true);
-  assert.equal(deletes, 1);
+  assert.equal(deletes, 2, 'login tokens and JWT session records are deleted');
 });
 
 test('rate-limit reset clears the live limiter instead of writing an unused plugin-store key', async () => {

@@ -1,0 +1,128 @@
+{
+  "kind": "collectionType",
+  "collectionName": "magic_link_jwt_sessions",
+  "info": {
+    "singularName": "jwt-session",
+    "pluralName": "jwt-sessions",
+    "displayName": "Magic Link JWT Session",
+    "description": "Audit record per JWT issued by Magic Link (hash only, never the token). One row per login, written without a lock."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "indexes": [
+    {
+      "name": "ml_jwt_sessions_user_id_idx",
+      "columns": ["user_id"]
+    },
+    {
+      "name": "ml_jwt_sessions_expires_at_idx",
+      "columns": ["expires_at"]
+    },
+    {
+      "name": "ml_jwt_sessions_revoked_expires_idx",
+      "columns": ["revoked_at", "expires_at"]
+    }
+  ],
+  "attributes": {
+    "sessionId": {
+      "type": "string",
+      "required": true,
+      "maxLength": 128,
+      "column": {
+        "unique": true
+      },
+      "description": "Public record id shown in the admin panel (session_<time>_<random>)"
+    },
+    "jwtTokenHash": {
+      "type": "string",
+      "private": true,
+      "maxLength": 128,
+      "column": {
+        "unique": true
+      },
+      "description": "SHA-256 hash of the issued JWT; the JWT itself is never stored"
+    },
+    "userId": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "userDocumentId": {
+      "type": "string"
+    },
+    "userEmail": {
+      "type": "string"
+    },
+    "username": {
+      "type": "string"
+    },
+    "jwtManagement": {
+      "type": "string",
+      "maxLength": 32
+    },
+    "upSessionId": {
+      "type": "string",
+      "private": true
+    },
+    "deviceId": {
+      "type": "string",
+      "private": true
+    },
+    "upFamilyExpiresAt": {
+      "type": "datetime"
+    },
+    "accessTokenNonExpiring": {
+      "type": "boolean",
+      "default": false
+    },
+    "accessTokenExpiresAt": {
+      "type": "datetime"
+    },
+    "expiresAt": {
+      "type": "datetime",
+      "required": true
+    },
+    "ipAddress": {
+      "type": "string"
+    },
+    "userAgent": {
+      "type": "text"
+    },
+    "source": {
+      "type": "string"
+    },
+    "lastUsedAt": {
+      "type": "datetime"
+    },
+    "context": {
+      "type": "json"
+    },
+    "loginDetails": {
+      "type": "json",
+      "description": "Extra login facts (otpVerified, mfaVerified, loginMethod, ...)"
+    },
+    "revokedAt": {
+      "type": "datetime",
+      "description": "Set when the session was revoked or marked expired; null while active"
+    },
+    "revokeReason": {
+      "type": "string"
+    },
+    "revokedBy": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "restoredBy": {
+      "type": "string",
+      "maxLength": 64
+    }
+  }
+}

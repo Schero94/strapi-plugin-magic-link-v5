@@ -6,6 +6,7 @@
  */
 
 const createMagicLinkService = require('../../server/src/services/magic-link');
+const { createSessionTable, SESSION_UID } = require('./session-table.cjs');
 
 const TOKEN_UID = 'plugin::magic-link.token';
 const USER_UID = 'plugin::users-permissions.user';
@@ -92,6 +93,8 @@ const createLoginCoreStrapi = ({
     edits: [],
     logs: [],
     totpVerifications: [],
+    // JWT session table (one row per issued JWT); records() gives the 6.1 shape.
+    sessionTable: createSessionTable(),
   };
   let nextId = 1;
 
@@ -175,6 +178,7 @@ const createLoginCoreStrapi = ({
     },
     db: {
       query(uid) {
+        if (uid === SESSION_UID) return state.sessionTable.query;
         if (uid !== TOKEN_UID) throw new Error(`Unexpected query ${uid}`);
         return {
           updateMany: async ({ where, data }) => {

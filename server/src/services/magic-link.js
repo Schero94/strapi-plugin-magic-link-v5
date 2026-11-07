@@ -44,7 +44,11 @@ const {
   decodeJwtPayload,
   getJwtManagementMode,
 } = require('../utils/login-session');
-const { readJwtSessions, updateJwtSessions } = require('../utils/jwt-session-store');
+const {
+  findSessionByHash: findSessionRecordByHash,
+  findUserSessions,
+  markSessionsRevoked,
+} = require('../utils/jwt-session-store');
 const { updateStoreKey, withClusterLock } = require('../utils/cluster');
 const i18n = require('../utils/i18n');
 
@@ -60,7 +64,6 @@ const MIN_LOOKUP_LENGTH = 16;
 // 'totp-setup': required MFA, the user enrols an authenticator during login.
 const CHALLENGE_TYPES = ['otp', 'totp', 'totp-setup'];
 const BLOCKLIST_KEY = 'blocked_jwt_tokens';
-const SESSIONS_KEY = 'jwt_sessions';
 // Fallback when a revoked token's expiry is unknown: keep the entry for one
 // year rather than letting a still-valid token become usable again.
 const UNKNOWN_EXPIRY_MS = 365 * 24 * 60 * 60 * 1000;
@@ -928,9 +931,7 @@ module.exports = ({ strapi }) => {
      */
     async findSessionByHash(tokenHash) {
       try {
-        const stored = (await pluginStore().get({ key: SESSIONS_KEY })) || { sessions: [] };
-        const sessions = Array.isArray(stored.sessions) ? stored.sessions : [];
-        return sessions.find((session) => session?.jwtTokenHash === tokenHash) || null;
+        return await findSessionRecordByHash(strapi, tokenHash);
       } catch {
         return null;
       }
@@ -1079,9 +1080,7 @@ module.exports = ({ strapi }) => {
     async revokeUserSessions(userId, reason) {
       const now = new Date();
       const nowIso = now.toISOString();
-      const records = (await readJwtSessions(strapi)).filter(
-        (record) => String(record?.userId) === String(userId) && record.jwtTokenHash
-      );
+      const records = await findUserSessions(strapi, userId);
       const entries = records.map((record) => {
         const exp = new Date(record.expiresAt).getTime();
         const permanent = record.accessTokenNonExpiring === true;
@@ -1120,13 +1119,10 @@ module.exports = ({ strapi }) => {
       }
 
       if (records.length > 0) {
-        const hashes = new Set(records.map((record) => record.jwtTokenHash));
-        await updateJwtSessions(strapi, (list) =>
-          list.map((record) =>
-            hashes.has(record.jwtTokenHash) && !record.isRevoked
-              ? { ...record, isRevoked: true, revokedAt: nowIso, revokeReason: reason }
-              : record
-          )
+        await markSessionsRevoked(
+          strapi,
+          { userId: String(userId), jwtTokenHash: { $notNull: true } },
+          { reason, at: now }
         );
       }
       return { revoked: records.length };
