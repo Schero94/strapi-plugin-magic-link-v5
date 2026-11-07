@@ -211,17 +211,23 @@ module.exports = {
       if (settings.createUserIfNotExists !== true) {
         return ctx.badRequest('User does not exist and automatic user creation is disabled');
       }
+      // Looked up again and created under the cluster-wide user-creation lock
+      // (services/magic-link.js findOrCreateUser): parallel requests for one
+      // new address, on one or several processes, create a single account.
+      let created;
       try {
-        user = await magicLink.createUser({ email });
+        ({ user, created } = await magicLink.findOrCreateUser(email));
       } catch {
         strapi.log.error('[magic-link] Admin token: user could not be created');
         return ctx.badRequest(
           'The user could not be created (check the users-permissions default role)'
         );
       }
-      strapi.log.info(
-        `[magic-link] Admin ${actorId(ctx)} created users-permissions user ${user.id} for a login link`
-      );
+      if (created) {
+        strapi.log.info(
+          `[magic-link] Admin ${actorId(ctx)} created users-permissions user ${user.id} for a login link`
+        );
+      }
     }
     if (user.blocked) {
       return ctx.badRequest('This user is blocked');

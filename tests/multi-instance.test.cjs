@@ -545,3 +545,77 @@ test('account claim: a second claim on another process sees the claim and revoke
   assert.equal(revocations, 1, 'sessions are ended once, not again after the first login');
   assert.equal(edits, 1);
 });
+
+test('admin token creation for a new address goes through the locked find-or-create', async () => {
+  // Found by the 4-process HTTP proof: 80 parallel POST /magic-link/tokens for
+  // 5 new addresses created 35 users, because the admin path called
+  // createUser directly instead of findOrCreateUser.
+  const { db } = fakeDb('sqlite');
+  const users = [];
+  const tick = () => new Promise((resolve) => setImmediate(resolve));
+  const strapi = {
+    db: {
+      ...db,
+      query: () => ({
+        findMany: async ({ where }) => users.filter((user) => user.email === where.email),
+        update: async () => ({}),
+      }),
+    },
+    log: silent,
+    config: { get: (key, fallback) => fallback },
+    store: ({ name }) => ({
+      get: async () =>
+        name === 'users-permissions'
+          ? { default_role: 'authenticated' }
+          : { createUserIfNotExists: true },
+    }),
+    documents: (uid) =>
+      uid === 'plugin::users-permissions.role'
+        ? { findMany: async () => [{ id: 1 }] }
+        : {
+            findMany: async ({ filters }) => {
+              await tick();
+              return users.filter((user) =>
+                filters.email ? user.email === filters.email : user.username === filters.username
+              );
+            },
+            create: async ({ data }) => {
+              await tick();
+              const user = { id: users.length + 1, ...data };
+              users.push(user);
+              return user;
+            },
+          },
+  };
+  const service = createMagicLinkService({ strapi });
+  service.settings = async () => ({ createUserIfNotExists: true });
+  service.createToken = async (email) => ({
+    id: 1,
+    email,
+    expires_at: new Date(Date.now() + 1000),
+  });
+  const limiter = { checkRateLimit: async () => ({ allowed: true, retryAfter: 0 }) };
+  strapi.plugin = () => ({ service: (name) => (name === 'rate-limiter' ? limiter : service) });
+  const tokensController = require('../server/src/controllers/tokens');
+  const ctx = () => ({
+    request: { body: { email: 'new-admin-link@example.test', send_email: false } },
+    query: {},
+    state: { user: { id: 3 }, userAbility: { can: () => true } },
+    set() {},
+    send(payload) {
+      return payload;
+    },
+    badRequest(message) {
+      return { status: 400, message };
+    },
+  });
+  const original = global.strapi;
+  global.strapi = strapi;
+  try {
+    await Promise.all(Array.from({ length: 10 }, () => tokensController.create(ctx())));
+  } finally {
+    if (original === undefined) delete global.strapi;
+    else global.strapi = original;
+  }
+  assert.equal(users.length, 1, 'one account for ten parallel admin requests');
+});
