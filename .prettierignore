@@ -1,0 +1,17 @@
+# Build output and coverage
+dist
+coverage
+
+# Binary and generated assets
+pics
+
+# Lockfiles and files written by tooling
+package-lock.json
+CHANGELOG.md
+
+# Agent rules synced from the workbench templates
+.agents
+.cursor
+
+# Shared workbench theme, kept byte-identical to templates/plugin-pages/site.css
+docs/site/site.css
