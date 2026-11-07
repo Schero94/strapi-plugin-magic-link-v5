@@ -670,3 +670,35 @@ test('admin enrolment summary counts only active end-user authenticators', async
   await otpController.enrollmentSummary(ctx);
   assert.deepEqual(ctx.response, { data: { enrolled: 1, enrollmentDuringLogin: true } });
 });
+
+test('admin OTP list filters by derived status and reports global stats', async () => {
+  const past = new Date(Date.now() - 60_000);
+  createMfaStrapi({
+    otpCodes: [
+      otpRow({ id: 1, email: 'active@example.test' }),
+      otpRow({ id: 2, email: 'expired@example.test', expiresAt: past }),
+      otpRow({ id: 3, email: 'used@example.test', used: true }),
+      otpRow({ id: 4, email: 'used-old@example.test', used: true, expiresAt: past }),
+    ],
+  });
+
+  const emails = async (query) => {
+    const ctx = makeContext({}, { query });
+    await otpController.listCodes(ctx);
+    return { emails: ctx.response.codes.map((c) => c.email).sort(), ctx };
+  };
+
+  assert.deepEqual((await emails({ status: 'active' })).emails, ['active@example.test']);
+  assert.deepEqual((await emails({ status: 'expired' })).emails, ['expired@example.test']);
+  assert.deepEqual((await emails({ status: 'used' })).emails, [
+    'used-old@example.test',
+    'used@example.test',
+  ]);
+  const { ctx } = await emails({ status: 'used', email: 'old' });
+  assert.equal(ctx.response.pagination.total, 1);
+  assert.deepEqual(ctx.response.stats, { total: 4, active: 1, expired: 1, used: 2 });
+
+  await assert.rejects(otpController.listCodes(makeContext({}, { query: { status: 'all' } })), {
+    name: 'ValidationError',
+  });
+});

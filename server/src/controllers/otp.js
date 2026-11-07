@@ -47,6 +47,19 @@ const ADMIN_PAGE_SIZE_LIMIT = 100;
 const plugin = () => strapi.plugin('magic-link');
 
 /**
+ * Query Engine filter for a derived OTP state, matching the admin badges:
+ * used codes are "used" even after expiry; unused ones are active or expired.
+ *
+ * @param {'active'|'expired'|'used'} status - Derived state.
+ * @param {Date} now - Reference time.
+ * @returns {object} Where clause.
+ */
+const otpStatusWhere = (status, now) => {
+  if (status === 'used') return { used: true };
+  return { used: false, expiresAt: status === 'active' ? { $gt: now } : { $lt: now } };
+};
+
+/**
  * Hashes a limiter key so e-mail addresses are not kept in clear.
  *
  * @param {string} scope - Key scope.
@@ -433,23 +446,32 @@ module.exports = {
   async listCodes(ctx) {
     const query = parseBody(otpCodesQuerySchema, ctx.query || {});
     const pageSize = Math.min(query.pageSize, ADMIN_PAGE_SIZE_LIMIT);
+    const now = new Date();
     const where = {};
     if (query.email) where.email = { $containsi: query.email };
     if (query.type) where.type = query.type;
+    if (query.status) Object.assign(where, otpStatusWhere(query.status, now));
+    const count = (filter) => strapi.db.query(OTP_UID).count({ where: filter });
 
     try {
-      const [rows, total] = await Promise.all([
+      const [rows, total, all, active, expired, used] = await Promise.all([
         strapi.db.query(OTP_UID).findMany({
           where,
           orderBy: { createdAt: 'desc' },
           offset: (query.page - 1) * pageSize,
           limit: pageSize,
         }),
-        strapi.db.query(OTP_UID).count({ where }),
+        count(where),
+        // Stat cards count every code, independent of search and filters.
+        count({}),
+        count(otpStatusWhere('active', now)),
+        count(otpStatusWhere('expired', now)),
+        count(otpStatusWhere('used', now)),
       ]);
 
       return ctx.send({
         codes: (rows || []).map(toAdminRow),
+        stats: { total: all, active, expired, used },
         pagination: {
           page: query.page,
           pageSize,

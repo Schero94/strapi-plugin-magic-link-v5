@@ -181,6 +181,11 @@ short version is the upgrade guide.
   (a Redis error can contain the connection URL).
 * A JWT session ended by an account claim can no longer be restored with
   `unrevoke-jwt` (400).
+* `GET /otp/codes` accepts the `status` filter (`active`, `expired`, `used`)
+  that the admin OTP tab sends. Before, the strict query schema rejected it
+  with 400, so every status filter failed. The response also carries
+  `stats` (`total`, `active`, `expired`, `used` over all codes), so the stat
+  cards stay filled while a search or filter is active.
 
 ### BREAKING CHANGES (login core)
 

@@ -242,6 +242,7 @@ const otpCodesQuerySchema = z
     pageSize: z.coerce.number().int().min(1).max(1_000).default(10),
     email: z.string().trim().max(320).optional(),
     type: z.enum(['email', 'totp-setup']).optional(),
+    status: z.enum(['active', 'expired', 'used']).optional(),
   })
   .strict();
 
