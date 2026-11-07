@@ -25,6 +25,11 @@ const { normalizeIpAddress, ipBanKey } = require('../utils/ip-address');
 const { filterContext } = require('../utils/context-policy');
 const { buildLoginUrl } = require('../utils/login-url');
 const {
+  getMagicMailRouter,
+  isMagicMailPreSendFailure,
+  describeMagicMailError,
+} = require('../utils/magic-mail-delivery');
+const {
   buildTemplateVariables,
   escapeHtml,
   renderTemplate,
@@ -592,7 +597,13 @@ module.exports = ({ strapi }) => {
         user: { email: token.email, username: username || undefined },
       };
 
-      if (settings.use_magic_mail && strapi.plugin('magic-mail')) {
+      const magicMailRouter = settings.use_magic_mail ? getMagicMailRouter(strapi) : null;
+      if (settings.use_magic_mail && !magicMailRouter) {
+        strapi.log.warn(
+          '[magic-link] Magic Mail is enabled but not installed; using the next provider'
+        );
+      }
+      if (magicMailRouter) {
         try {
           let templateReferenceId = settings.magic_mail_template_reference_id || undefined;
           const numericTemplateId = settings.magic_mail_template_id
@@ -610,33 +621,39 @@ module.exports = ({ strapi }) => {
             }
           }
 
-          await strapi
-            .plugin('magic-mail')
-            .service('email-router')
-            .send({
-              to: token.email,
-              from,
-              replyTo,
-              subject,
-              text,
-              html,
-              headers,
-              // Authentication mail: transactional routing, and neither an
-              // open-tracking pixel nor rewritten (tracked) login links.
-              type: 'transactional',
-              enableTracking: false,
-              skipLinkTracking: true,
-              links: [{ original: loginUrl, label: 'Magic Link Login', track: false }],
-              templateId: templateReferenceId || numericTemplateId,
-              templateReferenceId,
-              templateData: templatePayload,
-              data: templatePayload,
-            });
+          await magicMailRouter.send({
+            to: token.email,
+            from,
+            replyTo,
+            subject,
+            text,
+            html,
+            headers,
+            // Authentication mail: transactional routing, and neither an
+            // open-tracking pixel nor rewritten (tracked) login links.
+            type: 'transactional',
+            enableTracking: false,
+            skipLinkTracking: true,
+            links: [{ original: loginUrl, label: 'Magic Link Login', track: false }],
+            templateId: templateReferenceId || numericTemplateId,
+            templateReferenceId,
+            templateData: templatePayload,
+            data: templatePayload,
+          });
           strapi.log.debug('[magic-link] Login e-mail sent via Magic Mail');
           return token;
-        } catch {
-          strapi.log.error(
-            '[magic-link] Magic Mail send failed, falling back to the next provider'
+        } catch (error) {
+          const reason = describeMagicMailError(error);
+          if (!isMagicMailPreSendFailure(error)) {
+            // The provider may already have accepted the message: another
+            // provider could deliver a second, still valid login link.
+            strapi.log.error(
+              `[magic-link] Magic Mail delivery failed with an unknown outcome (${reason}); not retrying with another provider`
+            );
+            throw error;
+          }
+          strapi.log.warn(
+            `[magic-link] Magic Mail could not send the login e-mail (${reason}); using the next provider`
           );
         }
       }

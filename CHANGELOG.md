@@ -298,6 +298,17 @@ short version is the upgrade guide.
 
 ### Security and fixes (login core)
 
+* **No second login e-mail after a Magic Mail error.** With Magic Mail
+  enabled, any Magic Mail error used to fall back to Email Designer or the
+  Strapi e-mail plugin. Magic Mail 4.0 also routes the Strapi e-mail plugin,
+  so a timeout could deliver two valid login links or OTP codes. Magic Link
+  now falls back only when Magic Mail proves it sent nothing (no account,
+  quota used up, account unavailable or misconfigured, template rendering
+  failed, or a provider status that guarantees non-acceptance). Any other
+  error is logged with its code only and returned to the caller. OTP mails
+  through Magic Mail are now explicitly untracked as well. When Magic Mail
+  is enabled but not installed, a warning says so and the next provider
+  sends.
 * **Revocation could be bypassed with an upper-case path.** Strapi 5.61
   mounts its routers with @koa/router defaults (`sensitive: false`), so
   `GET /API/users/me` reaches the same route as `/api/users/me`. The
