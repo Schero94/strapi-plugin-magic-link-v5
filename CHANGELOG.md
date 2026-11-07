@@ -1,3 +1,16 @@
+# [6.2.0](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v6.1.0...v6.2.0) (2026-11-07)
+
+
+### Bug Fixes
+
+* **tokens:** create admin-link users through the locked find-or-create ([1d19d64](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/1d19d6492fc51ac97cfd8ff5eb0852206cbd80d0))
+
+
+### Features
+
+* **server:** keep shared state consistent across several Strapi processes ([eae7491](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/eae7491347873d5a63ccd277fda2d293be4cccd4))
+* **server:** keep shared state consistent across several Strapi processes ([#23](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/23)) ([33799c2](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/33799c2f71d0d04f1e60caa52a2236bbf04869f9))
+
 ## [Unreleased]
 
 Next release: **6.2.0** (minor). No breaking changes: routes, responses and settings keep their contract; the new table and columns are created on start.
