@@ -634,5 +634,6 @@
   "magic-link.tokens.filter.delivery": "Filtrar por entrega",
   "magic-link.tokens.table.delivery": "Entrega",
   "magic-link.tokens.delivery.bounced": "Devolvido",
-  "magic-link.tokens.delivery.complained": "Reclamação de spam"
+  "magic-link.tokens.delivery.complained": "Reclamação de spam",
+  "magic-link.tokens.delivery.queued": "Em fila"
 }

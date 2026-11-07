@@ -634,5 +634,6 @@
   "magic-link.tokens.filter.delivery": "Nach Zustellung filtern",
   "magic-link.tokens.table.delivery": "Zustellung",
   "magic-link.tokens.delivery.bounced": "Unzustellbar",
-  "magic-link.tokens.delivery.complained": "Spam-Beschwerde"
+  "magic-link.tokens.delivery.complained": "Spam-Beschwerde",
+  "magic-link.tokens.delivery.queued": "In Warteschlange"
 }

@@ -46,6 +46,7 @@ const DELIVERY_TONE = Object.freeze({
   sent: 'success',
   rejected: 'warning',
   failed: 'danger',
+  queued: 'primary',
   bounced: 'danger',
   complained: 'danger',
   unknown: 'neutral',
@@ -54,7 +55,7 @@ const DELIVERY_TONE = Object.freeze({
 /**
  * Translated label for a login e-mail delivery state.
  * @param {(key: string, message: string) => string} t
- * @param {'sent'|'rejected'|'failed'|'bounced'|'complained'|'unknown'} state
+ * @param {'sent'|'rejected'|'failed'|'queued'|'bounced'|'complained'|'unknown'} state
  */
 export const getDeliveryLabel = (t, state) => {
   switch (state) {
@@ -64,6 +65,8 @@ export const getDeliveryLabel = (t, state) => {
       return t('tokens.delivery.rejected', 'Rejected');
     case 'failed':
       return t('tokens.delivery.failed', 'Failed');
+    case 'queued':
+      return t('tokens.delivery.queued', 'Queued');
     case 'bounced':
       return t('tokens.delivery.bounced', 'Bounced');
     case 'complained':
@@ -73,7 +76,7 @@ export const getDeliveryLabel = (t, state) => {
   }
 };
 
-/** @param {{state: 'sent'|'rejected'|'failed'|'bounced'|'complained'|'unknown'}} props */
+/** @param {{state: 'sent'|'rejected'|'failed'|'queued'|'bounced'|'complained'|'unknown'}} props */
 export const DeliveryStatusBadge = ({ state }) => {
   const { t } = useMagicLinkIntl();
   return (

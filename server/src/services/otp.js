@@ -39,6 +39,10 @@ const {
   getMagicMailRouter,
   isMagicMailPreSendFailure,
   describeMagicMailError,
+  buildMagicMailSendOptions,
+  sendViaMagicMail,
+  isMagicMailQueuedResult,
+  isMagicMailUncertain,
 } = require('../utils/magic-mail-delivery');
 
 const OTP_UID = 'plugin::magic-link.otp-code';
@@ -357,8 +361,13 @@ module.exports = ({ strapi }) => {
      *
      * @param {string} email - Recipient.
      * @param {string} code - Numeric code.
-     * @param {object} [options] - { locale, purpose: 'login'|'setup', expiryMinutes, subject?, intro? }.
-     * @returns {Promise<boolean>} True when sent.
+     * With Magic Mail 4.4 a failed send can be captured in its outbox: it is
+     * then retried until `expiresAt` (never later) and stored once per
+     * `otpId`; no other provider sends the code.
+     *
+     * @param {object} [options] - { locale, purpose: 'login'|'setup', expiryMinutes, subject?, intro?,
+     *   otpId?: OTP row id, expiresAt?: OTP expiry (both from createOTP) }.
+     * @returns {Promise<boolean>} True when sent or queued by Magic Mail.
      */
     async sendOTPEmail(email, code, options = {}) {
       const settings = await readSettings();
@@ -424,16 +433,36 @@ module.exports = ({ strapi }) => {
       const magicMailRouter = settings.use_magic_mail ? getMagicMailRouter(strapi) : null;
       if (magicMailRouter) {
         try {
-          // Codes are never tracked: no pixel, no rewritten links.
-          await magicMailRouter.send({
-            ...message,
-            type: 'transactional',
-            enableTracking: false,
-            skipLinkTracking: true,
+          const sendOptions = buildMagicMailSendOptions(strapi, {
+            purpose: 'otp',
+            id: options.otpId,
+            expiresAt: options.expiresAt,
           });
+          // Codes are never tracked: no pixel, no rewritten links.
+          const sent = await sendViaMagicMail(
+            magicMailRouter,
+            {
+              ...message,
+              type: 'transactional',
+              enableTracking: false,
+              skipLinkTracking: true,
+            },
+            sendOptions
+          );
+          if (isMagicMailQueuedResult(sent)) {
+            log.warn(
+              '[magic-link] Magic Mail queued the OTP e-mail for a retry; not using another provider'
+            );
+          }
           return true;
         } catch (error) {
           const reason = describeMagicMailError(error);
+          if (isMagicMailUncertain(error)) {
+            log.error(
+              `[magic-link] Magic Mail recorded the OTP e-mail as uncertain in its outbox (${reason}); not retrying with another provider`
+            );
+            throw error;
+          }
           if (!isMagicMailPreSendFailure(error)) {
             // A second provider could deliver the same code twice.
             log.error(

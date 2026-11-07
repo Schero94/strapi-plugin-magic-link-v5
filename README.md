@@ -738,18 +738,29 @@ Templates from 5.x that use `<%= URL %>?loginToken=<%= CODE %>` are converted to
 
 **Magic Mail and Email Designer 5** receive these variables: `magicLink`, `loginUrl`, `url`, `code`, `token`, `email`, `expiryText`, `expiresAt`, `user.email`, `user.username`. Choose the template in **Settings > E-mail**. Magic Mail sends login mails as `transactional` without open or link tracking. When Magic Mail proves it sent nothing (no account, quota used up, account misconfigured), the plugin falls back to the Strapi e-mail plugin; after any other Magic Mail error it does not retry, so no second valid link goes out.
 
+### Magic Mail outbox
+
+Magic Mail 4.4 can keep failed sends in an outbox and retry them (owner setting _Queue failed sends_, off by default). Magic Link works with it as follows; it never asks Magic Mail to queue a login mail on purpose (`queue: true`).
+
+- Every login link and OTP code goes to Magic Mail with `notAfter` set to the token or code expiry and an idempotency key built from a SHA-256 of the token or code record id (never from the token or the code itself). A captured mail is never sent after the link or code expired, and one token or code is stored in the outbox at most once.
+- When Magic Mail answers "queued" (the provider did not take the mail yet, Magic Mail retries it), the token shows **Queued** and Magic Link does not fall back to another provider, so no second valid link goes out. The mail can arrive a few minutes later or, after the expiry, not at all. Magic Mail's outbox shows the final outcome; the token keeps **Queued**.
+- When Magic Mail recorded the send as uncertain (the provider may have accepted it), Magic Link does not fall back either and records **Failed** with the reason `MAGIC_MAIL_UNCERTAIN`. Check the mail in Magic Mail's outbox before you send a new link.
+- A token or code without a usable expiry is sent with `queue: false`, so it is never captured.
+- Magic Mail before 4.4 has no outbox. Magic Link detects that and sends exactly as before.
+
 ## Delivery status
 
 Each token sent by e-mail shows whether the provider took the message. You see it as a badge under the reference in **Tokens**, can filter by it, and find the details in the token dialog.
 
-| Status         | Meaning                                                                                     |
-| -------------- | ------------------------------------------------------------------------------------------- |
-| Sent           | The provider accepted the message. This is not proof that it reached the inbox.             |
-| Rejected       | The address or message was refused before acceptance (SMTP 5xx, HTTP 400/422, bad address). |
-| Failed         | Connection, credentials, timeout or another provider error. Nothing was accepted.           |
-| Bounced        | Accepted, then reported as a hard bounce by the provider (needs bounce feedback, below).    |
-| Spam complaint | Accepted, then the recipient marked it as spam (needs bounce feedback, below).              |
-| Unknown        | Issued without e-mail, or created before delivery tracking.                                 |
+| Status         | Meaning                                                                                                                                |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Sent           | The provider accepted the message. This is not proof that it reached the inbox.                                                        |
+| Rejected       | The address or message was refused before acceptance (SMTP 5xx, HTTP 400/422, bad address).                                            |
+| Failed         | Connection, credentials, timeout or another provider error. With `MAGIC_MAIL_UNCERTAIN` the provider may have accepted it (see above). |
+| Queued         | Magic Mail 4.4 keeps it in its outbox and retries it until the link expires (see above).                                               |
+| Bounced        | Accepted, then reported as a hard bounce by the provider (needs bounce feedback, below).                                               |
+| Spam complaint | Accepted, then the recipient marked it as spam (needs bounce feedback, below).                                                         |
+| Unknown        | Issued without e-mail, or created before delivery tracking.                                                                            |
 
 It works with or without Magic Mail. Only a reason code such as `SMTP_550` or `ECONNECTION` is stored, never the provider's error text. The admin token API returns `delivery_status`, `delivery_channel`, `delivery_reason` and `delivery_updated_at`. Login e-mails have no open or click tracking.
 

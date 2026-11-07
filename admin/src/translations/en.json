@@ -634,5 +634,6 @@
   "magic-link.tokens.filter.delivery": "Filter by delivery",
   "magic-link.tokens.table.delivery": "Delivery",
   "magic-link.tokens.delivery.bounced": "Bounced",
-  "magic-link.tokens.delivery.complained": "Spam complaint"
+  "magic-link.tokens.delivery.complained": "Spam complaint",
+  "magic-link.tokens.delivery.queued": "Queued"
 }

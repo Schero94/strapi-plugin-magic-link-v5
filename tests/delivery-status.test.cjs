@@ -194,6 +194,7 @@ test('schema: delivery attributes are optional and the message id is private', (
     'sent',
     'rejected',
     'failed',
+    'queued',
     'bounced',
     'complained',
   ]);
@@ -232,7 +233,7 @@ test('tokens view: delivery state, filter, column and details', () => {
   const model = loadAdminModule('admin/src/pages/Tokens/tokenModel.js');
   assert.deepEqual(
     [...model.DELIVERY_FILTERS],
-    ['all', 'sent', 'rejected', 'failed', 'bounced', 'complained', 'unknown']
+    ['all', 'sent', 'rejected', 'failed', 'queued', 'bounced', 'complained', 'unknown']
   );
   assert.equal(model.getDeliveryState({ delivery_status: 'bounced' }), 'bounced');
   assert.equal(model.getDeliveryState({ delivery_status: 'complained' }), 'complained');

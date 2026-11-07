@@ -130,6 +130,8 @@ const sendChallengeOtp = async (ctx, token, settings) => {
 
   try {
     await otpService.sendOTPEmail(token.email, otpEntry.code, {
+      otpId: otpEntry.id,
+      expiresAt: otpEntry.expiresAt,
       locale: i18n.getLocaleFromContext(ctx),
       expiryMinutes: Math.max(1, Math.round(expirySeconds / 60)),
     });
