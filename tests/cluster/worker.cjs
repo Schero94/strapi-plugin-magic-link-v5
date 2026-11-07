@@ -18,6 +18,7 @@ const {
   migrateLegacySessions,
 } = require('../../server/src/utils/jwt-session-store');
 const createMagicLinkService = require('../../server/src/services/magic-link');
+const { removeLegacyRegistrationKeys } = require('../../server/src/utils/legacy-cleanup');
 const createRateLimiter = require('../../server/src/services/rate-limiter');
 const { VERIFY_LIMIT } = require('../../server/src/services/rate-limiter');
 
@@ -101,6 +102,11 @@ const scenarios = {
   /** Every process starts the one-time legacy list migration at once. */
   async migration(strapi) {
     return migrateLegacySessions(strapi);
+  },
+
+  /** Every process deletes the 6.x registration keys at startup at once. */
+  async legacyKeys(strapi) {
+    return { removed: await removeLegacyRegistrationKeys(strapi) };
   },
 
   /** Every process revokes the same session at once; one UPDATE wins. */

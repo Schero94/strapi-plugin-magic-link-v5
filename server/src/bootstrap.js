@@ -34,6 +34,7 @@ const {
 } = require('./utils/jwt-session-store');
 const { runExclusiveJob, updateStoreKey, withClusterLock } = require('./utils/cluster');
 const { dedupeStoreKeys } = require('./utils/store-dedupe');
+const { removeLegacyRegistrationKeys } = require('./utils/legacy-cleanup');
 const {
   RBAC_ACTIONS,
   migrateLegacyAccessPermission,
@@ -90,6 +91,14 @@ module.exports = async ({ strapi }) => {
     }
     return { value: next };
   });
+
+  // 7.0.0 dropped the optional registration key of 6.x: delete the stored
+  // key and its timestamp once (idempotent, no outbound call).
+  try {
+    await removeLegacyRegistrationKeys(strapi);
+  } catch {
+    strapi.log.error('[magic-link] Unused 6.x plugin-store keys could not be removed');
+  }
 
   // Authenticator enrolments from before 6.0.0: namespace them by principal
   // (users-permissions vs admin), fail closed where ownership is not

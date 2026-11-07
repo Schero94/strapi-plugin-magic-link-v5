@@ -154,6 +154,19 @@ const runScenario = async (scenario, iterations = ITERATIONS) => {
     `migration: ${legacyCount} legacy records moved once by ${PROCESSES} processes, key deleted`
   );
 
+  // One-time removal of the 6.x registration key, started by every process.
+  await store.set({ key: 'licenseKey', value: 'SYNTH-0000-CLUSTER-0000' });
+  await store.set({ key: 'lastValidated', value: new Date().toISOString() });
+  const legacyKeys = await runScenario('legacyKeys', 1);
+  assert.equal(
+    legacyKeys.reduce((sum, result) => sum + result.removed, 0),
+    2,
+    '6.x keys deleted more than once or not at all'
+  );
+  assert.equal((await rowsOf('licenseKey')).length, 0, 'licenseKey row left');
+  assert.equal((await rowsOf('lastValidated')).length, 0, 'lastValidated row left');
+  checks.push(`legacy keys: 2 rows deleted once by ${PROCESSES} processes`);
+
   await sessionQuery.create({
     data: { sessionId: 'race-session', jwtTokenHash: 'race-hash', expiresAt: inOneHour() },
   });

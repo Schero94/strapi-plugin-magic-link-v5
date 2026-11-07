@@ -13,10 +13,6 @@
     "session.notFound": "Session introuvable",
     "session.expired": "La session a expiré",
     "invalid.ipAddress": "Adresse IP invalide",
-    "license.required": "Licence valide requise",
-    "license.invalid": "Clé de licence invalide ou expirée",
-    "license.notFound": "Licence introuvable",
-    "license.emailMismatch": "L'adresse e-mail ne correspond pas à cette clé de licence",
     "settings.updateFailed": "Impossible de mettre à jour les paramètres",
     "settings.getFailed": "Impossible de récupérer les paramètres",
     "unauthorized": "Accès non autorisé",
@@ -44,9 +40,7 @@
     "session.unrevoked": "Session restaurée avec succès",
     "ip.banned": "Adresse IP bloquée avec succès",
     "ip.unbanned": "Adresse IP débloquée avec succès",
-    "settings.updated": "Paramètres mis à jour avec succès",
-    "license.created": "Licence créée avec succès",
-    "license.verified": "Licence vérifiée avec succès"
+    "settings.updated": "Paramètres mis à jour avec succès"
   },
   "mail": {
     "otp.subject": "Votre code de vérification",

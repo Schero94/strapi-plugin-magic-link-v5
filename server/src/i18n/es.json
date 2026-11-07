@@ -13,10 +13,6 @@
     "session.notFound": "Sesión no encontrada",
     "session.expired": "La sesión ha caducado",
     "invalid.ipAddress": "Dirección IP inválida",
-    "license.required": "Licencia válida requerida",
-    "license.invalid": "Clave de licencia inválida o caducada",
-    "license.notFound": "Licencia no encontrada",
-    "license.emailMismatch": "La dirección de correo electrónico no coincide con esta clave de licencia",
     "settings.updateFailed": "No se pudieron actualizar las configuraciones",
     "settings.getFailed": "No se pudieron obtener las configuraciones",
     "unauthorized": "Acceso no autorizado",
@@ -44,9 +40,7 @@
     "session.unrevoked": "Sesión restaurada exitosamente",
     "ip.banned": "Dirección IP bloqueada exitosamente",
     "ip.unbanned": "Dirección IP desbloqueada exitosamente",
-    "settings.updated": "Configuraciones actualizadas exitosamente",
-    "license.created": "Licencia creada exitosamente",
-    "license.verified": "Licencia verificada exitosamente"
+    "settings.updated": "Configuraciones actualizadas exitosamente"
   },
   "mail": {
     "otp.subject": "Tu código de verificación",

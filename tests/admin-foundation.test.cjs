@@ -68,10 +68,7 @@ test('admin registration gates the menu with read and both settings pages with s
   const links = calls.sections[0].links;
   assert.deepEqual(
     links.map((link) => [link.id, link.permissions.map((p) => p.action)]),
-    [
-      ['magic-link-settings', ['plugin::magic-link.settings.read']],
-      ['magic-link-license', ['plugin::magic-link.settings.read']],
-    ]
+    [['magic-link-settings', ['plugin::magic-link.settings.read']]]
   );
 });
 
@@ -332,7 +329,7 @@ test('brand fills keep white text at WCAG AA and accents are readable in both sc
       );
     }
   }
-  // Dialog hero: 25 % #0F172A over the light end of violetGradient -> #5064BA.
+  // Dialog hero: 25 % #0F172A over the light end of #667EEA -> #5064BA.
   assert.match(t.brand.violetHeroGradient, /rgba\(15, 23, 42, 0\.25\)/);
   assert.ok(contrastRatio('#5064BA', '#ffffff') >= 4.5);
 });

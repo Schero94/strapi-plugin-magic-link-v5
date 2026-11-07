@@ -47,17 +47,6 @@ export default {
           Component: () => import('./pages/Settings'),
           permissions: pluginPermissions.settingsRead,
         },
-        {
-          intlLabel: {
-            id: getTranslation('Form.title.License'),
-            defaultMessage: 'License',
-          },
-          id: 'magic-link-license',
-          to: `${pluginId}/license`,
-          Component: () => import('./pages/License'),
-          // The license key is plugin configuration, so it shares the settings actions.
-          permissions: pluginPermissions.settingsRead,
-        },
       ]
     );
   },

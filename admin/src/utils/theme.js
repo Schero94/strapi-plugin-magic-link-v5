@@ -167,9 +167,9 @@ export const useThemeColors = () => {
  *   small white text (buttons, badges). Each keeps white text at >= 4.5:1.
  * - `successGradient` (#15803D -> #166534) keeps the 18px email line in the
  *   "Token created" header at >= 4.5:1.
- * - `violetGradient` is the License banner (with its own slate layer).
- *   `violetHeroGradient` adds the same 25 % slate layer for dialog headers,
- *   which lifts the light end (#667EEA -> #5064BA) to 5.4:1 with white text.
+ * - `violetHeroGradient` is the dialog header fill: #667EEA -> #764BA2 under
+ *   a 25 % slate layer, which lifts the light end to #5064BA (5.4:1 with
+ *   white text).
  */
 export const brand = Object.freeze({
   primary: '#0369A1',
@@ -185,7 +185,6 @@ export const brand = Object.freeze({
   gradient: 'linear-gradient(135deg, #0369A1 0%, #9333EA 100%)',
   gradientHover: 'linear-gradient(135deg, #075985 0%, #7E22CE 100%)',
   successGradient: 'linear-gradient(135deg, #15803D 0%, #166534 100%)',
-  violetGradient: 'linear-gradient(135deg, #667EEA 0%, #764BA2 100%)',
   violetHeroGradient:
     'linear-gradient(rgba(15, 23, 42, 0.25), rgba(15, 23, 42, 0.25)), linear-gradient(135deg, #667EEA 0%, #764BA2 100%)',
   onFill: '#FFFFFF',
