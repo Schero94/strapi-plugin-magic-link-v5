@@ -17,15 +17,25 @@ const { ipRateLimitKey } = require('../utils/ip-address');
  *   `rateLimit: { redis: { storeClient, useRedisPackage } }`; an in-memory
  *   insurance limiter keeps limiting when Redis is unavailable.
  * - Internal limiter errors fail closed (request refused).
+ * - Second-factor code checks (TOTP, backup codes, e-mail OTP) use the
+ *   `verify` limiter, which stays on when public rate limiting is disabled,
+ *   so turning off send throttling never opens a brute-force path.
  *
  * Docs: github.com/animir/node-rate-limiter-flexible/wiki (Memory, Redis,
  * API-methods: consume rejects with RateLimiterRes or Error).
  */
 
-const LIMITER_TYPES = ['ip', 'email', 'otp', 'login', 'admin'];
+const LIMITER_TYPES = ['ip', 'email', 'otp', 'login', 'admin', 'verify'];
 // Admin-initiated actions (token creation) per admin user and window.
 const ADMIN_POINTS = 60;
 const ADMIN_WINDOW_SECONDS = 15 * 60;
+// Second-factor code checks per account (or per login challenge): 10 tries
+// per 15 minutes, then a 15 minute block. Always enforced.
+const VERIFY_POINTS = 10;
+const VERIFY_WINDOW_SECONDS = 15 * 60;
+const VERIFY_BLOCK_SECONDS = 15 * 60;
+/** Limiter types that ignore `rate_limit_enabled: false`. */
+const ALWAYS_ON_TYPES = new Set(['admin', 'verify']);
 
 /**
  * Rewrites identifiers that carry a client address so they key on
@@ -135,6 +145,12 @@ module.exports = ({ strapi }) => {
         points: ADMIN_POINTS,
         duration: ADMIN_WINDOW_SECONDS,
       }),
+      verify: createLimiter({
+        keyPrefix: 'ml_verify',
+        points: VERIFY_POINTS,
+        duration: VERIFY_WINDOW_SECONDS,
+        blockDuration: VERIFY_BLOCK_SECONDS,
+      }),
     };
   }
 
@@ -166,7 +182,7 @@ module.exports = ({ strapi }) => {
     /**
      * Checks and consumes one point (fail-closed).
      * @param {string} identifier - IP address, e-mail hash, or other key
-     * @param {string} type - 'ip', 'email', 'otp', 'login' or 'admin'
+     * @param {string} type - 'ip', 'email', 'otp', 'login', 'admin' or 'verify'
      * @returns {Promise<{allowed: boolean, retryAfter: number}>}
      */
     async checkRateLimit(identifier, type = 'ip') {
@@ -178,8 +194,8 @@ module.exports = ({ strapi }) => {
         strapi.log.error('[magic-link] Rate-limit settings unavailable (fail-closed)');
         return { allowed: false, retryAfter: 60 };
       }
-      // Admin limits protect the admin API and stay on when public limits are off.
-      if (!s.enabled && type !== 'admin') {
+      // Admin and code-verification limits stay on when public limits are off.
+      if (!s.enabled && !ALWAYS_ON_TYPES.has(type)) {
         return { allowed: true, retryAfter: 0 };
       }
 
@@ -267,3 +283,8 @@ module.exports = ({ strapi }) => {
 };
 
 module.exports.normalizeLimiterIdentifier = normalizeLimiterIdentifier;
+module.exports.VERIFY_LIMIT = Object.freeze({
+  points: VERIFY_POINTS,
+  windowSeconds: VERIFY_WINDOW_SECONDS,
+  blockSeconds: VERIFY_BLOCK_SECONDS,
+});

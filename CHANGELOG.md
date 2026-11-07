@@ -311,6 +311,11 @@ short version is the upgrade guide.
 * TOTP-only login limits attempts per IP, per (account, IP) pair and per
   account, so one client cannot lock a victim out, and runs a dummy
   verification for unknown accounts (equal timing).
+* Every second-factor code check (TOTP, backup code, e-mail OTP, enrolment
+  confirmation, admin authenticator routes) also counts against a `verify`
+  limit of 10 attempts per account and 15 minutes (then blocked for 15
+  minutes). It stays on when `rate_limit_enabled` is off, so disabling send
+  throttling never opens a brute-force path.
 * OTP e-mails no longer read "0 minutes" for short expiries and the plugin no
   longer logs e-mail addresses or codes.
 * Deleting an OTP code from the admin works with the numeric id and answers

@@ -66,6 +66,17 @@ const limiterKey = (scope, value) =>
   `${scope}:${crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 32)}`;
 
 /**
+ * Counts one second-factor code check against the always-on `verify`
+ * limiter (10 per 15 minutes per subject), which applies even when public
+ * rate limiting is disabled. Writes a 429 when exceeded.
+ *
+ * @param {object} ctx - Koa context.
+ * @param {string} subject - Account or challenge key (never a secret in clear).
+ * @returns {Promise<boolean>} True when the check may run.
+ */
+const allowVerification = (ctx, subject) => allowRequest(ctx, `verify:${subject}`, 'verify');
+
+/**
  * Finds a users-permissions user by normalised e-mail.
  *
  * @param {string} email - E-mail address.
@@ -409,6 +420,8 @@ module.exports = {
       return i18n.sendError(ctx, 'challenge.invalid', 400);
     }
 
+    if (!(await allowVerification(ctx, `up:${user.id}`))) return undefined;
+
     // A backup code is the recovery path when the authenticator is lost.
     const verification = await otpService.verifySecondFactor(user.id, { totpCode, backupCode });
     if (!verification?.valid) {
@@ -462,6 +475,9 @@ module.exports = {
       return undefined;
     if (!(await allowRequest(ctx, limiterKey('totp-login-account', email), 'login')))
       return undefined;
+    // Always-on brute-force guard, also when public rate limiting is off.
+    // Keyed by the e-mail hash, so unknown accounts behave the same.
+    if (!(await allowVerification(ctx, limiterKey('totp-login', email)))) return undefined;
 
     const magicLink = plugin().service('magic-link');
     const otpService = plugin().service('otp');

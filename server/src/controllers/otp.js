@@ -79,6 +79,24 @@ const enforceOtpRateLimits = async (ctx, email, scope) => {
 };
 
 /**
+ * Counts one code check against the always-on `verify` limiter (also active
+ * when public rate limiting is disabled). Returns a denial or null.
+ *
+ * @param {object} ctx - Koa context.
+ * @param {string} subject - Account key (hashed e-mail or principal key).
+ * @returns {Promise<{message: string}|null>}
+ */
+const enforceVerificationLimit = async (ctx, subject) => {
+  const check = await plugin()
+    .service('rate-limiter')
+    .checkRateLimit(`verify:${subject}`, 'verify');
+  if (check?.allowed) return null;
+  const retryAfter = Number.isFinite(check?.retryAfter) ? check.retryAfter : 60;
+  ctx.set('Retry-After', String(retryAfter));
+  return { message: `Too many attempts. Please try again in ${retryAfter} seconds.` };
+};
+
+/**
  * Reads plugin settings.
  *
  * @returns {Promise<object>} Settings.
@@ -240,7 +258,9 @@ module.exports = {
       const otpSettings = await otpService.getOTPSettings();
       if (!otpSettings.enabled) return ctx.badRequest('OTP is not enabled');
 
-      const rateLimited = await enforceOtpRateLimits(ctx, email, 'verify');
+      const rateLimited =
+        (await enforceOtpRateLimits(ctx, email, 'verify')) ||
+        (await enforceVerificationLimit(ctx, limiterKey('otp-verify', email)));
       if (rateLimited) return ctx.tooManyRequests(rateLimited.message);
 
       const settings = await readSettings();
@@ -519,6 +539,8 @@ module.exports = {
     try {
       const otpService = plugin().service('otp');
       const principal = adminPrincipal(ctx);
+      const limited = await enforceVerificationLimit(ctx, `admin:${principal.id}`);
+      if (limited) return ctx.tooManyRequests(limited.message);
       const status = await otpService.getTOTPStatus(principal);
       if (status.enabled) {
         const check = token
@@ -554,6 +576,8 @@ module.exports = {
     try {
       const otpService = plugin().service('otp');
       const principal = adminPrincipal(ctx);
+      const limited = await enforceVerificationLimit(ctx, `admin:${principal.id}`);
+      if (limited) return ctx.tooManyRequests(limited.message);
       const status = await otpService.getTOTPStatus(principal);
       const result = status.pendingSetup
         ? await otpService.confirmSetup(principal, token, { origin: 'admin' })
@@ -586,6 +610,8 @@ module.exports = {
     try {
       const otpService = plugin().service('otp');
       const principal = adminPrincipal(ctx);
+      const limited = await enforceVerificationLimit(ctx, `admin:${principal.id}`);
+      if (limited) return ctx.tooManyRequests(limited.message);
       const status = await otpService.getTOTPStatus(principal);
       if (status.enabled) {
         const check = await verifyCurrentFactor(otpService, principal, token);
@@ -633,6 +659,8 @@ module.exports = {
     try {
       const otpService = plugin().service('otp');
       const principal = adminPrincipal(ctx);
+      const limited = await enforceVerificationLimit(ctx, `admin:${principal.id}`);
+      if (limited) return ctx.tooManyRequests(limited.message);
       const check = await otpService.verifyTOTP(principal, token);
       if (!check.valid) return ctx.forbidden('A current authenticator code is required');
       const codes = await otpService.regenerateBackupCodes(principal);

@@ -53,13 +53,17 @@ const limiterKey = (scope, value) =>
  * Applies rate limits and writes a 429 when one is exceeded.
  *
  * @param {object} ctx - Koa context.
- * @param {string[]} keys - Limiter keys ('otp' limiter).
+ * @param {Array<string|{verify: string}>} keys - 'otp' limiter keys, or
+ *   `{ verify: subject }` for the always-on code-check limiter.
  * @returns {Promise<boolean>} True when the request may continue.
  */
 const allow = async (ctx, keys) => {
   const limiter = plugin().service('rate-limiter');
-  for (const key of keys) {
-    const check = await limiter.checkRateLimit(key, 'otp');
+  for (const entry of keys) {
+    // `{ verify: subject }` entries use the always-on code-check limiter.
+    const [key, type] =
+      entry && typeof entry === 'object' ? [`verify:${entry.verify}`, 'verify'] : [entry, 'otp'];
+    const check = await limiter.checkRateLimit(key, type);
     if (!check?.allowed) {
       const retryAfter = Number.isFinite(check?.retryAfter) ? check.retryAfter : 60;
       ctx.set('Retry-After', String(retryAfter));
@@ -168,6 +172,7 @@ module.exports = {
       !(await allow(ctx, [
         `ip:totp-enroll:${ctx.request.ip}`,
         limiterKey('totp-enroll-confirm', loginToken),
+        { verify: limiterKey('totp-enroll-confirm', loginToken) },
       ]))
     ) {
       return undefined;
@@ -246,7 +251,13 @@ module.exports = {
     const { totpCode } = parseBody(totpSetupSchema, ctx.request.body);
     const user = requireUser(ctx);
     if (!user) return undefined;
-    if (!(await allow(ctx, [`ip:totp-setup:${ctx.request.ip}`, `user:totp-setup:${user.id}`])))
+    if (
+      !(await allow(ctx, [
+        `ip:totp-setup:${ctx.request.ip}`,
+        `user:totp-setup:${user.id}`,
+        { verify: `up:${user.id}` },
+      ]))
+    )
       return undefined;
 
     const otpService = plugin().service('otp');
@@ -295,7 +306,13 @@ module.exports = {
     const { totpCode, emailCode } = parseBody(totpConfirmSchema, ctx.request.body);
     const user = requireUser(ctx);
     if (!user) return undefined;
-    if (!(await allow(ctx, [`ip:totp-confirm:${ctx.request.ip}`, `user:totp-confirm:${user.id}`])))
+    if (
+      !(await allow(ctx, [
+        `ip:totp-confirm:${ctx.request.ip}`,
+        `user:totp-confirm:${user.id}`,
+        { verify: `up:${user.id}` },
+      ]))
+    )
       return undefined;
 
     const result = await plugin()
@@ -325,7 +342,13 @@ module.exports = {
     const { totpCode, backupCode } = parseBody(totpDisableSchema, ctx.request.body);
     const user = requireUser(ctx);
     if (!user) return undefined;
-    if (!(await allow(ctx, [`ip:totp-disable:${ctx.request.ip}`, `user:totp-disable:${user.id}`])))
+    if (
+      !(await allow(ctx, [
+        `ip:totp-disable:${ctx.request.ip}`,
+        `user:totp-disable:${user.id}`,
+        { verify: `up:${user.id}` },
+      ]))
+    )
       return undefined;
 
     const otpService = plugin().service('otp');
@@ -350,7 +373,13 @@ module.exports = {
     const { totpCode } = parseBody(totpBackupCodesSchema, ctx.request.body);
     const user = requireUser(ctx);
     if (!user) return undefined;
-    if (!(await allow(ctx, [`ip:totp-backup:${ctx.request.ip}`, `user:totp-backup:${user.id}`])))
+    if (
+      !(await allow(ctx, [
+        `ip:totp-backup:${ctx.request.ip}`,
+        `user:totp-backup:${user.id}`,
+        { verify: `up:${user.id}` },
+      ]))
+    )
       return undefined;
 
     const otpService = plugin().service('otp');

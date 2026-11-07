@@ -530,6 +530,7 @@ Templates from 5.x that use `<%= URL %>?loginToken=<%= CODE %>` are converted to
   - Public and admin context pass the same allow/deny policy.
 - **Second factors**
   - OTP attempts are counted atomically before the comparison.
+  - Code checks (TOTP, backup and e-mail codes) are limited to 10 per account and 15 minutes, also when rate limiting is turned off.
   - Every accepted TOTP time step is recorded, so a code cannot be replayed.
   - TOTP secrets are encrypted with AES-256-GCM.
   - Backup codes are owner-bound HMACs.

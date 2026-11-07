@@ -258,3 +258,16 @@ test('TOTP-only login: per-pair and per-account limits and equal work for unknow
     'limiter keys are hashed'
   );
 });
+
+test('second-factor checks always count against the verify limiter (FUN-M02)', async () => {
+  const { limiterKeys } = setup({
+    settings: { totp_as_primary_auth: true, rate_limit_enabled: false },
+  });
+  const ctx = post({ email: USER.email, totpCode: '123456' });
+  await auth.loginWithTOTP(ctx);
+
+  const verifyKeys = limiterKeys.filter(({ type }) => type === 'verify');
+  assert.equal(verifyKeys.length, 1);
+  assert.match(verifyKeys[0].key, /^verify:totp-login:[0-9a-f]{32}$/);
+  assert.equal(verifyKeys[0].key.includes(USER.email), false, 'the key is hashed');
+});
