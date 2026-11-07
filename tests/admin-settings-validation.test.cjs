@@ -43,39 +43,26 @@ test("optional settings email validation matches the server-side address bounds"
   assert.equal(isValidOptionalEmail(null), false);
 });
 
-test("settings UI explains invalid JWT expiry and prevents submission before the API request", () => {
+test("settings UI explains invalid fields and prevents submission before the API request", () => {
   const settings = readSource("admin/src/pages/Settings/SettingsModern.jsx");
+  const auth = readSource("admin/src/pages/Settings/sections/AuthSection.jsx");
+  const email = readSource("admin/src/pages/Settings/sections/EmailSection.jsx");
 
+  const save = settings.slice(settings.indexOf("const handleSave"), settings.indexOf("put('/magic-link/settings'"));
   assert.ok(
-    /if \(!settingsFormValid\) return;/.test(settings),
-    "save handler guards the API request",
-  );
-  assert.ok(
-    /disabled=\{isSaving \|\| isPermissionLoading \|\| !canWriteSettings \|\| !settingsFormValid\}/.test(
-      settings,
-    ),
-    "invalid input disables Save Changes",
-  );
-  assert.ok(
-    /aria-invalid=\{!jwtExpiryValid\}/.test(settings),
-    "input exposes its validation state",
+    /if \(!settingsFormValid\) \{\s*focusField\(errorKeys\[0\]\);/.test(save),
+    "save handler focuses the first invalid field instead of sending the request",
   );
   assert.ok(
     settings.includes("settings.auth.jwtExpiration.invalid"),
     "the field shows a localized correction",
   );
-  assert.ok(
-    /aria-invalid=\{!fromEmailValid\}/.test(settings),
-    "sender email input exposes its validation state",
-  );
-  assert.ok(
-    /aria-invalid=\{!responseEmailValid\}/.test(settings),
-    "reply email input exposes its validation state",
-  );
-  assert.ok(
-    settings.includes("!settingsFormValid"),
-    "Save Changes is unavailable while an email field is invalid",
-  );
+  assert.ok(settings.includes("settings.email.invalidEmail"), "email errors are localized");
+  // DS Field.Root wires error -> aria-invalid and aria-describedby.
+  assert.ok(/name="jwt_token_expires_in"[\s\S]*?error=\{errorFor\('jwt_token_expires_in'\)\}/.test(auth));
+  assert.ok(/name="from_email"[\s\S]*?error=\{errorFor\('from_email'\)\}/.test(email));
+  assert.ok(/name="response_email"[\s\S]*?error=\{errorFor\('response_email'\)\}/.test(email));
+  assert.ok(settings.includes("settings.errors.summary"), "the sticky bar names fields that need attention");
 });
 
 test("JWT expiry and email validation messages exist in every supported locale", () => {

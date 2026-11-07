@@ -15,32 +15,34 @@ test('Magic Link admin accordions use Strapi Design System single-value API', ()
     const root = source.match(/<Accordion\.Root\b([^>]*)>/)?.[1];
 
     assert.ok(root, `admin accordion ${index + 1} exists`);
-    assert.match(root, /defaultValue="(?:general|account)"/);
+    // Settings controls the open item so it can open the section of an invalid field.
+    assert.match(root, /defaultValue="(?:general|account)"|value=\{openSection\} onValueChange=\{setOpenSection\}/);
     assert.doesNotMatch(root, /\btype=/);
-    assert.doesNotMatch(root, /defaultValue=\{\[/);
+    assert.doesNotMatch(root, /(?:defaultValue|value)=\{\[/);
   }
 });
 
-test('MFA mode cards save a canonical mode and state updates retain adjacent changes', () => {
-  const settingsPage = fs.readFileSync(
-    path.join(__dirname, '../admin/src/pages/Settings/SettingsModern.jsx'),
-    'utf8'
-  );
+test('MFA mode cards only change the form; the canonical mode comes from one helper', () => {
+  const read = (file) => fs.readFileSync(path.join(__dirname, '../admin/src/pages/Settings', file), 'utf8');
+  const settingsPage = read('SettingsModern.jsx');
+  const mfa = read('sections/MfaSection.jsx');
+  const form = read('utils/settingsForm.js');
 
-  assert.ok(settingsPage.includes("mfa_mode: 'required'"));
-  assert.ok(settingsPage.includes("mfa_mode: 'disabled'"));
+  assert.ok(form.includes("mfa_mode: 'required'"));
+  assert.ok(form.includes("mfa_mode: 'disabled'"));
+  assert.ok(mfa.includes('patch(applyAuthMode(next, settings))'));
+  assert.equal(/put\(|post\(/.test(mfa), false, 'mode cards never save on their own');
   assert.ok(settingsPage.includes('setSettings((current) => ({ ...current, [key]: value }))'));
 });
 
-test('unsupported SMS and generic TOTP delivery choices are visibly disabled', () => {
-  const settingsPage = fs.readFileSync(
-    path.join(__dirname, '../admin/src/pages/Settings/SettingsModern.jsx'),
+test('OTP settings offer e-mail only, without SMS or a delivery select', () => {
+  const mfa = fs.readFileSync(
+    path.join(__dirname, '../admin/src/pages/Settings/sections/MfaSection.jsx'),
     'utf8'
   );
 
-  assert.ok(/SingleSelectOption value="sms" disabled/.test(settingsPage));
-  assert.ok(/SingleSelectOption value="totp" disabled/.test(settingsPage));
-  assert.ok(settingsPage.includes('TOTP wird separat im MFA-Modus geprüft.'));
+  assert.equal(/value="sms"|value="totp"|otp_type/.test(mfa), false);
+  assert.ok(mfa.includes("t('settings.mfa.otp.delivery'"));
 });
 
 test('delete confirmations are translated in every supported admin locale', () => {

@@ -144,12 +144,18 @@ test('rate-limit controls submit mutations with POST', () => {
 test('settings write and rate-limit controls are hidden or disabled without update permission', () => {
   const settingsPage = source('admin/src/pages/Settings/SettingsModern.jsx');
 
-  assert.ok(settingsPage.includes('useRBAC(pluginPermissions.updateSettings)'));
-  assert.ok(settingsPage.includes('const canWriteSettings = canUpdate'));
-  assert.ok(settingsPage.includes('disabled={isSaving || isPermissionLoading || !canWriteSettings || !settingsFormValid}'));
-  assert.ok(settingsPage.includes('disabled={isPermissionLoading || !canWriteSettings}'));
+  assert.ok(settingsPage.includes('} = useMagicLinkRBAC();'));
+  assert.ok(settingsPage.includes('const canWriteSettings = canUpdateSettings'));
+  assert.ok(settingsPage.includes('disabled={isSaving || isPermissionLoading || !canWriteSettings || !isDirty}'));
+  // Every control is disabled for read-only roles, not only Save.
+  assert.ok(settingsPage.includes('const formDisabled = !canWriteSettings || isSaving'));
+  assert.ok(settingsPage.includes('disabled: formDisabled'));
   assert.ok(settingsPage.includes('if (!canWriteSettings || isPermissionLoading) return;'));
-  assert.ok(settingsPage.includes("getTrad('settings.permission.readOnly')"));
+  assert.ok(settingsPage.includes("t('settings.permission.readOnly'"));
+  // Rate-limit cleanup and reset are hidden without settings.update.
+  assert.ok(settingsPage.includes('canManage={canWriteSettings}'));
+  const rateLimit = source('admin/src/pages/Settings/sections/RateLimitSection.jsx');
+  assert.ok(rateLimit.includes('{canManage ? ('));
 
   const adminRegistration = source('admin/src/index.js');
   assert.ok(adminRegistration.includes('permissions: pluginPermissions.settingsRead'));
