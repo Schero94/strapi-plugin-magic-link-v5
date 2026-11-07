@@ -890,6 +890,8 @@ Do not set `rateLimit: { store: 'memory' }` with several processes: each process
 
 **Upgrading an existing multi-instance install:** the first start merges plugin-store rows that earlier releases could have duplicated (list keys are merged, other keys keep the oldest row) and creates the `magic_link_rate_limits` table. Rate-limit counters start empty once.
 
+**First deploy and schema changes:** Strapi creates and alters its tables when it starts, and this step is not coordinated between processes. When several processes start at once on an empty database, or on the first start after an update that adds columns (this release adds three), all but one can stop with `relation ... already exists` or `column ... already exists`. Nothing is lost; the restarted process finds the finished schema. pm2 restarts such a worker on its own (seen in our test: 3 of 4 workers restarted once, then all ran). On Railway the default restart policy (on failure) does the same; alternatively deploy such an update with 1 replica and scale up afterwards.
+
 The behaviour is tested with 8 processes against SQLite and PostgreSQL 16 (`npm run test:cluster`, see `tests/cluster/run.cjs`). MySQL uses the same code paths with `GET_LOCK` and `RateLimiterMySQL`; it is covered by unit tests, not by a live run.
 
 ## Migrating from strapi-plugin-passwordless

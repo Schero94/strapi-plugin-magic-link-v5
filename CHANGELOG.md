@@ -6,7 +6,7 @@
   - JWT revocations, the session list, IP bans, settings and the license key are written under a cluster-wide database lock (PostgreSQL `pg_advisory_xact_lock`, MySQL `GET_LOCK`, SQLite write lock). The 5-minute cleanup no longer rewrites the blocklist from a stale read.
   - Rate limits, including the always-on second-factor limit, are shared through the new database table `magic_link_rate_limits`. Redis stays optional and now falls back to the database instead of process memory. The admin "reset counters" and changed limits reach every process within 5 seconds.
   - TOTP and backup codes have a database attempt counter (10 attempts without a success lock the factor for 15 minutes).
-  - New accounts from magic-link requests, account claims, second-factor challenge starts, e-mail OTP creation, TOTP enrolment and delivery feedback are safe against parallel requests on different processes.
+  - New accounts from magic-link requests and from admin-issued links (`POST /magic-link/tokens`), account claims, second-factor challenge starts, e-mail OTP creation, TOTP enrolment and delivery feedback are safe against parallel requests on different processes.
   - Background jobs run in one process at a time (lease); startup migrations run under a lock.
   - Startup merges plugin-store rows that earlier releases could have duplicated.
 
@@ -19,6 +19,7 @@
 ### Migration
 
 - No action needed. The first start creates `magic_link_rate_limits` and two new private columns (`magic_link_tokens.challenge_revision`, TOTP `failed_attempts`/`locked_until`). Rate-limit counters start empty once. To keep in-memory counters, set `rateLimit: { store: 'memory' }`.
+- Several processes starting at once on this update can stop once with `column ... already exists` while Strapi adds the new columns; the restarted process starts normally (pm2 and Railway's default on-failure policy restart it). Or deploy with one replica and scale up afterwards. See README, "First deploy and schema changes".
 
 # [6.1.0](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v6.0.0...v6.1.0) (2026-11-07)
 
