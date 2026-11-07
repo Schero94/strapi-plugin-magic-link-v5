@@ -18,7 +18,6 @@ body:
         - Magic Link Authentication
         - Email OTP
         - TOTP / MFA
-        - WhatsApp Integration
         - Token Management
         - Security Features
         - Rate Limiting / IP Banning

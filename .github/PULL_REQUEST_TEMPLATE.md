@@ -31,9 +31,8 @@ Please fill out this template to help us review your PR.
 <!-- Which part of the plugin does this affect? -->
 
 - [ ] Magic Link Authentication
-- [ ] Email OTP (Premium)
-- [ ] TOTP / MFA (Advanced)
-- [ ] WhatsApp Integration
+- [ ] Email OTP
+- [ ] TOTP / MFA
 - [ ] Token Management
 - [ ] IP Banning / Rate Limiting
 - [ ] JWT Sessions
@@ -65,7 +64,6 @@ Please fill out this template to help us review your PR.
 - [ ] Tested Magic Link flow
 - [ ] Tested Email OTP flow
 - [ ] Tested TOTP setup and verification
-- [ ] Tested WhatsApp integration
 - [ ] Verified token generation and validation
 - [ ] Tested rate limiting
 
@@ -97,6 +95,6 @@ Please fill out this template to help us review your PR.
 
 ---
 **PR Title Format**: Please use conventional commits format:
-- `feat: add whatsapp integration`
+- `feat: add login link expiry presets`
 - `fix: resolve token validation issue`
 - `docs: update authentication configuration`

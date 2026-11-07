@@ -55,9 +55,8 @@ body:
       description: Which feature is affected?
       options:
         - Magic Link Authentication
-        - Email OTP (Premium)
-        - TOTP / MFA (Advanced)
-        - WhatsApp Integration
+        - Email OTP
+        - TOTP / MFA
         - Token Management
         - IP Banning
         - Rate Limiting
@@ -79,7 +78,6 @@ body:
         - Magic Link + Email OTP
         - Magic Link + TOTP
         - TOTP-Only Login
-        - WhatsApp Magic Link
     validations:
       required: false
       

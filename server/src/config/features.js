@@ -64,7 +64,6 @@ module.exports = {
       'ip-bans',
       'otp-email',
       'mfa-totp',             // MFA: Magic Link + TOTP (Szenario 1)
-      'otp-sms',              // SMS OTP via Twilio/Vonage
       'otp-totp',             // TOTP (Authenticator Apps)
       'totp-primary-login',   // Login with Email + TOTP only (Szenario 2)
       'custom-email-templates',
@@ -101,7 +100,6 @@ module.exports = {
       'ip-bans',
       'otp-email',
       'mfa-totp',             // MFA: Magic Link + TOTP (Szenario 1)
-      'otp-sms',
       'otp-totp',
       'totp-primary-login',   // Login with Email + TOTP only (Szenario 2)
       'otp-backup-codes',     // Backup Recovery Codes
