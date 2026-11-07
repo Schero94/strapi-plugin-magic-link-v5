@@ -130,7 +130,9 @@ export const computeTokenStats = (tokens = [], now = Date.now()) => {
  * @param {string} query
  */
 export const matchesSearch = (token, query) => {
-  const needle = String(query ?? '').trim().toLowerCase();
+  const needle = String(query ?? '')
+    .trim()
+    .toLowerCase();
   if (!needle) return true;
   return [token?.email, getTokenReference(token), token?.documentId, token?.ip_address]
     .filter(Boolean)

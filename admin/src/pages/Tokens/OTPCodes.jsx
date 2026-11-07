@@ -67,7 +67,12 @@ const OTPCodes = () => {
   const { formatDateTime } = useFormatters();
   const { get, del, post } = useFetchClient();
   const { toggleNotification } = useNotification();
-  const { canRead, canManage, isLoading: isLoadingPermissions, error: permissionError } = useMagicLinkRBAC();
+  const {
+    canRead,
+    canManage,
+    isLoading: isLoadingPermissions,
+    error: permissionError,
+  } = useMagicLinkRBAC();
 
   const [codes, setCodes] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pageSize: 10, total: 0, pageCount: 1 });
@@ -118,7 +123,12 @@ const OTPCodes = () => {
         params: buildOtpQuery({ page, pageSize, search, status: filterStatus }),
       });
       if (current !== requestId.current) return true;
-      const result = normalizeOtpListResponse(data, { page, pageSize, status: filterStatus, filtersActive });
+      const result = normalizeOtpListResponse(data, {
+        page,
+        pageSize,
+        status: filterStatus,
+        filtersActive,
+      });
       setCodes(result.codes);
       setPagination(result.pagination);
       // Keep the last complete stats while a filter hides part of the list.
@@ -211,17 +221,25 @@ const OTPCodes = () => {
     if (summary.failed === 0) {
       notify(
         'success',
-        t('otp.notifications.bulkDeleteSuccess', '{count, plural, one {# OTP code deleted} other {# OTP codes deleted}}', {
-          count: summary.succeeded,
-        })
+        t(
+          'otp.notifications.bulkDeleteSuccess',
+          '{count, plural, one {# OTP code deleted} other {# OTP codes deleted}}',
+          {
+            count: summary.succeeded,
+          }
+        )
       );
     } else {
       notify(
         'danger',
-        t('otp.notifications.bulkDeletePartial', '{succeeded} of {total} OTP codes deleted. The rest failed.', {
-          succeeded: summary.succeeded,
-          total: summary.total,
-        })
+        t(
+          'otp.notifications.bulkDeletePartial',
+          '{succeeded} of {total} OTP codes deleted. The rest failed.',
+          {
+            succeeded: summary.succeeded,
+            total: summary.total,
+          }
+        )
       );
     }
     await fetchCodes();
@@ -247,7 +265,10 @@ const OTPCodes = () => {
       );
       await fetchCodes();
     } catch {
-      notify('danger', t('otp.notifications.cleanupError', 'Expired OTP codes could not be removed.'));
+      notify(
+        'danger',
+        t('otp.notifications.cleanupError', 'Expired OTP codes could not be removed.')
+      );
     }
   };
 
@@ -268,12 +289,16 @@ const OTPCodes = () => {
 
   const handleSelectAll = (checked) => {
     setSelectedIds((ids) =>
-      checked === true ? Array.from(new Set([...ids, ...visibleIds])) : ids.filter((id) => !visibleIds.includes(id))
+      checked === true
+        ? Array.from(new Set([...ids, ...visibleIds]))
+        : ids.filter((id) => !visibleIds.includes(id))
     );
   };
 
   const handleSelect = (id, checked) => {
-    setSelectedIds((ids) => (checked === true ? [...ids, id] : ids.filter((value) => value !== id)));
+    setSelectedIds((ids) =>
+      checked === true ? [...ids, id] : ids.filter((value) => value !== id)
+    );
   };
 
   const statusLabel = (status) =>
@@ -342,7 +367,10 @@ const OTPCodes = () => {
         {heading}
         <Alert variant="danger" closeLabel={t('common.close', 'Close')}>
           {permissionError
-            ? t('common.permissions.loadError', 'Your permissions could not be loaded. Reload the page to try again.')
+            ? t(
+                'common.permissions.loadError',
+                'Your permissions could not be loaded. Reload the page to try again.'
+              )
             : t('otp.permission.denied', 'You do not have permission to view OTP codes.')}
         </Alert>
       </Box>
@@ -361,10 +389,34 @@ const OTPCodes = () => {
       <StatsRow
         label={t('otp.stats.label', 'OTP code statistics')}
         items={[
-          { key: 'total', label: t('otp.stats.total', 'Total'), value: stats?.total ?? null, icon: Server, tone: 'primary' },
-          { key: 'active', label: t('otp.stats.active', 'Active'), value: stats?.active ?? null, icon: Sparkle, tone: 'success' },
-          { key: 'expired', label: t('otp.stats.expired', 'Expired'), value: stats?.expired ?? null, icon: Clock, tone: 'warning' },
-          { key: 'used', label: t('otp.stats.used', 'Used'), value: stats?.used ?? null, icon: Check, tone: 'secondary' },
+          {
+            key: 'total',
+            label: t('otp.stats.total', 'Total'),
+            value: stats?.total ?? null,
+            icon: Server,
+            tone: 'primary',
+          },
+          {
+            key: 'active',
+            label: t('otp.stats.active', 'Active'),
+            value: stats?.active ?? null,
+            icon: Sparkle,
+            tone: 'success',
+          },
+          {
+            key: 'expired',
+            label: t('otp.stats.expired', 'Expired'),
+            value: stats?.expired ?? null,
+            icon: Clock,
+            tone: 'warning',
+          },
+          {
+            key: 'used',
+            label: t('otp.stats.used', 'Used'),
+            value: stats?.used ?? null,
+            icon: Check,
+            tone: 'secondary',
+          },
         ]}
       />
 
@@ -388,10 +440,18 @@ const OTPCodes = () => {
             value={filterStatus}
             onChange={handleStatusFilter}
           >
-            <SingleSelectOption value="all">{t('otp.filter.all', 'All statuses')}</SingleSelectOption>
-            <SingleSelectOption value="active">{t('otp.filter.active', 'Active only')}</SingleSelectOption>
-            <SingleSelectOption value="expired">{t('otp.filter.expired', 'Expired only')}</SingleSelectOption>
-            <SingleSelectOption value="used">{t('otp.filter.used', 'Used only')}</SingleSelectOption>
+            <SingleSelectOption value="all">
+              {t('otp.filter.all', 'All statuses')}
+            </SingleSelectOption>
+            <SingleSelectOption value="active">
+              {t('otp.filter.active', 'Active only')}
+            </SingleSelectOption>
+            <SingleSelectOption value="expired">
+              {t('otp.filter.expired', 'Expired only')}
+            </SingleSelectOption>
+            <SingleSelectOption value="used">
+              {t('otp.filter.used', 'Used only')}
+            </SingleSelectOption>
           </SingleSelect>
         </FilterSelect>
         <FilterSelect>
@@ -425,9 +485,13 @@ const OTPCodes = () => {
       {canManage && selectedIds.length > 0 ? (
         <ActionBar>
           <Typography fontWeight="semiBold" aria-live="polite">
-            {t('otp.selection.count', '{count, plural, one {# code selected} other {# codes selected}}', {
-              count: selectedIds.length,
-            })}
+            {t(
+              'otp.selection.count',
+              '{count, plural, one {# code selected} other {# codes selected}}',
+              {
+                count: selectedIds.length,
+              }
+            )}
           </Typography>
           <Flex gap={2} wrap="wrap">
             <Button onClick={() => setSelectedIds([])} variant="tertiary" size="L">
@@ -457,7 +521,10 @@ const OTPCodes = () => {
             <EmptyState
               icon={Key}
               title={t('otp.empty.noMatches.title', 'No OTP codes match your filters')}
-              description={t('otp.empty.noMatches.description', 'Change the search or status filter to see more codes.')}
+              description={t(
+                'otp.empty.noMatches.description',
+                'Change the search or status filter to see more codes.'
+              )}
               actions={
                 <Button onClick={handleResetFilters} variant="secondary" size="L">
                   {t('otp.empty.resetFilters', 'Reset filters')}
@@ -512,10 +579,14 @@ const OTPCodes = () => {
                       {canManage ? (
                         <Td data-label="">
                           <Checkbox
-                            aria-label={t('otp.table.select', 'Select code {reference} for {email}', {
-                              reference,
-                              email: code.email || '-',
-                            })}
+                            aria-label={t(
+                              'otp.table.select',
+                              'Select code {reference} for {email}',
+                              {
+                                reference,
+                                email: code.email || '-',
+                              }
+                            )}
                             checked={selectedIds.includes(id)}
                             disabled={!id}
                             onCheckedChange={(checked) => handleSelect(id, checked)}
@@ -560,7 +631,9 @@ const OTPCodes = () => {
                         <Td data-label="">
                           <Flex gap={1} justifyContent="flex-end">
                             <IconButton
-                              label={t('otp.actions.deleteFor', 'Delete code {reference}', { reference })}
+                              label={t('otp.actions.deleteFor', 'Delete code {reference}', {
+                                reference,
+                              })}
                               variant="danger-light"
                               onClick={() => setPendingAction({ type: 'delete', code })}
                               disabled={!id}

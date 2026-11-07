@@ -120,10 +120,10 @@ module.exports = ({ strapi }) => {
   const pendingIsUsable = (pending, now = Date.now()) =>
     Boolean(
       pending &&
-        typeof pending === 'object' &&
-        pending.secret &&
-        PENDING_ORIGINS.includes(pending.origin) &&
-        new Date(pending.expiresAt).getTime() > now
+      typeof pending === 'object' &&
+      pending.secret &&
+      PENDING_ORIGINS.includes(pending.origin) &&
+      new Date(pending.expiresAt).getTime() > now
     );
 
   /**
@@ -134,7 +134,8 @@ module.exports = ({ strapi }) => {
    * @param {string} nonce - Pending nonce.
    * @returns {string} Keyed hash.
    */
-  const setupBinding = (principalKey, nonce) => cryptoUtils.keyedHash('totp-setup', `${principalKey}:${nonce}`);
+  const setupBinding = (principalKey, nonce) =>
+    cryptoUtils.keyedHash('totp-setup', `${principalKey}:${nonce}`);
 
   return {
     toPrincipal,
@@ -167,7 +168,9 @@ module.exports = ({ strapi }) => {
      */
     async createOTP(email, type = 'email', options = {}) {
       const { magicLinkToken = null, expirySeconds = 300, codeLength = 6 } = options;
-      const normalizedEmail = String(email || '').trim().toLowerCase();
+      const normalizedEmail = String(email || '')
+        .trim()
+        .toLowerCase();
 
       await this.invalidateActiveOTPs(normalizedEmail, type);
 
@@ -222,13 +225,17 @@ module.exports = ({ strapi }) => {
      * @returns {Promise<{valid: boolean, error?: string, message?: string}>}
      */
     async verifyOTP(email, code, type = 'email', binding = null) {
-      const normalizedEmail = String(email || '').trim().toLowerCase();
+      const normalizedEmail = String(email || '')
+        .trim()
+        .toLowerCase();
       if (!normalizedEmail || !code) return invalid('invalid_code', 'Invalid or expired OTP code');
 
       try {
         const settings = await readSettings();
         const maxAttempts =
-          Number.isInteger(settings.otp_max_attempts) && settings.otp_max_attempts > 0 ? settings.otp_max_attempts : 3;
+          Number.isInteger(settings.otp_max_attempts) && settings.otp_max_attempts > 0
+            ? settings.otp_max_attempts
+            : 3;
         const now = new Date();
         const where = {
           email: normalizedEmail,
@@ -329,7 +336,9 @@ module.exports = ({ strapi }) => {
         preheader: `Your verification code: ${safeCode}`,
       });
       const headers = emailHelpers.getEmailHeaders({ replyTo: settings.response_email });
-      const fromName = String(settings.from_name || '').replace(/[\r\n"<>]/g, '').trim();
+      const fromName = String(settings.from_name || '')
+        .replace(/[\r\n"<>]/g, '')
+        .trim();
       const from = settings.from_email
         ? fromName
           ? `"${fromName}" <${settings.from_email}>`
@@ -347,7 +356,10 @@ module.exports = ({ strapi }) => {
 
       if (settings.use_magic_mail && strapi.plugin('magic-mail')) {
         try {
-          await strapi.plugin('magic-mail').service('email-router').send({ ...message, type: 'transactional' });
+          await strapi
+            .plugin('magic-mail')
+            .service('email-router')
+            .send({ ...message, type: 'transactional' });
           return true;
         } catch {
           log.error('[magic-link] MagicMail OTP delivery failed; using the Strapi e-mail plugin');
@@ -389,7 +401,9 @@ module.exports = ({ strapi }) => {
         length: settings.otp_length || 6,
         expiry: settings.otp_expiry || 300,
         maxAttempts: settings.otp_max_attempts || 3,
-        resendCooldown: Number.isFinite(settings.otp_resend_cooldown) ? settings.otp_resend_cooldown : 60,
+        resendCooldown: Number.isFinite(settings.otp_resend_cooldown)
+          ? settings.otp_resend_cooldown
+          : 60,
       };
     },
 
@@ -404,7 +418,12 @@ module.exports = ({ strapi }) => {
      */
     async getTOTPStatus(principalInput) {
       const principal = toPrincipal(principalInput);
-      const empty = { configured: false, enabled: false, pendingSetup: false, backupCodesRemaining: 0 };
+      const empty = {
+        configured: false,
+        enabled: false,
+        pendingSetup: false,
+        backupCodesRemaining: 0,
+      };
       if (!principal) return empty;
       try {
         const row = await findConfig(principal);
@@ -417,7 +436,9 @@ module.exports = ({ strapi }) => {
           pendingSetup: pendingIsUsable(row.pending),
           lastUsed: row.lastUsed || null,
           backupCodesRemaining:
-            active && row.backupCodesVersion === totpUtils.BACKUP_HASH_VERSION && Array.isArray(row.backupCodes)
+            active &&
+            row.backupCodesVersion === totpUtils.BACKUP_HASH_VERSION &&
+            Array.isArray(row.backupCodes)
               ? row.backupCodes.length
               : 0,
           ...(params || {}),
@@ -461,7 +482,8 @@ module.exports = ({ strapi }) => {
 
       const row = await findConfig(principal);
       if (row) {
-        if (!(await updateIfUnchanged(row, { pending, email }))) throw new Error('Concurrent TOTP update');
+        if (!(await updateIfUnchanged(row, { pending, email })))
+          throw new Error('Concurrent TOTP update');
       } else {
         await totpQuery().create({
           data: {
@@ -476,7 +498,10 @@ module.exports = ({ strapi }) => {
         });
         // A concurrent request may have created a row as well: keep the
         // oldest and remove the rest.
-        const rows = await totpQuery().findMany({ where: { principalKey: principal.key }, orderBy: { id: 'asc' } });
+        const rows = await totpQuery().findMany({
+          where: { principalKey: principal.key },
+          orderBy: { id: 'asc' },
+        });
         if (Array.isArray(rows) && rows.length > 1) {
           await totpQuery().deleteMany({ where: { id: { $in: rows.slice(1).map((r) => r.id) } } });
           if (rows[0].pending?.nonce !== nonce) throw new Error('Concurrent TOTP update');
@@ -531,14 +556,16 @@ module.exports = ({ strapi }) => {
 
         if (pending.requireEmailProof) {
           const proof = options.emailProof;
-          if (!proof?.code || !proof?.email) return invalid('email_proof_required', 'E-mail code required');
+          if (!proof?.code || !proof?.email)
+            return invalid('email_proof_required', 'E-mail code required');
           const emailCheck = await this.verifyOTP(
             proof.email,
             proof.code,
             'totp-setup',
             setupBinding(principal.key, pending.nonce)
           );
-          if (!emailCheck.valid) return invalid('invalid_email_code', 'Invalid or expired e-mail code');
+          if (!emailCheck.valid)
+            return invalid('invalid_email_code', 'Invalid or expired e-mail code');
         }
 
         const backupCodes = totpUtils.generateBackupCodes();
@@ -598,7 +625,10 @@ module.exports = ({ strapi }) => {
         } else if (row.lastUsed) {
           lastUsedStep = Math.floor(new Date(row.lastUsed).getTime() / 1000 / params.period);
         }
-        if (lastUsedStep !== null && (!Number.isFinite(lastUsedStep) || check.timeStep <= lastUsedStep)) {
+        if (
+          lastUsedStep !== null &&
+          (!Number.isFinite(lastUsedStep) || check.timeStep <= lastUsedStep)
+        ) {
           return invalid('totp_replayed', 'This TOTP code has already been used');
         }
 
@@ -606,7 +636,8 @@ module.exports = ({ strapi }) => {
           where: { id: row.id, enabled: true, lastUsedStep: row.lastUsedStep ?? null },
           data: { lastUsed: new Date(), lastUsedStep: check.timeStep },
         });
-        if (result?.count !== 1) return invalid('totp_replayed', 'This TOTP code has already been used');
+        if (result?.count !== 1)
+          return invalid('totp_replayed', 'This TOTP code has already been used');
 
         return { valid: true, enabled: true };
       } catch {
@@ -743,13 +774,26 @@ module.exports = ({ strapi }) => {
     async migrateTotpConfigs() {
       const stats = { assigned: 0, disabled: 0, reencrypted: 0 };
       const params = totpUtils.normalizeParams(await readSettings());
-      const sameEmail = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+      const sameEmail = (a, b) =>
+        String(a || '')
+          .trim()
+          .toLowerCase() ===
+        String(b || '')
+          .trim()
+          .toLowerCase();
 
-      const legacy = await totpQuery().findMany({ where: { principalKey: { $null: true } }, orderBy: { id: 'asc' } });
+      const legacy = await totpQuery().findMany({
+        where: { principalKey: { $null: true } },
+        orderBy: { id: 'asc' },
+      });
       for (const row of legacy || []) {
         const [adminUser, upUser] = await Promise.all([
-          strapi.db.query(ADMIN_USER_UID).findOne({ where: { id: row.userId }, select: ['id', 'email'] }),
-          strapi.db.query(UP_USER_UID).findOne({ where: { id: row.userId }, select: ['id', 'email'] }),
+          strapi.db
+            .query(ADMIN_USER_UID)
+            .findOne({ where: { id: row.userId }, select: ['id', 'email'] }),
+          strapi.db
+            .query(UP_USER_UID)
+            .findOne({ where: { id: row.userId }, select: ['id', 'email'] }),
         ]);
         const adminOwns = Boolean(adminUser && sameEmail(adminUser.email, row.email));
         const upOwns = Boolean(upUser && sameEmail(upUser.email, row.email));
@@ -782,11 +826,17 @@ module.exports = ({ strapi }) => {
           });
           stats.disabled += 1;
         }
-        await totpQuery().updateMany({ where: { id: row.id, principalKey: { $null: true } }, data });
+        await totpQuery().updateMany({
+          where: { id: row.id, principalKey: { $null: true } },
+          data,
+        });
       }
 
       if (process.env.MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS) {
-        const rows = await totpQuery().findMany({ where: { secret: { $notNull: true } }, select: ['id', 'secret'] });
+        const rows = await totpQuery().findMany({
+          where: { secret: { $notNull: true } },
+          select: ['id', 'secret'],
+        });
         for (const row of rows || []) {
           try {
             const { value, usedPreviousKey } = cryptoUtils.decryptWithInfo(row.secret);
@@ -798,7 +848,9 @@ module.exports = ({ strapi }) => {
               stats.reencrypted += 1;
             }
           } catch {
-            log.warn('[magic-link] A TOTP secret could not be decrypted with the current or previous key');
+            log.warn(
+              '[magic-link] A TOTP secret could not be decrypted with the current or previous key'
+            );
           }
         }
       }

@@ -12,11 +12,11 @@ module.exports = {
     try {
       const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
       const stats = await rateLimiter.getStats();
-      
+
       if (!stats) {
         return ctx.badRequest('Failed to get rate limit stats');
       }
-      
+
       ctx.send({
         success: true,
         data: stats,
@@ -26,7 +26,7 @@ module.exports = {
       ctx.throw(500, error);
     }
   },
-  
+
   /**
    * Cleanup expired rate limit entries
    */
@@ -34,7 +34,7 @@ module.exports = {
     try {
       const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
       const result = await rateLimiter.cleanupExpired();
-      
+
       ctx.send({
         success: true,
         message: `Cleaned up ${result.cleaned} expired entries`,
@@ -45,7 +45,7 @@ module.exports = {
       ctx.throw(500, error);
     }
   },
-  
+
   /**
    * Reset all rate limits
    */
@@ -53,7 +53,7 @@ module.exports = {
     try {
       const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
       await rateLimiter.resetAll();
-      
+
       ctx.send({
         success: true,
         message: 'All rate limits have been reset',
@@ -64,4 +64,3 @@ module.exports = {
     }
   },
 };
-

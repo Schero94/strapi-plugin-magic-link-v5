@@ -1,4 +1,10 @@
-import { NumberInput, SingleSelect, SingleSelectOption, TextInput, Typography } from '@strapi/design-system';
+import {
+  NumberInput,
+  SingleSelect,
+  SingleSelectOption,
+  TextInput,
+  Typography,
+} from '@strapi/design-system';
 import { Link as LinkIcon } from '@strapi/icons';
 import { useMagicLinkIntl } from '../../../hooks/useMagicLinkIntl';
 import { usePluginLanguage } from '../../../components/LanguageProvider';
@@ -38,8 +44,14 @@ export const GeneralSection = ({ settings, update, disabled, errorFor, statusOn,
   const origin = typeof window === 'undefined' ? undefined : window.location.origin;
   const preview = buildLoginUrlPreview(settings, origin);
   const previewSource = {
-    frontend: t('settings.links.preview.source.frontend', 'Built from the frontend URL and login path.'),
-    confirmation: t('settings.links.preview.source.confirmation', 'Built from the confirmation URL.'),
+    frontend: t(
+      'settings.links.preview.source.frontend',
+      'Built from the frontend URL and login path.'
+    ),
+    confirmation: t(
+      'settings.links.preview.source.confirmation',
+      'Built from the confirmation URL.'
+    ),
     api: t(
       'settings.links.preview.source.api',
       'No valid frontend or confirmation URL is set, so the link opens the Strapi API login route.'
@@ -79,7 +91,10 @@ export const GeneralSection = ({ settings, update, disabled, errorFor, statusOn,
         <GroupTitle
           align="center"
           title={t('settings.features.title', 'MAIN FEATURES')}
-          subtitle={t('settings.features.subtitle', 'Enable or disable the main features of the Magic Link plugin')}
+          subtitle={t(
+            'settings.features.subtitle',
+            'Enable or disable the main features of the Magic Link plugin'
+          )}
         />
         <CardGrid $min="240px">
           <ToggleCard
@@ -114,7 +129,10 @@ export const GeneralSection = ({ settings, update, disabled, errorFor, statusOn,
         <SettingField
           name="expire_period"
           label={t('settings.expire.label', 'Link lifetime (seconds)')}
-          hint={t('settings.expire.hint', 'Recommended: 3600 seconds (1 hour). Allowed: 10 to 31,536,000.')}
+          hint={t(
+            'settings.expire.hint',
+            'Recommended: 3600 seconds (1 hour). Allowed: 10 to 31,536,000.'
+          )}
           error={errorFor('expire_period')}
           required
         >
@@ -255,7 +273,11 @@ export const GeneralSection = ({ settings, update, disabled, errorFor, statusOn,
         />
       </SettingField>
 
-      <Note tone="primary" icon={LinkIcon} title={t('settings.links.preview.title', 'Resulting login link')}>
+      <Note
+        tone="primary"
+        icon={LinkIcon}
+        title={t('settings.links.preview.title', 'Resulting login link')}
+      >
         <Typography variant="pi" tag="p" style={{ color: 'inherit', margin: 0 }}>
           <Mono>{preview.url}</Mono>
         </Typography>

@@ -83,7 +83,9 @@ export const MagicLinksPanel = ({
       return next.length === keys.length ? keys : next;
     });
     setDetailsToken((current) =>
-      current ? (tokens.find((token) => getTokenKey(token) === getTokenKey(current)) ?? null) : current
+      current
+        ? (tokens.find((token) => getTokenKey(token) === getTokenKey(current)) ?? null)
+        : current
     );
   }
 
@@ -121,17 +123,25 @@ export const MagicLinksPanel = ({
     if (failed.length === 0) {
       notify(
         'success',
-        t('tokens.notifications.bulkDeleted', '{count, plural, one {# token deleted} other {# tokens deleted}}', {
-          count: succeeded.length,
-        })
+        t(
+          'tokens.notifications.bulkDeleted',
+          '{count, plural, one {# token deleted} other {# tokens deleted}}',
+          {
+            count: succeeded.length,
+          }
+        )
       );
     } else {
       notify(
         'warning',
-        t('tokens.notifications.bulkPartial', '{deleted} of {total} tokens deleted. The others are still selected.', {
-          deleted: succeeded.length,
-          total,
-        })
+        t(
+          'tokens.notifications.bulkPartial',
+          '{deleted} of {total} tokens deleted. The others are still selected.',
+          {
+            deleted: succeeded.length,
+            total,
+          }
+        )
       );
     }
     await refetch();
@@ -161,7 +171,10 @@ export const MagicLinksPanel = ({
       notify('success', t('tokens.notifications.activateSuccess', 'Token activated'));
       await refetch();
     } catch {
-      notify('warning', t('tokens.notifications.activateError', 'The token could not be activated.'));
+      notify(
+        'warning',
+        t('tokens.notifications.activateError', 'The token could not be activated.')
+      );
     }
   };
 
@@ -171,13 +184,19 @@ export const MagicLinksPanel = ({
       const response = await post('/magic-link/tokens', buildReissueTokenBody(token));
       setPending(null);
       setDetailsToken(null);
-      notify('success', t('tokens.notifications.reactivateSuccess', 'New token created and sent to {email}', {
-        email: token.email,
-      }));
+      notify(
+        'success',
+        t('tokens.notifications.reactivateSuccess', 'New token created and sent to {email}', {
+          email: token.email,
+        })
+      );
       onTokenIssued(response?.data, token.email);
       await refetch();
     } catch {
-      notify('warning', t('tokens.notifications.reactivateError', 'The new token could not be created.'));
+      notify(
+        'warning',
+        t('tokens.notifications.reactivateError', 'The new token could not be created.')
+      );
     }
   };
 
@@ -189,7 +208,11 @@ export const MagicLinksPanel = ({
       setExtendToken(null);
       notify(
         'success',
-        t('tokens.notifications.extended', 'Token extended by {days, plural, one {# day} other {# days}}', { days })
+        t(
+          'tokens.notifications.extended',
+          'Token extended by {days, plural, one {# day} other {# days}}',
+          { days }
+        )
       );
       await refetch();
     } catch {
@@ -206,7 +229,11 @@ export const MagicLinksPanel = ({
       case 'delete':
         return {
           title: t('tokens.delete.title', 'Delete token?'),
-          description: t('tokens.delete.body', 'The login link for {email} stops working immediately. This cannot be undone.', { email }),
+          description: t(
+            'tokens.delete.body',
+            'The login link for {email} stops working immediately. This cannot be undone.',
+            { email }
+          ),
           confirmLabel: t('common.delete', 'Delete'),
           confirmIcon: <Trash />,
           onConfirm: () => deleteToken(pending.token),
@@ -226,7 +253,11 @@ export const MagicLinksPanel = ({
       case 'block':
         return {
           title: t('tokens.block.title', 'Block token?'),
-          description: t('tokens.block.body', 'The login link for {email} stops working until you activate it again.', { email }),
+          description: t(
+            'tokens.block.body',
+            'The login link for {email} stops working until you activate it again.',
+            { email }
+          ),
           confirmLabel: t('tokens.actions.block', 'Block'),
           confirmIcon: <Lock />,
           onConfirm: () => blockToken(pending.token),
@@ -234,7 +265,11 @@ export const MagicLinksPanel = ({
       case 'activate':
         return {
           title: t('tokens.activate.title', 'Activate token?'),
-          description: t('tokens.activate.body', 'The login link for {email} works again until it expires.', { email }),
+          description: t(
+            'tokens.activate.body',
+            'The login link for {email} works again until it expires.',
+            { email }
+          ),
           confirmLabel: t('tokens.actions.activate', 'Activate'),
           confirmIcon: <Check />,
           variant: 'default',
@@ -285,9 +320,13 @@ export const MagicLinksPanel = ({
       {canManage && selectedKeys.length > 0 ? (
         <ActionBar role="region" aria-label={t('tokens.bulk.label', 'Bulk actions')}>
           <Typography fontWeight="semiBold" textColor="neutral800" aria-live="polite">
-            {t('tokens.selected', '{count, plural, one {# token selected} other {# tokens selected}}', {
-              count: selectedKeys.length,
-            })}
+            {t(
+              'tokens.selected',
+              '{count, plural, one {# token selected} other {# tokens selected}}',
+              {
+                count: selectedKeys.length,
+              }
+            )}
           </Typography>
           <Flex gap={2} wrap="wrap">
             <Button variant="tertiary" size="M" onClick={() => setSelectedKeys([])}>
@@ -321,11 +360,15 @@ export const MagicLinksPanel = ({
         onCreate={onCreate}
         selectedKeys={selectedKeys}
         onToggleRow={(key, checked) =>
-          setSelectedKeys((keys) => (checked ? [...new Set([...keys, key])] : keys.filter((k) => k !== key)))
+          setSelectedKeys((keys) =>
+            checked ? [...new Set([...keys, key])] : keys.filter((k) => k !== key)
+          )
         }
         onToggleAllVisible={(keys, checked) =>
           setSelectedKeys((current) =>
-            checked ? [...new Set([...current, ...keys])] : current.filter((key) => !keys.includes(key))
+            checked
+              ? [...new Set([...current, ...keys])]
+              : current.filter((key) => !keys.includes(key))
           )
         }
         sort={sort}
@@ -359,7 +402,11 @@ export const MagicLinksPanel = ({
       />
 
       {canManage ? (
-        <ExtendTokenModal token={extendToken} onClose={() => setExtendToken(null)} onSubmit={extend} />
+        <ExtendTokenModal
+          token={extendToken}
+          onClose={() => setExtendToken(null)}
+          onSubmit={extend}
+        />
       ) : null}
 
       <ConfirmDialog

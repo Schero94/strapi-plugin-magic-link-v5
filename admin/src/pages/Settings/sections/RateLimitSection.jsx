@@ -2,7 +2,17 @@ import { Button, Flex, Loader, NumberInput, Typography } from '@strapi/design-sy
 import { ArrowClockwise, Trash } from '@strapi/icons';
 import { useMagicLinkIntl } from '../../../hooks/useMagicLinkIntl';
 import { useFormatters } from '../../../hooks/useFormatters';
-import { CardGrid, FieldGrid, GroupTitle, Note, Panel, SectionBody, SettingField, Stat, ToggleCard } from '../components/SettingsUi';
+import {
+  CardGrid,
+  FieldGrid,
+  GroupTitle,
+  Note,
+  Panel,
+  SectionBody,
+  SettingField,
+  Stat,
+  ToggleCard,
+} from '../components/SettingsUi';
 
 /**
  * Rate limiting: switch, limits and live statistics with cleanup and reset.
@@ -71,7 +81,10 @@ export const RateLimitSection = ({
         <SettingField
           name="rate_limit_max_attempts"
           label={t('settings.rateLimit.maxAttempts.label', 'Maximum requests')}
-          hint={t('settings.rateLimit.maxAttempts.hint', 'Requests allowed per time window before blocking (1 to 1,000).')}
+          hint={t(
+            'settings.rateLimit.maxAttempts.hint',
+            'Requests allowed per time window before blocking (1 to 1,000).'
+          )}
           error={errorFor('rate_limit_max_attempts')}
           required
         >
@@ -86,7 +99,10 @@ export const RateLimitSection = ({
         <SettingField
           name="rate_limit_window_minutes"
           label={t('settings.rateLimit.windowMinutes.label', 'Time Window (Minutes)')}
-          hint={t('settings.rateLimit.windowMinutes.hint', 'Period in which requests are counted (1 to 10,080 minutes).')}
+          hint={t(
+            'settings.rateLimit.windowMinutes.hint',
+            'Period in which requests are counted (1 to 10,080 minutes).'
+          )}
           error={errorFor('rate_limit_window_minutes')}
           required
         >
@@ -110,7 +126,12 @@ export const RateLimitSection = ({
         <Note tone="danger" role="alert">
           <Flex gap={3} alignItems="center" wrap="wrap">
             <span>{t('settings.rateLimit.stats.error', 'Statistics could not be loaded.')}</span>
-            <Button variant="tertiary" size="S" startIcon={<ArrowClockwise />} onClick={onRetryStats}>
+            <Button
+              variant="tertiary"
+              size="S"
+              startIcon={<ArrowClockwise />}
+              onClick={onRetryStats}
+            >
               {t('settings.retry', 'Try again')}
             </Button>
           </Flex>
@@ -119,10 +140,26 @@ export const RateLimitSection = ({
       {stats.status === 'ready' ? (
         <>
           <CardGrid $min="160px">
-            <Stat tone="neutral" value={value('totalEntries')} label={t('settings.rateLimit.stats.total', 'Total Entries')} />
-            <Stat tone="danger" value={value('blocked')} label={t('settings.rateLimit.stats.blocked', 'Currently Blocked')} />
-            <Stat tone="primary" value={value('ipLimits')} label={t('settings.rateLimit.stats.ipLimits', 'IP address limits')} />
-            <Stat tone="success" value={value('emailLimits')} label={t('settings.rateLimit.stats.emailLimits', 'Email Limits')} />
+            <Stat
+              tone="neutral"
+              value={value('totalEntries')}
+              label={t('settings.rateLimit.stats.total', 'Total Entries')}
+            />
+            <Stat
+              tone="danger"
+              value={value('blocked')}
+              label={t('settings.rateLimit.stats.blocked', 'Currently Blocked')}
+            />
+            <Stat
+              tone="primary"
+              value={value('ipLimits')}
+              label={t('settings.rateLimit.stats.ipLimits', 'IP address limits')}
+            />
+            <Stat
+              tone="success"
+              value={value('emailLimits')}
+              label={t('settings.rateLimit.stats.emailLimits', 'Email Limits')}
+            />
           </CardGrid>
           <Typography variant="pi" textColor="neutral600">
             {t(
@@ -132,10 +169,21 @@ export const RateLimitSection = ({
           </Typography>
           {canManage ? (
             <Flex gap={2} justifyContent="center" wrap="wrap">
-              <Button variant="secondary" size="M" onClick={onCleanup} loading={isCleaning} startIcon={<ArrowClockwise />}>
+              <Button
+                variant="secondary"
+                size="M"
+                onClick={onCleanup}
+                loading={isCleaning}
+                startIcon={<ArrowClockwise />}
+              >
                 {t('settings.rateLimit.cleanup', 'Clean up expired entries')}
               </Button>
-              <Button variant="danger-light" size="M" onClick={onRequestReset} startIcon={<Trash />}>
+              <Button
+                variant="danger-light"
+                size="M"
+                onClick={onRequestReset}
+                startIcon={<Trash />}
+              >
                 {t('settings.rateLimit.reset', 'Reset All Limits')}
               </Button>
             </Flex>

@@ -24,7 +24,11 @@ const { normalizeEmail } = require('../utils/email');
 const { normalizeIpAddress } = require('../utils/ip-address');
 const { filterContext } = require('../utils/context-policy');
 const { buildLoginUrl } = require('../utils/login-url');
-const { buildTemplateVariables, escapeHtml, renderTemplate } = require('../utils/template-renderer');
+const {
+  buildTemplateVariables,
+  escapeHtml,
+  renderTemplate,
+} = require('../utils/template-renderer');
 const { decodeJwtExpiry } = require('../utils/login-session');
 
 const TOKEN_UID = 'plugin::magic-link.token';
@@ -46,8 +50,10 @@ const UNKNOWN_EXPIRY_MS = 365 * 24 * 60 * 60 * 1000;
 const BLOCKLIST_CACHE_TTL_MS = 2000;
 
 const DEFAULT_SUBJECT = 'Your login link';
-const DEFAULT_HTML = '<p>Hello,</p><p><a href="{{LOGIN_URL}}">Click here to log in</a>.</p><p>This link expires in {{EXPIRY_TEXT}}.</p>';
-const DEFAULT_TEXT = 'Hello,\n\nUse this link to log in: {{LOGIN_URL}}\n\nThis link expires in {{EXPIRY_TEXT}}.';
+const DEFAULT_HTML =
+  '<p>Hello,</p><p><a href="{{LOGIN_URL}}">Click here to log in</a>.</p><p>This link expires in {{EXPIRY_TEXT}}.</p>';
+const DEFAULT_TEXT =
+  'Hello,\n\nUse this link to log in: {{LOGIN_URL}}\n\nThis link expires in {{EXPIRY_TEXT}}.';
 
 /**
  * Clamps a configured token length into the secure range (>= 132 bits).
@@ -132,7 +138,9 @@ module.exports = ({ strapi }) => {
       const base = toUsernameBase(requested) || toUsernameBase(email.split('@')[0]) || 'user';
       let candidate = base;
       for (let attempt = 0; attempt < 5; attempt += 1) {
-        const existing = await strapi.documents(USER_UID).findMany({ filters: { username: candidate }, limit: 1 });
+        const existing = await strapi
+          .documents(USER_UID)
+          .findMany({ filters: { username: candidate }, limit: 1 });
         if (!existing || existing.length === 0) return candidate;
         candidate = `${base}-${createId(6)}`;
       }
@@ -225,7 +233,8 @@ module.exports = ({ strapi }) => {
 
       if (!user || normalizeEmail(user.email) !== normalizedEmail) return 'user_mismatch';
       if (user.blocked) return 'blocked_user';
-      if (settings.verify_email === true && existingUser && !user.confirmed) return 'email_not_confirmed';
+      if (settings.verify_email === true && existingUser && !user.confirmed)
+        return 'email_not_confirmed';
 
       const token = await this.createToken(user.email, context);
       await this.sendLoginLink(token, { username: user.username });
@@ -258,7 +267,10 @@ module.exports = ({ strapi }) => {
         throw new Error('createToken requires a non-empty email');
       }
 
-      const expireSeconds = Number.isFinite(settings.expire_period) && settings.expire_period > 0 ? settings.expire_period : 3600;
+      const expireSeconds =
+        Number.isFinite(settings.expire_period) && settings.expire_period > 0
+          ? settings.expire_period
+          : 3600;
       const expires = new Date(Date.now() + expireSeconds * 1000);
       const { hash: tokenHash, salt: tokenSalt } = cryptoUtils.hashToken(token);
 
@@ -442,7 +454,12 @@ module.exports = ({ strapi }) => {
      */
     async consumeChallenge(token, challengeType, requestInfo = {}) {
       const challenge = token?.challenge;
-      if (!token?.id || !CHALLENGE_TYPES.includes(challengeType) || challenge?.type !== challengeType || challenge.verifiedAt) {
+      if (
+        !token?.id ||
+        !CHALLENGE_TYPES.includes(challengeType) ||
+        challenge?.type !== challengeType ||
+        challenge.verifiedAt
+      ) {
         return false;
       }
 
@@ -474,7 +491,9 @@ module.exports = ({ strapi }) => {
         strapi.config?.get?.('plugin::email.settings.defaultFrom') ||
         strapi.config?.get?.('plugin.email.settings.defaultFrom');
       if (!fromEmail) return undefined;
-      const name = String(settings?.from_name || '').replace(/[\r\n"<>]/g, '').trim();
+      const name = String(settings?.from_name || '')
+        .replace(/[\r\n"<>]/g, '')
+        .trim();
       return name ? `"${name}" <${fromEmail}>` : fromEmail;
     },
 
@@ -487,7 +506,10 @@ module.exports = ({ strapi }) => {
      * @returns {{subject: string, html: string, text: string}} Rendered mail.
      */
     renderLoginEmail(settings, variables) {
-      const subject = renderTemplate(settings?.object || DEFAULT_SUBJECT, variables).replace(/[\r\n]+/g, ' ').trim() || DEFAULT_SUBJECT;
+      const subject =
+        renderTemplate(settings?.object || DEFAULT_SUBJECT, variables)
+          .replace(/[\r\n]+/g, ' ')
+          .trim() || DEFAULT_SUBJECT;
       let html = renderTemplate(settings?.message_html || DEFAULT_HTML, variables, { html: true });
       let text = renderTemplate(settings?.message_text || DEFAULT_TEXT, variables);
 
@@ -533,7 +555,13 @@ module.exports = ({ strapi }) => {
       const replyTo = settings.response_email || undefined;
       const headers = emailHelpers.getEmailHeaders({ replyTo });
 
-      const validation = emailHelpers.validateEmailConfig({ to: token.email, from: from || 'provider-default@localhost', subject, text, html });
+      const validation = emailHelpers.validateEmailConfig({
+        to: token.email,
+        from: from || 'provider-default@localhost',
+        subject,
+        text,
+        html,
+      });
       if (!validation.valid) {
         strapi.log.error('[magic-link] Login e-mail configuration is invalid');
         throw new Error('Invalid email configuration');
@@ -557,36 +585,46 @@ module.exports = ({ strapi }) => {
       if (settings.use_magic_mail && strapi.plugin('magic-mail')) {
         try {
           let templateReferenceId = settings.magic_mail_template_reference_id || undefined;
-          const numericTemplateId = settings.magic_mail_template_id ? Number(settings.magic_mail_template_id) : undefined;
+          const numericTemplateId = settings.magic_mail_template_id
+            ? Number(settings.magic_mail_template_id)
+            : undefined;
           if (numericTemplateId && !templateReferenceId) {
             try {
-              const record = await strapi.plugin('magic-mail').service('email-designer').findOne(numericTemplateId);
+              const record = await strapi
+                .plugin('magic-mail')
+                .service('email-designer')
+                .findOne(numericTemplateId);
               templateReferenceId = record?.templateReferenceId || undefined;
             } catch {
               strapi.log.warn('[magic-link] Magic Mail template metadata could not be loaded');
             }
           }
 
-          await strapi.plugin('magic-mail').service('email-router').send({
-            to: token.email,
-            from,
-            replyTo,
-            subject,
-            text,
-            html,
-            headers,
-            // Login links must never be rewritten into tracking URLs.
-            skipLinkTracking: true,
-            links: [{ original: loginUrl, label: 'Magic Link Login', track: false }],
-            templateId: templateReferenceId || numericTemplateId,
-            templateReferenceId,
-            templateData: templatePayload,
-            data: templatePayload,
-          });
+          await strapi
+            .plugin('magic-mail')
+            .service('email-router')
+            .send({
+              to: token.email,
+              from,
+              replyTo,
+              subject,
+              text,
+              html,
+              headers,
+              // Login links must never be rewritten into tracking URLs.
+              skipLinkTracking: true,
+              links: [{ original: loginUrl, label: 'Magic Link Login', track: false }],
+              templateId: templateReferenceId || numericTemplateId,
+              templateReferenceId,
+              templateData: templatePayload,
+              data: templatePayload,
+            });
           strapi.log.debug('[magic-link] Login e-mail sent via Magic Mail');
           return token;
         } catch {
-          strapi.log.error('[magic-link] Magic Mail send failed, falling back to the next provider');
+          strapi.log.error(
+            '[magic-link] Magic Mail send failed, falling back to the next provider'
+          );
         }
       }
 
@@ -595,30 +633,40 @@ module.exports = ({ strapi }) => {
         const templateId = parseInt(settings.email_designer_template_id, 10);
         if (!Number.isNaN(templateId) && templateId > 0) {
           try {
-            await strapi.plugin('email-designer-5').service('email').sendTemplatedEmail(
-              { to: token.email, from, replyTo },
-              { templateReferenceId: templateId, subject },
-              templatePayload
-            );
+            await strapi
+              .plugin('email-designer-5')
+              .service('email')
+              .sendTemplatedEmail(
+                { to: token.email, from, replyTo },
+                { templateReferenceId: templateId, subject },
+                templatePayload
+              );
             strapi.log.debug('[magic-link] Login e-mail sent via Email Designer 5');
             return token;
           } catch {
-            strapi.log.error('[magic-link] Email Designer 5 send failed, falling back to the e-mail plugin');
+            strapi.log.error(
+              '[magic-link] Email Designer 5 send failed, falling back to the e-mail plugin'
+            );
           }
         } else {
-          strapi.log.warn('[magic-link] Invalid Email Designer template id, using the e-mail plugin');
+          strapi.log.warn(
+            '[magic-link] Invalid Email Designer template id, using the e-mail plugin'
+          );
         }
       }
 
-      await strapi.plugin('email').service('email').send({
-        to: token.email,
-        ...(from ? { from } : {}),
-        ...(replyTo ? { replyTo } : {}),
-        subject,
-        text,
-        html,
-        headers,
-      });
+      await strapi
+        .plugin('email')
+        .service('email')
+        .send({
+          to: token.email,
+          ...(from ? { from } : {}),
+          ...(replyTo ? { replyTo } : {}),
+          subject,
+          text,
+          html,
+          headers,
+        });
       strapi.log.debug('[magic-link] Login e-mail sent');
       return token;
     },
@@ -633,16 +681,21 @@ module.exports = ({ strapi }) => {
      */
     async sendWelcomeEmail(user, settings) {
       const name = user.username || user.email;
-      const appName = String(settings?.from_name || '').replace(/[\r\n]+/g, ' ').trim();
+      const appName = String(settings?.from_name || '')
+        .replace(/[\r\n]+/g, ' ')
+        .trim();
       const from = this.resolveSender(settings);
-      await strapi.plugin('email').service('email').send({
-        to: user.email,
-        ...(from ? { from } : {}),
-        ...(settings?.response_email ? { replyTo: settings.response_email } : {}),
-        subject: appName ? `Welcome to ${appName}` : 'Welcome',
-        text: `Hi ${name},\n\nThanks for joining. Your login link is on the way.`,
-        html: `<p>Hi ${escapeHtml(name)},</p><p>Thanks for joining. Your login link is on the way.</p>`,
-      });
+      await strapi
+        .plugin('email')
+        .service('email')
+        .send({
+          to: user.email,
+          ...(from ? { from } : {}),
+          ...(settings?.response_email ? { replyTo: settings.response_email } : {}),
+          subject: appName ? `Welcome to ${appName}` : 'Welcome',
+          text: `Hi ${name},\n\nThanks for joining. Your login link is on the way.`,
+          html: `<p>Hi ${escapeHtml(name)},</p><p>Thanks for joining. Your login link is on the way.</p>`,
+        });
     },
 
     /**
@@ -717,7 +770,9 @@ module.exports = ({ strapi }) => {
       if (!session?.upSessionId || typeof strapi.sessionManager !== 'function') return false;
       try {
         return Boolean(
-          await strapi.sessionManager('users-permissions').revokeSessionById(String(session.userId), session.upSessionId)
+          await strapi
+            .sessionManager('users-permissions')
+            .revokeSessionById(String(session.userId), session.upSessionId)
         );
       } catch {
         strapi.log.error('[magic-link] users-permissions session could not be revoked');
@@ -754,7 +809,9 @@ module.exports = ({ strapi }) => {
         const session = await this.findSessionByHash(tokenHash);
         const known = options.expiresAt || session?.expiresAt;
         const knownTime = known ? new Date(known).getTime() : NaN;
-        const expiresAt = new Date(Number.isFinite(knownTime) ? knownTime : Date.now() + UNKNOWN_EXPIRY_MS);
+        const expiresAt = new Date(
+          Number.isFinite(knownTime) ? knownTime : Date.now() + UNKNOWN_EXPIRY_MS
+        );
 
         await serialize(async () => {
           const blocklist = await this.readBlocklist();
@@ -796,7 +853,11 @@ module.exports = ({ strapi }) => {
         await serialize(async () => {
           const blocklist = await this.readBlocklist();
           blocklist.tokens = blocklist.tokens.filter(
-            (entry) => !(entry.tokenHash === tokenHash && (!userId || String(entry.userId) === String(userId)))
+            (entry) =>
+              !(
+                entry.tokenHash === tokenHash &&
+                (!userId || String(entry.userId) === String(userId))
+              )
           );
           await pluginStore().set({ key: BLOCKLIST_KEY, value: blocklist });
           blocklistCache = null;
@@ -867,7 +928,9 @@ module.exports = ({ strapi }) => {
         const bannedIPs = (await pluginStore().get({ key: 'banned_ips' })) || { ips: [] };
         if (!Array.isArray(bannedIPs.ips)) throw new Error('Invalid IP block-list data');
 
-        return bannedIPs.ips.some((bannedIp) => normalizeIpAddress(bannedIp) === normalizedIpAddress);
+        return bannedIPs.ips.some(
+          (bannedIp) => normalizeIpAddress(bannedIp) === normalizedIpAddress
+        );
       } catch {
         strapi.log.error('[Magic-Link] IP ban lookup failed');
         throw new Error('IP ban status could not be checked');

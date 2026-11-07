@@ -61,7 +61,9 @@ const expandIpv6 = (canonical) => {
   if (tail === undefined) return headGroups.map((group) => parseInt(group, 16).toString(16));
   const tailGroups = tail ? tail.split(':') : [];
   const missing = 8 - headGroups.length - tailGroups.length;
-  return [...headGroups, ...Array(missing).fill('0'), ...tailGroups].map((group) => parseInt(group, 16).toString(16));
+  return [...headGroups, ...Array(missing).fill('0'), ...tailGroups].map((group) =>
+    parseInt(group, 16).toString(16)
+  );
 };
 
 /**

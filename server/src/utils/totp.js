@@ -58,7 +58,10 @@ const normalizeParams = (source = {}) => {
  * @param {string} secret - Base32 secret.
  * @returns {string} Normalised secret.
  */
-const normalizeSecret = (secret) => String(secret || '').replace(/[\s=]/g, '').toUpperCase();
+const normalizeSecret = (secret) =>
+  String(secret || '')
+    .replace(/[\s=]/g, '')
+    .toUpperCase();
 
 /**
  * Generates a new 160-bit base32 secret (RFC 4226 recommendation).
@@ -147,7 +150,9 @@ const formatBackupCode = (raw) => raw.match(/.{1,4}/g).join('-');
  * @returns {string|null} 16 symbols or null when it cannot be a backup code.
  */
 const normalizeBackupCode = (value) => {
-  const raw = String(value || '').replace(/[\s-]/g, '').toUpperCase();
+  const raw = String(value || '')
+    .replace(/[\s-]/g, '')
+    .toUpperCase();
   if (raw.length !== BACKUP_CODE_LENGTH) return null;
   for (const char of raw) {
     if (!BACKUP_ALPHABET.includes(char)) return null;
@@ -201,7 +206,11 @@ const findHashIndex = (hashes, candidate) => {
   hashes.forEach((stored, index) => {
     if (typeof stored !== 'string') return;
     const buffer = Buffer.from(stored, 'hex');
-    if (buffer.length === target.length && nodeCrypto.timingSafeEqual(buffer, target) && found === -1) {
+    if (
+      buffer.length === target.length &&
+      nodeCrypto.timingSafeEqual(buffer, target) &&
+      found === -1
+    ) {
       found = index;
     }
   });

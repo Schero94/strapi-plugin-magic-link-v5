@@ -78,9 +78,13 @@ const CreateTokenModal = ({ isOpen, defaultTtl, onClose, onSubmit }) => {
 
   let contextError;
   if (errors.context === 'reserved') {
-    contextError = t('tokens.create.context.reserved', 'These keys are reserved for the server: {keys}', {
-      keys: validation.reservedKeys.join(', '),
-    });
+    contextError = t(
+      'tokens.create.context.reserved',
+      'These keys are reserved for the server: {keys}',
+      {
+        keys: validation.reservedKeys.join(', '),
+      }
+    );
   } else if (errors.context === 'object') {
     contextError = t('tokens.create.context.object', 'The context must be a JSON object.');
   } else if (errors.context === 'json') {
@@ -123,7 +127,10 @@ const CreateTokenModal = ({ isOpen, defaultTtl, onClose, onSubmit }) => {
                   name="create-token-email"
                   required
                   error={emailError}
-                  hint={t('tokens.create.email.hint', 'The login link is created for this email address.')}
+                  hint={t(
+                    'tokens.create.email.hint',
+                    'The login link is created for this email address.'
+                  )}
                 >
                   <Field.Label>{t('tokens.create.email.label', 'Email address')}</Field.Label>
                   <TextInput
@@ -147,7 +154,9 @@ const CreateTokenModal = ({ isOpen, defaultTtl, onClose, onSubmit }) => {
                     TTL_LIMITS
                   )}
                 >
-                  <Field.Label>{t('tokens.create.ttl.label', 'Validity Period (Hours)')}</Field.Label>
+                  <Field.Label>
+                    {t('tokens.create.ttl.label', 'Validity Period (Hours)')}
+                  </Field.Label>
                   <NumberInput
                     value={form.ttl}
                     onValueChange={(value) => update('ttl')(value)}
@@ -167,9 +176,11 @@ const CreateTokenModal = ({ isOpen, defaultTtl, onClose, onSubmit }) => {
                     'Optional JSON object passed with the token, for example a redirect path.'
                   )}
                 >
-                  <Field.Label>{t('tokens.create.context.label', 'JSON Context (Optional)')}</Field.Label>
+                  <Field.Label>
+                    {t('tokens.create.context.label', 'JSON Context (Optional)')}
+                  </Field.Label>
                   <Textarea
-                    placeholder={t('tokens.create.context.placeholder', "'{ \"key\": \"value\" }'")}
+                    placeholder={t('tokens.create.context.placeholder', '\'{ "key": "value" }\'')}
                     value={form.contextText}
                     onChange={(event) => update('contextText')(event.target.value)}
                     style={{ fontFamily: 'monospace', minHeight: '100px' }}
@@ -188,7 +199,11 @@ const CreateTokenModal = ({ isOpen, defaultTtl, onClose, onSubmit }) => {
                     >
                       {t('tokens.create.sendEmail.label', 'Send the login link by email')}
                     </Checkbox>
-                    <Typography variant="pi" textColor="neutral600" id="create-token-send-email-hint">
+                    <Typography
+                      variant="pi"
+                      textColor="neutral600"
+                      id="create-token-send-email-hint"
+                    >
                       {form.sendEmail
                         ? t(
                             'tokens.create.sendEmail.hint',

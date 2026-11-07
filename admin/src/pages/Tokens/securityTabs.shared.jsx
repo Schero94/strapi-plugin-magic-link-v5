@@ -24,7 +24,16 @@ import {
 import { ArrowClockwise, WarningCircle } from '@strapi/icons';
 import { useMagicLinkIntl } from '../../hooks/useMagicLinkIntl';
 import { useFormatters } from '../../hooks/useFormatters';
-import { accent, breakpoints, byScheme, color, fontSize, space, theme, tint } from '../../utils/theme';
+import {
+  accent,
+  breakpoints,
+  byScheme,
+  color,
+  fontSize,
+  space,
+  theme,
+  tint,
+} from '../../utils/theme';
 import { motionSafe, reducedMotion } from '../../components/shared/motion';
 import { getPageItems, PAGE_SIZES } from './securityTabs.utils';
 

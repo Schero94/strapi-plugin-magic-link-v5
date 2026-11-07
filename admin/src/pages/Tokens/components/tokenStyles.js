@@ -37,7 +37,9 @@ export const Container = styled(Box)`
   max-width: 1440px;
   margin: 0 auto;
   padding: ${space(7)} ${space(6)} ${space(7)};
-  ${motionSafe(css`animation: ${fadeIn} 300ms ease-out;`)}
+  ${motionSafe(css`
+    animation: ${fadeIn} 300ms ease-out;
+  `)}
 
   @media (max-width: ${breakpoints.mobile}) {
     padding: ${space(4)} ${space(4)} ${space(6)};
@@ -62,14 +64,20 @@ export const Header = styled.header`
     height: 100%;
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
     pointer-events: none;
-    ${motionSafe(css`animation: ${shimmer} 3s infinite;`)}
+    ${motionSafe(css`
+      animation: ${shimmer} 3s infinite;
+    `)}
   }
 
   &::after {
     content: '';
     position: absolute;
     inset: 0;
-    background-image: radial-gradient(circle at 20% 80%, transparent 50%, rgba(255, 255, 255, 0.1) 50%);
+    background-image: radial-gradient(
+      circle at 20% 80%,
+      transparent 50%,
+      rgba(255, 255, 255, 0.1) 50%
+    );
     background-size: 16px 16px;
     opacity: 0.3;
     pointer-events: none;
@@ -108,7 +116,9 @@ export const Title = styled(Typography)`
     width: 28px;
     height: 28px;
     flex-shrink: 0;
-    ${motionSafe(css`animation: ${float} 3s ease-in-out infinite;`)}
+    ${motionSafe(css`
+      animation: ${float} 3s ease-in-out infinite;
+    `)}
   }
 
   svg path {
@@ -157,7 +167,9 @@ export const HeaderButton = styled.button`
   line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
-  transition: background ${theme.transitions.normal}, transform ${theme.transitions.normal};
+  transition:
+    background ${theme.transitions.normal},
+    transform ${theme.transitions.normal};
 
   svg {
     width: 16px;
@@ -227,7 +239,9 @@ export const TabButton = styled.button`
   line-height: 1.2;
   cursor: pointer;
   box-shadow: ${({ $active }) => ($active ? '0 4px 12px rgba(79, 70, 229, 0.3)' : 'none')};
-  transition: background ${theme.transitions.normal}, color ${theme.transitions.normal};
+  transition:
+    background ${theme.transitions.normal},
+    color ${theme.transitions.normal};
 
   svg {
     width: 18px;
@@ -299,7 +313,9 @@ export const StatCard = styled.div`
   border: 1px solid ${color('neutral200')};
   border-radius: ${theme.borderRadius.lg};
   box-shadow: ${theme.shadows.sm};
-  transition: transform ${theme.transitions.normal}, box-shadow ${theme.transitions.normal},
+  transition:
+    transform ${theme.transitions.normal},
+    box-shadow ${theme.transitions.normal},
     border-color ${theme.transitions.normal};
 
   &:hover {

@@ -128,7 +128,8 @@ export const ConfirmDialog = ({
             loading={busy}
             startIcon={busy ? undefined : confirmIcon}
           >
-            {confirmLabel ?? (danger ? t('common.delete', 'Delete') : t('common.confirm', 'Confirm'))}
+            {confirmLabel ??
+              (danger ? t('common.delete', 'Delete') : t('common.confirm', 'Confirm'))}
           </Button>
         </Dialog.Footer>
       </Dialog.Content>

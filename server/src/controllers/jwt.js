@@ -28,7 +28,9 @@ const toDisplaySession = (session, now) => ({
   userDocumentId: session.userDocumentId,
   username: session.username,
   email: session.userEmail,
-  token: session.jwtTokenHash ? `[hash] ${String(session.jwtTokenHash).substring(0, 12)}...` : 'N/A',
+  token: session.jwtTokenHash
+    ? `[hash] ${String(session.jwtTokenHash).substring(0, 12)}...`
+    : 'N/A',
   createdAt: session.createdAt,
   expiresAt: session.expiresAt,
   ipAddress: session.ipAddress,
@@ -81,7 +83,8 @@ module.exports = {
         if (!session) return ctx.notFound('Session not found');
 
         const hashToBlock =
-          session.jwtTokenHash || (typeof session.jwtToken === 'string' ? cryptoUtils.hashJwt(session.jwtToken) : null);
+          session.jwtTokenHash ||
+          (typeof session.jwtToken === 'string' ? cryptoUtils.hashJwt(session.jwtToken) : null);
         if (hashToBlock) {
           await magicLink.blockJwtTokenByHash(hashToBlock, session.userId, REVOKE_REASON, {
             expiresAt: session.expiresAt,
@@ -91,11 +94,19 @@ module.exports = {
         await updateJwtSessions(strapi, (list) =>
           list.map((candidate) =>
             candidate.id === sessionId
-              ? { ...candidate, isRevoked: true, revokedAt: new Date().toISOString(), revokeReason: REVOKE_REASON, revokedBy }
+              ? {
+                  ...candidate,
+                  isRevoked: true,
+                  revokedAt: new Date().toISOString(),
+                  revokeReason: REVOKE_REASON,
+                  revokedBy,
+                }
               : candidate
           )
         );
-        strapi.log.info(`[magic-link] Admin ${revokedBy ?? 'unknown'} revoked JWT session ${sessionId}`);
+        strapi.log.info(
+          `[magic-link] Admin ${revokedBy ?? 'unknown'} revoked JWT session ${sessionId}`
+        );
         return ctx.send({ success: true, message: 'JWT session revoked successfully' });
       }
 
@@ -145,11 +156,14 @@ module.exports = {
         return ctx.badRequest('Cannot unrevoke an expired session');
       }
       if (session.upSessionId) {
-        return ctx.badRequest('Refresh-mode sessions cannot be restored; the user has to log in again');
+        return ctx.badRequest(
+          'Refresh-mode sessions cannot be restored; the user has to log in again'
+        );
       }
 
       const hashToUnblock =
-        session.jwtTokenHash || (typeof session.jwtToken === 'string' ? cryptoUtils.hashJwt(session.jwtToken) : null);
+        session.jwtTokenHash ||
+        (typeof session.jwtToken === 'string' ? cryptoUtils.hashJwt(session.jwtToken) : null);
       if (hashToUnblock) {
         const magicLink = strapi.plugin('magic-link').service('magic-link');
         await magicLink.unblockJwtTokenByHash(hashToUnblock, session.userId);
@@ -158,11 +172,20 @@ module.exports = {
       await updateJwtSessions(strapi, (list) =>
         list.map((candidate) =>
           candidate.id === sessionId
-            ? { ...candidate, isRevoked: false, revokedAt: null, revokeReason: null, revokedBy: null, restoredBy: actorId(ctx) }
+            ? {
+                ...candidate,
+                isRevoked: false,
+                revokedAt: null,
+                revokeReason: null,
+                revokedBy: null,
+                restoredBy: actorId(ctx),
+              }
             : candidate
         )
       );
-      strapi.log.info(`[magic-link] Admin ${actorId(ctx) ?? 'unknown'} restored JWT session ${sessionId}`);
+      strapi.log.info(
+        `[magic-link] Admin ${actorId(ctx) ?? 'unknown'} restored JWT session ${sessionId}`
+      );
       return ctx.send({ success: true, message: 'JWT session unrevoked successfully' });
     } catch {
       strapi.log.error('[magic-link] Error unrevoking JWT token');
@@ -183,7 +206,12 @@ module.exports = {
         const sessions = list.map((session) => {
           if (new Date(session.expiresAt) < now && !session.isRevoked) {
             count += 1;
-            return { ...session, isRevoked: true, revokedAt: now.toISOString(), revokeReason: 'Automatically expired' };
+            return {
+              ...session,
+              isRevoked: true,
+              revokedAt: now.toISOString(),
+              revokeReason: 'Automatically expired',
+            };
           }
           return session;
         });

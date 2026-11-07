@@ -116,7 +116,9 @@ module.exports = {
       }
 
       await licenseGuard.storeLicenseKey(licenseKey);
-      strapi.log.info(`[magic-link] License key stored by admin ${ctx.state?.user?.id ?? 'unknown'}`);
+      strapi.log.info(
+        `[magic-link] License key stored by admin ${ctx.state?.user?.id ?? 'unknown'}`
+      );
       return ctx.send({
         success: true,
         verified: true,

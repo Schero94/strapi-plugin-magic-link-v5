@@ -42,41 +42,53 @@ const isAdminPath = (path) => path === '/admin' || String(path || '').startsWith
  * @param {{ strapi: object }} deps - Strapi instance.
  * @returns {Function} Koa middleware.
  */
-const createJwtRevocationMiddleware = ({ strapi }) => async (ctx, next) => {
-  const jwtToken = parseBearerToken(ctx.request?.header?.authorization);
-  if (!jwtToken || isAdminPath(ctx.path)) {
-    return next();
-  }
-
-  let isBlocked;
-  try {
-    const magicLink = strapi.plugin('magic-link')?.service?.('magic-link');
-    if (!magicLink || typeof magicLink.isJwtTokenBlocked !== 'function') {
-      throw new Error('JWT revocation service is unavailable');
+const createJwtRevocationMiddleware =
+  ({ strapi }) =>
+  async (ctx, next) => {
+    const jwtToken = parseBearerToken(ctx.request?.header?.authorization);
+    if (!jwtToken || isAdminPath(ctx.path)) {
+      return next();
     }
-    isBlocked = await magicLink.isJwtTokenBlocked(jwtToken);
-  } catch {
-    // Never log the token or store errors; never accept a token whose
-    // revocation state is unknown.
-    strapi.log.error('[magic-link] JWT revocation status check failed');
-    ctx.status = 503;
-    ctx.body = {
-      data: null,
-      error: { status: 503, name: 'ServiceUnavailableError', message: 'Unable to verify JWT revocation status', details: {} },
-    };
-    return undefined;
-  }
 
-  if (isBlocked) {
-    ctx.status = 401;
-    ctx.body = {
-      data: null,
-      error: { status: 401, name: 'UnauthorizedError', message: 'This token has been revoked', details: {} },
-    };
-    return undefined;
-  }
+    let isBlocked;
+    try {
+      const magicLink = strapi.plugin('magic-link')?.service?.('magic-link');
+      if (!magicLink || typeof magicLink.isJwtTokenBlocked !== 'function') {
+        throw new Error('JWT revocation service is unavailable');
+      }
+      isBlocked = await magicLink.isJwtTokenBlocked(jwtToken);
+    } catch {
+      // Never log the token or store errors; never accept a token whose
+      // revocation state is unknown.
+      strapi.log.error('[magic-link] JWT revocation status check failed');
+      ctx.status = 503;
+      ctx.body = {
+        data: null,
+        error: {
+          status: 503,
+          name: 'ServiceUnavailableError',
+          message: 'Unable to verify JWT revocation status',
+          details: {},
+        },
+      };
+      return undefined;
+    }
 
-  return next();
-};
+    if (isBlocked) {
+      ctx.status = 401;
+      ctx.body = {
+        data: null,
+        error: {
+          status: 401,
+          name: 'UnauthorizedError',
+          message: 'This token has been revoked',
+          details: {},
+        },
+      };
+      return undefined;
+    }
+
+    return next();
+  };
 
 module.exports = { createJwtRevocationMiddleware, isAdminPath, parseBearerToken };

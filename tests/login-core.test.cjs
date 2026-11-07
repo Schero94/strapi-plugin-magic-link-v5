@@ -11,12 +11,31 @@ const test = require('node:test');
 
 const auth = require('../server/src/controllers/auth');
 const { createLoginCoreStrapi, createCtx, fakeJwt } = require('./helpers/login-core-strapi.cjs');
-const { createJwtRevocationMiddleware, parseBearerToken } = require('../server/src/middlewares/jwt-revocation');
+const {
+  createJwtRevocationMiddleware,
+  parseBearerToken,
+} = require('../server/src/middlewares/jwt-revocation');
 const passwordlessCompat = require('../server/src/middlewares/passwordless-compat');
 const cryptoUtils = require('../server/src/utils/crypto');
 
-const VICTIM = { id: 7, documentId: 'victim-doc', email: 'victim@example.test', username: 'victim', confirmed: true, blocked: false, internalNote: 'private-note', password: 'hash' };
-const ATTACKER = { id: 9, documentId: 'attacker-doc', email: 'attacker@example.test', username: 'attacker', confirmed: true, blocked: false };
+const VICTIM = {
+  id: 7,
+  documentId: 'victim-doc',
+  email: 'victim@example.test',
+  username: 'victim',
+  confirmed: true,
+  blocked: false,
+  internalNote: 'private-note',
+  password: 'hash',
+};
+const ATTACKER = {
+  id: 9,
+  documentId: 'attacker-doc',
+  email: 'attacker@example.test',
+  username: 'attacker',
+  confirmed: true,
+  blocked: false,
+};
 
 const createLink = async (magicLinkService, email, context = {}) => {
   const token = await magicLinkService.createToken(email, context);
@@ -38,18 +57,27 @@ test('send-link rejects WhatsApp/SMS fields, missing e-mail and reserved context
     { email: 'victim@example.test', delivery: 'whatsapp' },
     { email: 'victim@example.test', via: 'sms' },
     { username: 'victim' },
-    { email: 'victim@example.test', context: { requiresTOTP: true, userId: 9, userDocumentId: 'victim-doc' } },
+    {
+      email: 'victim@example.test',
+      context: { requiresTOTP: true, userId: 9, userDocumentId: 'victim-doc' },
+    },
     { email: 'victim@example.test', context: { requiresOTP: true } },
     { email: 'victim@example.test', username: '<a href=https://evil.test>x</a>' },
   ]) {
-    await assert.rejects(auth.sendLink(createCtx({ method: 'POST', body })), (error) => {
-      assert.equal(error.name, 'ValidationError');
-      return true;
-    }, JSON.stringify(body));
+    await assert.rejects(
+      auth.sendLink(createCtx({ method: 'POST', body })),
+      (error) => {
+        assert.equal(error.name, 'ValidationError');
+        return true;
+      },
+      JSON.stringify(body)
+    );
   }
 
   await assert.rejects(
-    auth.sendLink(createCtx({ method: 'POST', body: { email: 'victim@example.test', phoneNumber: '+49' } })),
+    auth.sendLink(
+      createCtx({ method: 'POST', body: { email: 'victim@example.test', phoneNumber: '+49' } })
+    ),
     /e-mail delivery is supported/i
   );
 });
@@ -57,7 +85,10 @@ test('send-link rejects WhatsApp/SMS fields, missing e-mail and reserved context
 test('send-link answers identically for known and unknown e-mails before any lookup', async () => {
   const { magicLinkService } = createLoginCoreStrapi({ users: [VICTIM] });
   const calls = [];
-  magicLinkService.requestLoginLink = async (params) => { calls.push(params); return 'sent'; };
+  magicLinkService.requestLoginLink = async (params) => {
+    calls.push(params);
+    return 'sent';
+  };
 
   const known = createCtx({ method: 'POST', body: { email: 'Victim@Example.Test' } });
   const unknown = createCtx({ method: 'POST', body: { email: 'nobody@example.test' } });
@@ -75,7 +106,9 @@ test('send-link answers identically for known and unknown e-mails before any loo
 
 test('send-link delivery errors never reach the caller', async () => {
   const { magicLinkService, state } = createLoginCoreStrapi({ users: [VICTIM] });
-  magicLinkService.requestLoginLink = async () => { throw new Error('smtp detail victim@example.test'); };
+  magicLinkService.requestLoginLink = async () => {
+    throw new Error('smtp detail victim@example.test');
+  };
   const ctx = createCtx({ method: 'POST', body: { email: 'victim@example.test' } });
 
   await auth.sendLink(ctx);
@@ -92,7 +125,8 @@ test('requestLoginLink mails a safe link built from frontend_url and filters con
     settings: {
       frontend_url: 'https://app.example.test',
       frontend_login_path: '/auth/magic?lang=de',
-      message_html: '<p>Hi <%= USER %>, <a href="<%= URL %>?loginToken=<%= CODE %>">login</a> {{EXPIRES_AT}} <% global.process.exit(1) %></p>',
+      message_html:
+        '<p>Hi <%= USER %>, <a href="<%= URL %>?loginToken=<%= CODE %>">login</a> {{EXPIRES_AT}} <% global.process.exit(1) %></p>',
       message_text: 'Link: {{LOGIN_URL}} for {{EMAIL}} ({{EXPIRY_TEXT}}) {{UNKNOWN}}',
       expire_period: 3600,
       context_blacklist: ['internal'],
@@ -115,8 +149,14 @@ test('requestLoginLink mails a safe link built from frontend_url and filters con
   assert.ok(url.searchParams.get('loginToken').length >= 22);
   assert.match(mail.text, /\(1 hour\)/);
   assert.equal(mail.text.includes('{{'), false);
-  assert.ok(mail.html.includes('&lt;% global.process.exit(1) %&gt;'), 'lodash code blocks are inert text');
-  assert.ok(mail.html.includes(`href="${link.replace(/&/g, '&amp;')}"`), 'legacy URL?loginToken=CODE becomes the built link');
+  assert.ok(
+    mail.html.includes('&lt;% global.process.exit(1) %&gt;'),
+    'lodash code blocks are inert text'
+  );
+  assert.ok(
+    mail.html.includes(`href="${link.replace(/&/g, '&amp;')}"`),
+    'legacy URL?loginToken=CODE becomes the built link'
+  );
   assert.equal(mail.from, 'login@example.test');
 
   const stored = state.tokens[0];
@@ -128,20 +168,35 @@ test('requestLoginLink mails a safe link built from frontend_url and filters con
 test('auto-registration requires the plugin opt-in and users-permissions sign-ups, and creates unconfirmed users', async () => {
   const optedIn = { allow_magic_links_on_public_registration: true, createUserIfNotExists: true };
 
-  let fixture = createLoginCoreStrapi({ settings: optedIn, advanced: { default_role: 'authenticated', allow_register: false } });
-  assert.equal(await fixture.magicLinkService.requestLoginLink({ email: 'new@example.test' }), 'unknown_user');
+  let fixture = createLoginCoreStrapi({
+    settings: optedIn,
+    advanced: { default_role: 'authenticated', allow_register: false },
+  });
+  assert.equal(
+    await fixture.magicLinkService.requestLoginLink({ email: 'new@example.test' }),
+    'unknown_user'
+  );
   assert.equal(fixture.state.users.length, 0);
   assert.equal(fixture.state.mails.length, 0);
 
-  fixture = createLoginCoreStrapi({ settings: {}, advanced: { default_role: 'authenticated', allow_register: true } });
-  assert.equal(await fixture.magicLinkService.requestLoginLink({ email: 'new@example.test' }), 'unknown_user');
+  fixture = createLoginCoreStrapi({
+    settings: {},
+    advanced: { default_role: 'authenticated', allow_register: true },
+  });
+  assert.equal(
+    await fixture.magicLinkService.requestLoginLink({ email: 'new@example.test' }),
+    'unknown_user'
+  );
 
   fixture = createLoginCoreStrapi({
     settings: { ...optedIn, welcome_email: true, from_name: 'Shop' },
     advanced: { default_role: 'authenticated', allow_register: true },
     users: [{ id: 1, documentId: 'u1', email: 'new@other.test', username: 'new', confirmed: true }],
   });
-  assert.equal(await fixture.magicLinkService.requestLoginLink({ email: 'new@example.test' }), 'sent');
+  assert.equal(
+    await fixture.magicLinkService.requestLoginLink({ email: 'new@example.test' }),
+    'sent'
+  );
   const created = fixture.state.users.find((user) => user.email === 'new@example.test');
   assert.equal(created.confirmed, false);
   assert.notEqual(created.username, 'new', 'username collisions get a unique suffix');
@@ -185,7 +240,10 @@ test('forged requiresOTP context cannot open an OTP challenge (AUTH-M01)', async
   const plaintext = await createLink(magicLinkService, VICTIM.email);
   state.tokens[0].context = { requiresOTP: true, otpVerified: false };
 
-  assert.equal(await magicLinkService.validateBindingForChallenge(plaintext, VICTIM.email, 'otp'), null);
+  assert.equal(
+    await magicLinkService.validateBindingForChallenge(plaintext, VICTIM.email, 'otp'),
+    null
+  );
 });
 
 test('TOTP challenge is bound to the server-side user and issues one session', async () => {
@@ -229,7 +287,10 @@ test('TOTP challenge is bound to the server-side user and issues one session', a
 });
 
 test('required MFA without an enrolled authenticator starts enrolment and issues no session', async () => {
-  const { magicLinkService, state } = createLoginCoreStrapi({ users: [VICTIM], settings: { mfa_mode: 'required', otp_enabled: true } });
+  const { magicLinkService, state } = createLoginCoreStrapi({
+    users: [VICTIM],
+    settings: { mfa_mode: 'required', otp_enabled: true },
+  });
   const plaintext = await createLink(magicLinkService, VICTIM.email);
 
   const ctx = await login(plaintext);
@@ -247,7 +308,10 @@ test('required MFA without an enrolled authenticator starts enrolment and issues
 });
 
 test('repeated link opens in OTP mode send one code while it is valid (AUTH-25)', async () => {
-  const { magicLinkService, state } = createLoginCoreStrapi({ users: [VICTIM], settings: { otp_enabled: true, otp_type: 'sms', otp_expiry: 300 } });
+  const { magicLinkService, state } = createLoginCoreStrapi({
+    users: [VICTIM],
+    settings: { otp_enabled: true, otp_type: 'sms', otp_expiry: 300 },
+  });
   const plaintext = await createLink(magicLinkService, VICTIM.email);
 
   const first = await login(plaintext);
@@ -279,7 +343,10 @@ test('direct login sanitizes the user, honours the JWT lifetime and records the 
     users: [{ ...VICTIM, confirmed: false }],
     settings: { jwt_token_expires_in: '12h', context_whitelist: ['redirectTo'] },
   });
-  const plaintext = await createLink(magicLinkService, VICTIM.email, { redirectTo: '/a', role: 'admin' });
+  const plaintext = await createLink(magicLinkService, VICTIM.email, {
+    redirectTo: '/a',
+    role: 'admin',
+  });
 
   const ctx = createCtx({ method: 'POST', body: { loginToken: plaintext } });
   await auth.login(ctx);
@@ -301,7 +368,10 @@ test('direct login sanitizes the user, honours the JWT lifetime and records the 
 });
 
 test('use_jwt_token=false confirms the login without minting a token (STR-M07)', async () => {
-  const { magicLinkService, state } = createLoginCoreStrapi({ users: [VICTIM], settings: { use_jwt_token: false } });
+  const { magicLinkService, state } = createLoginCoreStrapi({
+    users: [VICTIM],
+    settings: { use_jwt_token: false },
+  });
   const plaintext = await createLink(magicLinkService, VICTIM.email);
   const ctx = await login(plaintext);
 
@@ -328,7 +398,9 @@ test('refresh mode issues tokens through the users-permissions session manager (
 
   // Revoking from the plugin also revokes the users-permissions session.
   await magicLinkService.blockJwtTokenByHash(session.jwtTokenHash, VICTIM.id, 'test');
-  assert.deepEqual(state.revokedUpSessions, [{ userId: String(VICTIM.id), sessionId: 'up-session-1' }]);
+  assert.deepEqual(state.revokedUpSessions, [
+    { userId: String(VICTIM.id), sessionId: 'up-session-1' },
+  ]);
   const entry = state.stores['magic-link'].blocked_jwt_tokens.tokens[0];
   assert.equal(entry.expiresAt, session.expiresAt);
   assert.equal(await magicLinkService.isJwtTokenBlocked(ctx.body.jwt), true);
@@ -337,7 +409,10 @@ test('refresh mode issues tokens through the users-permissions session manager (
 test('refresh mode with httpOnly sessions sets the refresh cookie instead of returning it', async () => {
   const { magicLinkService, setConfig } = createLoginCoreStrapi({ users: [VICTIM] });
   setConfig('plugin::users-permissions.jwtManagement', 'refresh');
-  setConfig('plugin::users-permissions.sessions', { httpOnly: true, cookie: { name: 'up_refresh', secure: true } });
+  setConfig('plugin::users-permissions.sessions', {
+    httpOnly: true,
+    cookie: { name: 'up_refresh', secure: true },
+  });
   const plaintext = await createLink(magicLinkService, VICTIM.email);
 
   const ctx = await login(plaintext);
@@ -356,7 +431,11 @@ test('revocation entries live until the JWT expiry, not a fixed 30 days (AUTH-06
   assert.ok(days > 89 && days <= 90);
 
   // Parallel revocations are not lost.
-  await Promise.all([fakeJwt({ id: 2 }), fakeJwt({ id: 3 }), fakeJwt({ id: 4 })].map((token) => magicLinkService.blockJwtToken(token, 2)));
+  await Promise.all(
+    [fakeJwt({ id: 2 }), fakeJwt({ id: 3 }), fakeJwt({ id: 4 })].map((token) =>
+      magicLinkService.blockJwtToken(token, 2)
+    )
+  );
   assert.equal(state.stores['magic-link'].blocked_jwt_tokens.tokens.length, 4);
 });
 
@@ -366,10 +445,18 @@ test('revocation middleware parses Bearer like users-permissions and skips admin
   await magicLinkService.blockJwtToken(jwt, 1);
   const middleware = createJwtRevocationMiddleware({ strapi: global.strapi });
 
-  for (const header of [`Bearer ${jwt}`, `bearer ${jwt}`, `BEARER  ${jwt}`, `Bearer\t${jwt}`, ` Bearer ${jwt} `]) {
+  for (const header of [
+    `Bearer ${jwt}`,
+    `bearer ${jwt}`,
+    `BEARER  ${jwt}`,
+    `Bearer\t${jwt}`,
+    ` Bearer ${jwt} `,
+  ]) {
     const ctx = createCtx({ headers: { authorization: header }, path: '/api/articles' });
     let reached = false;
-    await middleware(ctx, async () => { reached = true; });
+    await middleware(ctx, async () => {
+      reached = true;
+    });
     assert.equal(reached, false, JSON.stringify(header));
     assert.equal(ctx.status, 401);
   }
@@ -377,25 +464,40 @@ test('revocation middleware parses Bearer like users-permissions and skips admin
   assert.equal(parseBearerToken('Basic abc'), null);
   assert.equal(parseBearerToken('Bearer a b'), null);
 
-  const adminCtx = createCtx({ headers: { authorization: `Bearer ${jwt}` }, path: '/admin/users/me' });
+  const adminCtx = createCtx({
+    headers: { authorization: `Bearer ${jwt}` },
+    path: '/admin/users/me',
+  });
   let adminReached = false;
-  await middleware(adminCtx, async () => { adminReached = true; });
+  await middleware(adminCtx, async () => {
+    adminReached = true;
+  });
   assert.equal(adminReached, true);
 });
 
 test('revocation middleware fails closed on store errors for API requests only', async () => {
   const { strapi } = createLoginCoreStrapi();
-  strapi.plugin = () => ({ service: () => ({ isJwtTokenBlocked: async () => { throw new Error('store detail'); } }) });
+  strapi.plugin = () => ({
+    service: () => ({
+      isJwtTokenBlocked: async () => {
+        throw new Error('store detail');
+      },
+    }),
+  });
   const middleware = createJwtRevocationMiddleware({ strapi });
 
   const apiCtx = createCtx({ headers: { authorization: 'bearer x.y.z' }, path: '/graphql' });
   let reached = false;
-  await middleware(apiCtx, async () => { reached = true; });
+  await middleware(apiCtx, async () => {
+    reached = true;
+  });
   assert.equal(reached, false);
   assert.equal(apiCtx.status, 503);
 
   const adminCtx = createCtx({ headers: { authorization: 'Bearer x.y.z' }, path: '/admin/init' });
-  await middleware(adminCtx, async () => { reached = true; });
+  await middleware(adminCtx, async () => {
+    reached = true;
+  });
   assert.equal(reached, true);
 });
 
@@ -411,7 +513,11 @@ test('TOTP-only login never confirms the account and respects e-mail confirmatio
   await auth.loginWithTOTP(ctx);
   assert.equal(ctx.status, 400);
   assert.equal(ctx.body.error.key, 'credentials.invalid');
-  assert.deepEqual(fixture.state.edits, [], 'a rejected TOTP-only login must not confirm the account');
+  assert.deepEqual(
+    fixture.state.edits,
+    [],
+    'a rejected TOTP-only login must not confirm the account'
+  );
 
   fixture = createLoginCoreStrapi({
     users: [unconfirmed],
@@ -427,9 +533,22 @@ test('TOTP-only login never confirms the account and respects e-mail confirmatio
 });
 
 test('legacy unsalted tokens and too-short tokens are never accepted (AUTH-24/AUTH-16)', async () => {
-  const { magicLinkService, state } = createLoginCoreStrapi({ users: [VICTIM], settings: { token_length: 5 } });
+  const { magicLinkService, state } = createLoginCoreStrapi({
+    users: [VICTIM],
+    settings: { token_length: 5 },
+  });
   const plaintext = 'legacyPlaintextToken1234';
-  state.tokens.push({ id: 99, documentId: 'legacy', email: VICTIM.email, token: plaintext, token_salt: null, token_prefix: plaintext.slice(0, 8), is_active: true, is_used: false, expires_at: new Date(Date.now() + 60000) });
+  state.tokens.push({
+    id: 99,
+    documentId: 'legacy',
+    email: VICTIM.email,
+    token: plaintext,
+    token_salt: null,
+    token_prefix: plaintext.slice(0, 8),
+    is_active: true,
+    is_used: false,
+    expires_at: new Date(Date.now() + 60000),
+  });
   assert.equal(await magicLinkService.fetchToken(plaintext), null);
   assert.equal(await magicLinkService.deactivateLegacyTokens(), 1);
   assert.equal(state.tokens[0].is_active, false);
@@ -447,16 +566,23 @@ test('blocked users and unknown links get translated, uniform errors', async () 
   assert.equal(blocked.body.error.message, 'User account is blocked');
   assert.equal(blocked.body.data, null);
 
-  const unknown = await login('x'.repeat(30), { query: { loginToken: 'x'.repeat(30), locale: 'fr' } });
+  const unknown = await login('x'.repeat(30), {
+    query: { loginToken: 'x'.repeat(30), locale: 'fr' },
+  });
   assert.equal(unknown.status, 400);
   assert.equal(unknown.body.error.key, 'token.invalid');
   assert.notEqual(unknown.body.error.message, 'errors.token.invalid');
 });
 
 test('login is rate limited before any token lookup', async () => {
-  const { magicLinkService } = createLoginCoreStrapi({ rateLimit: { allowed: false, retryAfter: 15 } });
+  const { magicLinkService } = createLoginCoreStrapi({
+    rateLimit: { allowed: false, retryAfter: 15 },
+  });
   let fetched = false;
-  magicLinkService.fetchToken = async () => { fetched = true; return null; };
+  magicLinkService.fetchToken = async () => {
+    fetched = true;
+    return null;
+  };
   const ctx = await login('y'.repeat(30));
   assert.equal(ctx.status, 429);
   assert.equal(ctx.responseHeaders['Retry-After'], '15');

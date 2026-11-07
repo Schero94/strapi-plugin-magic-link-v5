@@ -1,7 +1,25 @@
 import { useId, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { Badge, Flex, NumberInput, Radio, SingleSelect, SingleSelectOption, TextInput, Typography } from '@strapi/design-system';
-import { CheckCircle, Information, Key, Lightning, Link as LinkIcon, Lock, Mail, WarningCircle } from '@strapi/icons';
+import {
+  Badge,
+  Flex,
+  NumberInput,
+  Radio,
+  SingleSelect,
+  SingleSelectOption,
+  TextInput,
+  Typography,
+} from '@strapi/design-system';
+import {
+  CheckCircle,
+  Information,
+  Key,
+  Lightning,
+  Link as LinkIcon,
+  Lock,
+  Mail,
+  WarningCircle,
+} from '@strapi/icons';
 import { useMagicLinkIntl } from '../../../hooks/useMagicLinkIntl';
 import { ConfirmDialog } from '../../../components/shared/ConfirmDialog';
 import { reducedMotion } from '../../../components/shared/motion';
@@ -19,7 +37,14 @@ import {
   StepList,
   ToggleCard,
 } from '../components/SettingsUi';
-import { AUTH_MODES, applyAuthMode, applyTotpPolicy, canRequireTotp, getAuthMode, resolveMfaMode } from '../utils/settingsForm';
+import {
+  AUTH_MODES,
+  applyAuthMode,
+  applyTotpPolicy,
+  canRequireTotp,
+  getAuthMode,
+  resolveMfaMode,
+} from '../utils/settingsForm';
 
 const ModeCard = styled.button`
   position: relative;
@@ -146,7 +171,10 @@ export const MfaSection = ({
       accent: accent.primary,
       background: 'rgba(2, 132, 199, 0.12)',
       title: t('settings.mfa.mode.magicLink.title', 'Magic link only'),
-      description: t('settings.mfa.mode.magicLink.description', 'One-click sign-in by email. Fast and easy to use.'),
+      description: t(
+        'settings.mfa.mode.magicLink.description',
+        'One-click sign-in by email. Fast and easy to use.'
+      ),
       features: [
         t('settings.mfa.mode.magicLink.feature1', 'No passwords'),
         t('settings.mfa.mode.magicLink.feature2', 'Fast sign-in'),
@@ -197,7 +225,8 @@ export const MfaSection = ({
   const handleKeyDown = (event, index) => {
     const keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
     let nextIndex = null;
-    if (event.key in keys) nextIndex = (index + keys[event.key] + AUTH_MODES.length) % AUTH_MODES.length;
+    if (event.key in keys)
+      nextIndex = (index + keys[event.key] + AUTH_MODES.length) % AUTH_MODES.length;
     if (event.key === 'Home') nextIndex = 0;
     if (event.key === 'End') nextIndex = AUTH_MODES.length - 1;
     if (nextIndex === null) return;
@@ -218,7 +247,10 @@ export const MfaSection = ({
 
   const enrollmentText = (() => {
     if (enrollment.status === 'loading') {
-      return t('settings.mfa.enrollment.loading', 'Checking how many users have set up an authenticator app...');
+      return t(
+        'settings.mfa.enrollment.loading',
+        'Checking how many users have set up an authenticator app...'
+      );
     }
     if (enrollment.status !== 'ready') {
       return t(
@@ -236,24 +268,35 @@ export const MfaSection = ({
     );
   })();
 
-  const savedLockout = savedMfaMode === 'required' && enrollment.status === 'ready' && enrolled === 0;
+  const savedLockout =
+    savedMfaMode === 'required' && enrollment.status === 'ready' && enrolled === 0;
   const emailOtpSteps = [
     t('settings.mfa.otp.step1', 'The user opens the magic link from the email.'),
     t('settings.mfa.otp.step2', 'Your app shows the code entry page.'),
-    t('settings.mfa.otp.step3', 'The user enters the {length}-digit code sent to their email address.', {
-      length: settings.otp_length ?? 6,
-    }),
+    t(
+      'settings.mfa.otp.step3',
+      'The user enters the {length}-digit code sent to their email address.',
+      {
+        length: settings.otp_length ?? 6,
+      }
+    ),
     t('settings.mfa.otp.step4', 'After a correct code, the user is signed in.'),
   ];
 
   const summary = [];
   if (mode === 'magic-link') {
-    summary.push({ icon: LinkIcon, text: t('settings.mfa.summary.magicLink', 'Users sign in with the magic link only.') });
+    summary.push({
+      icon: LinkIcon,
+      text: t('settings.mfa.summary.magicLink', 'Users sign in with the magic link only.'),
+    });
   }
   if (mode === 'email-otp') {
     summary.push({
       icon: Mail,
-      text: t('settings.mfa.summary.emailOtp', 'Users open the magic link, then enter the code from the email.'),
+      text: t(
+        'settings.mfa.summary.emailOtp',
+        'Users open the magic link, then enter the code from the email.'
+      ),
     });
   }
   if (mode === 'totp') {
@@ -291,7 +334,12 @@ export const MfaSection = ({
       </Note>
 
       {savedLockout ? (
-        <Note tone="danger" icon={WarningCircle} role="alert" title={t('settings.mfa.lockout.title', 'Every sign-in currently fails')}>
+        <Note
+          tone="danger"
+          icon={WarningCircle}
+          role="alert"
+          title={t('settings.mfa.lockout.title', 'Every sign-in currently fails')}
+        >
           {t(
             'settings.mfa.lockout.body',
             'The saved policy requires an authenticator app, but no user has set one up. Choose "Users who set up an app" or another mode and save.'
@@ -357,7 +405,10 @@ export const MfaSection = ({
         <Panel>
           <GroupTitle
             title={t('settings.mfa.otp.title', 'Email code settings')}
-            subtitle={t('settings.mfa.otp.delivery', 'Delivery: email. Codes are sent to the address of the account.')}
+            subtitle={t(
+              'settings.mfa.otp.delivery',
+              'Delivery: email. Codes are sent to the address of the account.'
+            )}
           />
           <FieldGrid $columns={2}>
             <SettingField
@@ -378,7 +429,10 @@ export const MfaSection = ({
             <SettingField
               name="otp_expiry"
               label={t('settings.mfa.otp.expiry.label', 'Code lifetime (seconds)')}
-              hint={t('settings.mfa.otp.expiry.hint', 'Default: 300 seconds (5 minutes). Allowed: 30 to 86,400.')}
+              hint={t(
+                'settings.mfa.otp.expiry.hint',
+                'Default: 300 seconds (5 minutes). Allowed: 30 to 86,400.'
+              )}
               error={errorFor('otp_expiry')}
               required
             >
@@ -394,7 +448,10 @@ export const MfaSection = ({
             <SettingField
               name="otp_max_attempts"
               label={t('settings.mfa.otp.attempts.label', 'Maximum wrong attempts')}
-              hint={t('settings.mfa.otp.attempts.hint', 'The code becomes invalid after this many wrong entries. Default: 3.')}
+              hint={t(
+                'settings.mfa.otp.attempts.hint',
+                'The code becomes invalid after this many wrong entries. Default: 3.'
+              )}
               error={errorFor('otp_max_attempts')}
               required
             >
@@ -409,7 +466,10 @@ export const MfaSection = ({
             <SettingField
               name="otp_resend_cooldown"
               label={t('settings.mfa.otp.cooldown.label', 'Wait before a new code (seconds)')}
-              hint={t('settings.mfa.otp.cooldown.hint', 'How long users wait before they can request a new code. Default: 60.')}
+              hint={t(
+                'settings.mfa.otp.cooldown.hint',
+                'How long users wait before they can request a new code. Default: 60.'
+              )}
               error={errorFor('otp_resend_cooldown')}
               required
             >
@@ -422,7 +482,11 @@ export const MfaSection = ({
               />
             </SettingField>
           </FieldGrid>
-          <Note tone="success" icon={CheckCircle} title={t('settings.mfa.otp.howItWorks', 'How it works')}>
+          <Note
+            tone="success"
+            icon={CheckCircle}
+            title={t('settings.mfa.otp.howItWorks', 'How it works')}
+          >
             <StepList>
               {emailOtpSteps.map((step) => (
                 <li key={step}>{step}</li>
@@ -522,7 +586,10 @@ export const MfaSection = ({
             <SettingField
               name="totp_issuer"
               label={t('settings.mfa.totp.issuer.label', 'Issuer name')}
-              hint={t('settings.mfa.totp.issuer.hint', 'Shown in the authenticator app, for example your app name.')}
+              hint={t(
+                'settings.mfa.totp.issuer.hint',
+                'Shown in the authenticator app, for example your app name.'
+              )}
               error={errorFor('totp_issuer')}
             >
               <TextInput
@@ -543,14 +610,21 @@ export const MfaSection = ({
                 onChange={(value) => update('totp_digits', Number.parseInt(value, 10))}
                 disabled={disabled}
               >
-                <SingleSelectOption value="6">{t('settings.mfa.totp.digits.option', '{count} digits', { count: 6 })}</SingleSelectOption>
-                <SingleSelectOption value="8">{t('settings.mfa.totp.digits.option', '{count} digits', { count: 8 })}</SingleSelectOption>
+                <SingleSelectOption value="6">
+                  {t('settings.mfa.totp.digits.option', '{count} digits', { count: 6 })}
+                </SingleSelectOption>
+                <SingleSelectOption value="8">
+                  {t('settings.mfa.totp.digits.option', '{count} digits', { count: 8 })}
+                </SingleSelectOption>
               </SingleSelect>
             </SettingField>
             <SettingField
               name="totp_period"
               label={t('settings.mfa.totp.period.label', 'Code period (seconds)')}
-              hint={t('settings.mfa.totp.period.hint', 'Default: 30 seconds. Most apps only support 30.')}
+              hint={t(
+                'settings.mfa.totp.period.hint',
+                'Default: 30 seconds. Most apps only support 30.'
+              )}
               error={errorFor('totp_period')}
               required
             >
@@ -566,11 +640,20 @@ export const MfaSection = ({
         </Panel>
       ) : null}
 
-      <Note tone="primary" icon={CheckCircle} title={t('settings.mfa.summary.title', 'Current selection')}>
+      <Note
+        tone="primary"
+        icon={CheckCircle}
+        title={t('settings.mfa.summary.title', 'Current selection')}
+      >
         <Flex direction="column" gap={2} alignItems="flex-start">
           {summary.map(({ icon: Icon, text }) => (
             <Flex key={text} gap={2} alignItems="flex-start">
-              <Icon aria-hidden="true" width="14px" height="14px" style={{ flexShrink: 0, marginTop: 2 }} />
+              <Icon
+                aria-hidden="true"
+                width="14px"
+                height="14px"
+                style={{ flexShrink: 0, marginTop: 2 }}
+              />
               <span>{text}</span>
             </Flex>
           ))}
@@ -580,7 +663,10 @@ export const MfaSection = ({
       <ConfirmDialog
         isOpen={!disabled && confirmRequired}
         variant="danger"
-        title={t('settings.mfa.confirmRequired.title', 'Require an authenticator app for every user?')}
+        title={t(
+          'settings.mfa.confirmRequired.title',
+          'Require an authenticator app for every user?'
+        )}
         description={
           enrollment.status === 'ready'
             ? t(

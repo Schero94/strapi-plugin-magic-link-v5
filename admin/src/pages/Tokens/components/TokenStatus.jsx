@@ -44,11 +44,41 @@ export const TokenStats = ({ stats }) => {
   const { formatNumber } = useFormatters();
 
   const cards = [
-    { key: 'total', label: t('tokens.stats.total', 'Total'), icon: Server, accent: accent.primary, tint: tint.primary.bg },
-    { key: 'active', label: t('tokens.stats.active', 'Active'), icon: Sparkle, accent: accent.success, tint: tint.success.bg },
-    { key: 'expired', label: t('tokens.stats.expired', 'Expired'), icon: Clock, accent: accent.warning, tint: tint.warning.bg },
-    { key: 'used', label: t('tokens.stats.used', 'Used'), icon: Check, accent: accent.secondary, tint: usedTint },
-    { key: 'blocked', label: t('tokens.stats.blocked', 'Blocked'), icon: Lock, accent: accent.danger, tint: tint.danger.bg },
+    {
+      key: 'total',
+      label: t('tokens.stats.total', 'Total'),
+      icon: Server,
+      accent: accent.primary,
+      tint: tint.primary.bg,
+    },
+    {
+      key: 'active',
+      label: t('tokens.stats.active', 'Active'),
+      icon: Sparkle,
+      accent: accent.success,
+      tint: tint.success.bg,
+    },
+    {
+      key: 'expired',
+      label: t('tokens.stats.expired', 'Expired'),
+      icon: Clock,
+      accent: accent.warning,
+      tint: tint.warning.bg,
+    },
+    {
+      key: 'used',
+      label: t('tokens.stats.used', 'Used'),
+      icon: Check,
+      accent: accent.secondary,
+      tint: usedTint,
+    },
+    {
+      key: 'blocked',
+      label: t('tokens.stats.blocked', 'Blocked'),
+      icon: Lock,
+      accent: accent.danger,
+      tint: tint.danger.bg,
+    },
   ];
 
   return (

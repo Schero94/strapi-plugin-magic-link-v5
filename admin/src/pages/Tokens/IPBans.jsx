@@ -79,7 +79,12 @@ const IPBans = () => {
   const { t } = useMagicLinkIntl();
   const { get, post } = useFetchClient();
   const { toggleNotification } = useNotification();
-  const { canRead, canManage, isLoading: isLoadingPermissions, error: permissionError } = useMagicLinkRBAC();
+  const {
+    canRead,
+    canManage,
+    isLoading: isLoadingPermissions,
+    error: permissionError,
+  } = useMagicLinkRBAC();
 
   const [bannedIPs, setBannedIPs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -133,7 +138,11 @@ const IPBans = () => {
       const ok = await fetchBannedIPs();
       if (!active) return;
       setIsLoading(false);
-      if (!ok) notify('danger', t('ipban.notifications.loadError', 'Banned IP addresses could not be loaded.'));
+      if (!ok)
+        notify(
+          'danger',
+          t('ipban.notifications.loadError', 'Banned IP addresses could not be loaded.')
+        );
     };
     load();
     return () => {
@@ -145,7 +154,10 @@ const IPBans = () => {
   const filteredIPs = useMemo(() => filterIps(bannedIPs, searchQuery), [bannedIPs, searchQuery]);
   const pageCount = getPageCount(filteredIPs.length, pageSize);
   const safePage = clampPage(currentPage, pageCount);
-  const pageIPs = useMemo(() => paginate(filteredIPs, safePage, pageSize), [filteredIPs, safePage, pageSize]);
+  const pageIPs = useMemo(
+    () => paginate(filteredIPs, safePage, pageSize),
+    [filteredIPs, safePage, pageSize]
+  );
 
   const handleSearch = (value) => {
     setSearchQuery(value);
@@ -182,7 +194,10 @@ const IPBans = () => {
     try {
       await post('/magic-link/ban-ip', { data: { ip: normalizedNewIP } });
       closeModal();
-      notify('success', t('ipban.notifications.banSuccess', 'IP {ip} has been banned', { ip: normalizedNewIP }));
+      notify(
+        'success',
+        t('ipban.notifications.banSuccess', 'IP {ip} has been banned', { ip: normalizedNewIP })
+      );
       await fetchBannedIPs();
     } catch {
       notify('danger', t('ipban.notifications.banError', 'Error banning IP'));
@@ -204,7 +219,9 @@ const IPBans = () => {
     }
   };
 
-  const heading = <VisuallyHidden tag="h2">{t('ipban.title', 'Banned IP addresses')}</VisuallyHidden>;
+  const heading = (
+    <VisuallyHidden tag="h2">{t('ipban.title', 'Banned IP addresses')}</VisuallyHidden>
+  );
 
   if (isLoadingPermissions || (canRead && isLoading)) {
     return (
@@ -221,14 +238,23 @@ const IPBans = () => {
         {heading}
         <Alert variant="danger" closeLabel={t('common.close', 'Close')}>
           {permissionError
-            ? t('common.permissions.loadError', 'Your permissions could not be loaded. Reload the page to try again.')
-            : t('ipban.permission.denied', 'You do not have permission to view banned IP addresses.')}
+            ? t(
+                'common.permissions.loadError',
+                'Your permissions could not be loaded. Reload the page to try again.'
+              )
+            : t(
+                'ipban.permission.denied',
+                'You do not have permission to view banned IP addresses.'
+              )}
         </Alert>
       </Box>
     );
   }
 
-  const ipError = newIP.trim() && !normalizedNewIP ? t('ipban.modal.invalidIP', 'Please enter a valid IP address') : undefined;
+  const ipError =
+    newIP.trim() && !normalizedNewIP
+      ? t('ipban.modal.invalidIP', 'Please enter a valid IP address')
+      : undefined;
 
   return (
     <Box paddingBottom={7}>
@@ -237,9 +263,27 @@ const IPBans = () => {
       <StatsRow
         label={t('ipban.stats.label', 'Ban statistics')}
         items={[
-          { key: 'total', label: t('ipban.stats.total', 'Banned IPs'), value: stats.total, icon: Lock, tone: 'danger' },
-          { key: 'ipv4', label: t('ipban.stats.ipv4', 'IPv4 addresses'), value: stats.ipv4, icon: Earth, tone: 'primary' },
-          { key: 'ipv6', label: t('ipban.stats.ipv6', 'IPv6 addresses'), value: stats.ipv6, icon: Server, tone: 'secondary' },
+          {
+            key: 'total',
+            label: t('ipban.stats.total', 'Banned IPs'),
+            value: stats.total,
+            icon: Lock,
+            tone: 'danger',
+          },
+          {
+            key: 'ipv4',
+            label: t('ipban.stats.ipv4', 'IPv4 addresses'),
+            value: stats.ipv4,
+            icon: Earth,
+            tone: 'primary',
+          },
+          {
+            key: 'ipv6',
+            label: t('ipban.stats.ipv6', 'IPv6 addresses'),
+            value: stats.ipv6,
+            icon: Server,
+            tone: 'secondary',
+          },
         ]}
       />
 
@@ -295,7 +339,10 @@ const IPBans = () => {
             <EmptyState
               icon={Earth}
               title={t('ipban.empty.noMatches.title', 'No banned IP matches your search')}
-              description={t('ipban.empty.noMatches.description', 'Check the address or clear the search.')}
+              description={t(
+                'ipban.empty.noMatches.description',
+                'Check the address or clear the search.'
+              )}
               actions={
                 <Button onClick={() => handleSearch('')} variant="secondary" size="L">
                   {t('ipban.empty.clearSearch', 'Clear search')}
@@ -309,7 +356,10 @@ const IPBans = () => {
               title={t('ipban.empty.title', 'No Banned IPs')}
               description={
                 canManage
-                  ? t('ipban.empty.description', 'No IP addresses are currently banned. Add an IP to block it.')
+                  ? t(
+                      'ipban.empty.description',
+                      'No IP addresses are currently banned. Add an IP to block it.'
+                    )
                   : t('ipban.empty.descriptionReadOnly', 'No IP addresses are currently banned.')
               }
               actions={
@@ -431,7 +481,12 @@ const IPBans = () => {
                 </Flex>
               </Modal.Body>
               <Modal.Footer>
-                <Button type="button" size="M" variant="tertiary" onClick={() => discard.runGuarded(closeModal)}>
+                <Button
+                  type="button"
+                  size="M"
+                  variant="tertiary"
+                  onClick={() => discard.runGuarded(closeModal)}
+                >
                   {t('ipban.modal.cancel', 'Cancel')}
                 </Button>
                 <Button

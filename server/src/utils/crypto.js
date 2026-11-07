@@ -34,10 +34,11 @@ let warnedDevKey = false;
 let warnedDevPepper = false;
 
 const isProduction = () => process.env.NODE_ENV === 'production';
-const devSecretsAllowed = () => !isProduction() && process.env.MAGIC_LINK_ALLOW_DEV_SECRETS === 'true';
+const devSecretsAllowed = () =>
+  !isProduction() && process.env.MAGIC_LINK_ALLOW_DEV_SECRETS === 'true';
 
 const GENERATE_HINT =
-  'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"';
+  "Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"";
 
 /**
  * Derives a development fallback value from the strongest available secret.
@@ -86,7 +87,9 @@ const getEncryptionKey = () => {
 
   if (!warnedDevKey) {
     warnedDevKey = true;
-    console.warn('[magic-link] MAGIC_LINK_ALLOW_DEV_SECRETS=true: using a development encryption key.');
+    console.warn(
+      '[magic-link] MAGIC_LINK_ALLOW_DEV_SECRETS=true: using a development encryption key.'
+    );
   }
   return deriveKey(raw || devFallbackMaterial());
 };
@@ -172,7 +175,8 @@ const hash = (value) => {
 const hashToken = (token, salt = null) => {
   if (!token) return { hash: null, salt: null };
   const tokenSalt = salt || crypto.randomBytes(16).toString('hex');
-  const hashedToken = crypto.createHash('sha256')
+  const hashedToken = crypto
+    .createHash('sha256')
     .update(token + tokenSalt)
     .digest('hex');
   return { hash: hashedToken, salt: tokenSalt };
@@ -188,10 +192,7 @@ const hashToken = (token, salt = null) => {
 const verifyToken = (token, storedHash, salt) => {
   if (!token || !storedHash) return false;
   const { hash: computedHash } = hashToken(token, salt);
-  return crypto.timingSafeEqual(
-    Buffer.from(computedHash, 'hex'),
-    Buffer.from(storedHash, 'hex')
-  );
+  return crypto.timingSafeEqual(Buffer.from(computedHash, 'hex'), Buffer.from(storedHash, 'hex'));
 };
 
 /**
@@ -202,20 +203,20 @@ const verifyToken = (token, storedHash, salt) => {
  */
 const encrypt = (value) => {
   if (!value) return null;
-  
+
   const key = getEncryptionKey();
   const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-  
+
   let encrypted = cipher.update(String(value), 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  
+
   const authTag = cipher.getAuthTag();
-  
+
   // Return iv:authTag:encryptedData as base64
-  return Buffer.from(
-    iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted
-  ).toString('base64');
+  return Buffer.from(iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted).toString(
+    'base64'
+  );
 };
 
 /**
@@ -284,7 +285,10 @@ const decrypt = (encryptedValue) => decryptWithInfo(encryptedValue).value;
  * @returns {string} - Random string (hex)
  */
 const generateSecureRandom = (length = 32) => {
-  return crypto.randomBytes(Math.ceil(length / 2)).toString('hex').slice(0, length);
+  return crypto
+    .randomBytes(Math.ceil(length / 2))
+    .toString('hex')
+    .slice(0, length);
 };
 
 /**
@@ -296,7 +300,8 @@ const generateSecureRandom = (length = 32) => {
 const hashOTP = (code) => {
   if (!code) return null;
   const pepper = getOtpPepper();
-  return crypto.createHash('sha256')
+  return crypto
+    .createHash('sha256')
     .update(code + pepper)
     .digest('hex');
 };
@@ -311,10 +316,7 @@ const verifyOTP = (code, storedHash) => {
   if (!code || !storedHash) return false;
   const computedHash = hashOTP(code);
   try {
-    return crypto.timingSafeEqual(
-      Buffer.from(computedHash, 'hex'),
-      Buffer.from(storedHash, 'hex')
-    );
+    return crypto.timingSafeEqual(Buffer.from(computedHash, 'hex'), Buffer.from(storedHash, 'hex'));
   } catch {
     return false;
   }
@@ -363,4 +365,3 @@ module.exports = {
   isEncrypted,
   hashJwt,
 };
-

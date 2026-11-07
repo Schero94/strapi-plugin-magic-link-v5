@@ -10,7 +10,7 @@ Existing uncommitted work is part of the baseline and must be preserved and revi
 - [ ] U1: Preserve the Strapi design and verify every safe admin journey with Playwright CLI at desktop and mobile widths, including keyboard, errors and overflow.
 - [ ] R1: Correct README and GitHub Pages against verified API contracts and security limitations.
 - [ ] V1: Plugin tests, lint, build and SDK/runtime verification pass.
-  CHECK: npm test && npm run build && npm run verify
-  EXPECT: # fail 0
+      CHECK: npm test && npm run build && npm run verify
+      EXPECT: # fail 0
 - [ ] V2: Shared host builds and boots with the target Strapi version; authenticated UI and negative-access checks are evidenced.
 - [ ] P1: Review all existing and new changes, commit only intended work, push, and verify GitHub Actions and Pages deployment.

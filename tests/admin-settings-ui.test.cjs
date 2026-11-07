@@ -82,7 +82,11 @@ test('a cleared number input is reported instead of being dropped silently', () 
 });
 
 test('invalid fields are ordered by page position and mapped to their section', () => {
-  const keys = form.orderedErrorKeys({ rate_limit_max_attempts: 1, frontend_url: 1, jwt_token_expires_in: 1 });
+  const keys = form.orderedErrorKeys({
+    rate_limit_max_attempts: 1,
+    frontend_url: 1,
+    jwt_token_expires_in: 1,
+  });
   assert.deepEqual(keys, ['frontend_url', 'jwt_token_expires_in', 'rate_limit_max_attempts']);
   assert.equal(form.FIELD_SECTIONS.frontend_url, 'general');
   assert.equal(form.FIELD_SECTIONS.otp_length, 'mfa');
@@ -131,7 +135,11 @@ test('dirty tracking ignores list formatting and the payload contains only chang
   assert.equal(form.isSettingsDirty(initial, { ...initial, context_whitelist: 'a, b' }), false);
   assert.equal(form.isSettingsDirty(null, initial), false);
 
-  const edited = { ...initial, context_whitelist: 'a, b, c', frontend_url: ' https://app.example ' };
+  const edited = {
+    ...initial,
+    context_whitelist: 'a, b, c',
+    frontend_url: ' https://app.example ',
+  };
   assert.equal(form.isSettingsDirty(initial, edited), true);
   assert.deepEqual(form.buildSavePayload(initial, edited), {
     context_whitelist: ['a', 'b', 'c'],
@@ -141,13 +149,20 @@ test('dirty tracking ignores list formatting and the payload contains only chang
 
 test('save payload never sends removed delivery settings', () => {
   const initial = form.sanitizeLoadedSettings({});
-  const payload = form.buildSavePayload(initial, { ...initial, sms_enabled: true, delivery: 'sms', object: 'Hi' });
+  const payload = form.buildSavePayload(initial, {
+    ...initial,
+    sms_enabled: true,
+    delivery: 'sms',
+    object: 'Hi',
+  });
   assert.deepEqual(payload, { object: 'Hi' });
 });
 
 test('server validation errors name the rejected field', () => {
   const error = {
-    response: { data: { error: { message: "Invalid request body at 'frontend_url': Must be an https URL" } } },
+    response: {
+      data: { error: { message: "Invalid request body at 'frontend_url': Must be an https URL" } },
+    },
   };
   assert.equal(form.getServerErrorField(error), 'frontend_url');
   assert.equal(form.getServerErrorField({ message: 'Network down' }), null);
@@ -183,13 +198,25 @@ test('choosing the authenticator mode never requires TOTP for everyone by itself
     mfa_require_totp: false,
   });
   assert.equal(form.applyAuthMode('totp', { mfa_mode: 'required' }).mfa_mode, 'required');
-  assert.deepEqual(form.applyTotpPolicy('required'), { mfa_mode: 'required', mfa_require_totp: true });
-  assert.deepEqual(form.applyTotpPolicy('optional'), { mfa_mode: 'optional', mfa_require_totp: false });
+  assert.deepEqual(form.applyTotpPolicy('required'), {
+    mfa_mode: 'required',
+    mfa_require_totp: true,
+  });
+  assert.deepEqual(form.applyTotpPolicy('optional'), {
+    mfa_mode: 'optional',
+    mfa_require_totp: false,
+  });
 });
 
 test('"required for every user" is blocked while nobody is enrolled', () => {
-  assert.deepEqual(form.canRequireTotp({ enrolled: 0 }), { allowed: false, reason: 'none-enrolled' });
-  assert.deepEqual(form.canRequireTotp({ enrolled: 3 }), { allowed: true, reason: 'some-enrolled' });
+  assert.deepEqual(form.canRequireTotp({ enrolled: 0 }), {
+    allowed: false,
+    reason: 'none-enrolled',
+  });
+  assert.deepEqual(form.canRequireTotp({ enrolled: 3 }), {
+    allowed: true,
+    reason: 'some-enrolled',
+  });
   assert.deepEqual(form.canRequireTotp(null), { allowed: true, reason: 'unknown' });
   assert.deepEqual(form.parseEnrollmentSummary({ data: { enrolled: 2 } }), { enrolled: 2 });
   assert.deepEqual(form.parseEnrollmentSummary({ enrolled: 0 }), { enrolled: 0 });
@@ -204,11 +231,17 @@ test('"required for every user" is blocked while nobody is enrolled', () => {
 test('login link preview follows the server precedence and skips invalid URLs', () => {
   const origin = 'https://cms.example';
   assert.deepEqual(
-    form.buildLoginUrlPreview({ frontend_url: 'https://app.example/', frontend_login_path: '/auth' }, origin),
+    form.buildLoginUrlPreview(
+      { frontend_url: 'https://app.example/', frontend_login_path: '/auth' },
+      origin
+    ),
     { url: 'https://app.example/auth?loginToken=EXAMPLE', source: 'frontend' }
   );
   assert.deepEqual(
-    form.buildLoginUrlPreview({ frontend_url: 'http://evil.example', confirmationUrl: 'https://c.example/l?a=1' }, origin),
+    form.buildLoginUrlPreview(
+      { frontend_url: 'http://evil.example', confirmationUrl: 'https://c.example/l?a=1' },
+      origin
+    ),
     { url: 'https://c.example/l?a=1&loginToken=EXAMPLE', source: 'confirmation' }
   );
   assert.deepEqual(form.buildLoginUrlPreview({}, origin), {
@@ -257,7 +290,8 @@ const createDsStub = () => {
     const Component = ({ children, disabled, value, checked, ...props }) => {
       const attrs = { 'data-ds': name };
       for (const [key, val] of Object.entries(props)) {
-        if (SAFE_ATTR.test(key) && ['string', 'number', 'boolean'].includes(typeof val)) attrs[key] = val;
+        if (SAFE_ATTR.test(key) && ['string', 'number', 'boolean'].includes(typeof val))
+          attrs[key] = val;
       }
       if (typeof props.error === 'string') attrs['data-error'] = props.error;
       if (typeof props.hint === 'string') attrs['data-hint'] = props.hint;
@@ -270,10 +304,15 @@ const createDsStub = () => {
       // Only capitalised names are sub-components (Field.Root); anything else
       // (symbols, displayName, styledComponentId) stays a normal lookup.
       get: (target, key) =>
-        key in target || typeof key !== 'string' || !/^[A-Z]/.test(key) ? target[key] : make(`${name}.${key}`),
+        key in target || typeof key !== 'string' || !/^[A-Z]/.test(key)
+          ? target[key]
+          : make(`${name}.${key}`),
     });
   };
-  return new Proxy({}, { get: (_target, key) => (key === '__esModule' ? false : make(String(key))) });
+  return new Proxy(
+    {},
+    { get: (_target, key) => (key === '__esModule' ? false : make(String(key))) }
+  );
 };
 
 const iconStub = new Proxy({}, { get: (_t, key) => (key === '__esModule' ? false : () => null) });
@@ -361,7 +400,10 @@ test('every Settings section renders with labelled fields and no removed channel
     react: { ...React, useLayoutEffect: React.useEffect },
     '@strapi/design-system': createDsStub(),
     '@strapi/icons': iconStub,
-    '@strapi/strapi/admin': { Page: { Title: () => null }, useNotification: () => ({ toggleNotification() {} }) },
+    '@strapi/strapi/admin': {
+      Page: { Title: () => null },
+      useNotification: () => ({ toggleNotification() {} }),
+    },
   };
   stubs['../../../components/LanguageProvider'] = {
     usePluginLanguage: () => ({
@@ -410,7 +452,9 @@ test('every Settings section renders with labelled fields and no removed channel
   };
   for (const [name, extra] of Object.entries(sections)) {
     const file = `admin/src/pages/Settings/sections/${name}.jsx`;
-    const Section = (await loadAdminModuleAsync(file, { stubs, externalPattern: /components\/LanguageProvider$/ }))[name];
+    const Section = (
+      await loadAdminModuleAsync(file, { stubs, externalPattern: /components\/LanguageProvider$/ })
+    )[name];
     const html = renderToStaticMarkup(
       React.createElement(
         IntlProvider,
@@ -421,21 +465,36 @@ test('every Settings section renders with labelled fields and no removed channel
     assert.ok(html.length > 200, `${name} renders`);
     assert.doesNotMatch(html, /WhatsApp|SMS/i, `${name}: e-mail only`);
     // Read-only: every switch and input is disabled.
-    assert.doesNotMatch(html, /data-ds="(?:Switch|TextInput|NumberInput)"(?![^>]*data-disabled)/, `${name}: read-only`);
+    assert.doesNotMatch(
+      html,
+      /data-ds="(?:Switch|TextInput|NumberInput)"(?![^>]*data-disabled)/,
+      `${name}: read-only`
+    );
     if (name === 'GeneralSection') {
       assert.match(html, /data-ds="Field.Root"[^>]*id="magic-link-settings-frontend_url"/);
       assert.match(html, /data-error="error:frontend_url"/);
       assert.match(html, /data-error="error:token_length"/);
-      assert.match(html, /id="magic-link-settings-expire_period" data-hint="Recommended: 3600 seconds/);
+      assert.match(
+        html,
+        /id="magic-link-settings-expire_period" data-hint="Recommended: 3600 seconds/
+      );
       assert.match(html, /http:\/\/localhost|loginToken=EXAMPLE/);
     }
     if (name === 'EmailSection') {
       assert.match(html, /role="alert"/, 'missing provider is announced');
-      assert.match(html, /data-ds="SingleSelectOption" data-value="10"/, 'Email Designer uses the reference id');
+      assert.match(
+        html,
+        /data-ds="SingleSelectOption" data-value="10"/,
+        'Email Designer uses the reference id'
+      );
       assert.match(html, /\{\{LOGIN_URL\}\}/);
     }
     if (name === 'RateLimitSection') {
-      assert.doesNotMatch(html, /Reset all limits|Clean up expired entries|Cleanup Expired|Reset All Limits/, 'actions hidden');
+      assert.doesNotMatch(
+        html,
+        /Reset all limits|Clean up expired entries|Cleanup Expired|Reset All Limits/,
+        'actions hidden'
+      );
     }
   }
 });
@@ -453,17 +512,41 @@ test('Settings sources use theme tokens, translated strings and accessible contr
     assert.doesNotMatch(source, /var\(--colors-/, `${name}: DS defines no --colors-* variables`);
     assert.doesNotMatch(source, /window\.confirm\(|\bconfirm\(/, `${name}: use ConfirmDialog`);
     assert.doesNotMatch(source, /navigator\.clipboard/, `${name}: use useCopyToClipboard`);
-    assert.doesNotMatch(source, /console\.(log|debug|info|warn|error)\(/, `${name}: no console output`);
+    assert.doesNotMatch(
+      source,
+      /console\.(log|debug|info|warn|error)\(/,
+      `${name}: no console output`
+    );
     assert.doesNotMatch(source, /'de-DE'|'en-US'|toLocaleString\(/, `${name}: use useFormatters`);
     assert.doesNotMatch(source, EMOJI, `${name}: no emoji`);
-    assert.doesNotMatch(source, /font-?[sS]ize:\s*'?(?:9|10|11|13|15)px/, `${name}: DS font scale only`);
-    assert.doesNotMatch(source, /\bhint=\{[^}]*\}\s*\n?\s*value=/, `${name}: hints belong to Field.Root`);
+    assert.doesNotMatch(
+      source,
+      /font-?[sS]ize:\s*'?(?:9|10|11|13|15)px/,
+      `${name}: DS font scale only`
+    );
+    assert.doesNotMatch(
+      source,
+      /\bhint=\{[^}]*\}\s*\n?\s*value=/,
+      `${name}: hints belong to Field.Root`
+    );
     // settingsForm.js names the removed keys only to strip them.
     if (!name.endsWith('settingsForm.js')) {
-      assert.doesNotMatch(source, /whatsapp|phoneNumber|otp_type/i, `${name}: e-mail is the only channel`);
+      assert.doesNotMatch(
+        source,
+        /whatsapp|phoneNumber|otp_type/i,
+        `${name}: e-mail is the only channel`
+      );
     }
-    assert.doesNotMatch(source, /licenseInfo|checkLicenseAndSetMode|\/license\/status/, `${name}: no tier gating`);
-    assert.doesNotMatch(source, /Aktivieren|Versandmethode|Wähle|deiner|So funktioniert/, `${name}: no German literals`);
+    assert.doesNotMatch(
+      source,
+      /licenseInfo|checkLicenseAndSetMode|\/license\/status/,
+      `${name}: no tier gating`
+    );
+    assert.doesNotMatch(
+      source,
+      /Aktivieren|Versandmethode|Wähle|deiner|So funktioniert/,
+      `${name}: no German literals`
+    );
   }
 });
 
@@ -475,11 +558,14 @@ test('the Settings page wires RBAC, the unsaved-changes guard and confirmations'
   assert.ok(page.includes('<UnsavedChangesDialog guard={guard} />'));
   assert.ok(page.includes('<Page.Main>'));
   assert.ok(page.includes('<PluginPageTitle>'));
-  assert.ok(page.includes("tag=\"h1\""));
+  assert.ok(page.includes('tag="h1"'));
   assert.ok(page.includes('<ConfirmDialog'));
   assert.ok(page.includes("post('/magic-link/rate-limit/reset')"));
   // Rate-limit actions refresh only the statistics, never the form.
-  const actions = page.slice(page.indexOf('const handleRateLimitCleanup'), page.indexOf('/* ---------------- Render'));
+  const actions = page.slice(
+    page.indexOf('const handleRateLimitCleanup'),
+    page.indexOf('/* ---------------- Render')
+  );
   assert.doesNotMatch(actions, /loadSettings\(/);
   assert.match(actions, /await loadStats\(\)/);
 

@@ -2,7 +2,10 @@ import { useRBAC } from '@strapi/strapi/admin';
 import pluginPermissions from '../permissions';
 
 const PLUGIN_CAPABILITIES = [...pluginPermissions.read, ...pluginPermissions.manage];
-const SETTINGS_CAPABILITIES = [...pluginPermissions.settingsRead, ...pluginPermissions.settingsUpdate];
+const SETTINGS_CAPABILITIES = [
+  ...pluginPermissions.settingsRead,
+  ...pluginPermissions.settingsUpdate,
+];
 
 /**
  * Pure capability mapping (exported for tests).

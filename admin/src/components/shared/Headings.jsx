@@ -13,7 +13,9 @@ import { useMagicLinkIntl } from '../../hooks/useMagicLinkIntl';
  */
 export const PluginPageTitle = ({ children }) => {
   const { t } = useMagicLinkIntl();
-  return <Page.Title>{t('common.pageTitle', '{page} | Magic Link', { page: children })}</Page.Title>;
+  return (
+    <Page.Title>{t('common.pageTitle', '{page} | Magic Link', { page: children })}</Page.Title>
+  );
 };
 
 /**

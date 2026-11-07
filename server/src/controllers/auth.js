@@ -74,7 +74,9 @@ const limiterKey = (scope, value) =>
 const findUserByEmail = async (email) => {
   const normalized = normalizeEmail(email);
   if (!normalized) return null;
-  const users = await strapi.documents(USER_UID).findMany({ filters: { email: normalized }, limit: 1 });
+  const users = await strapi
+    .documents(USER_UID)
+    .findMany({ filters: { email: normalized }, limit: 1 });
   return (users && users[0]) || null;
 };
 
@@ -142,10 +144,16 @@ const sendChallengeOtp = async (ctx, token, settings) => {
     return true;
   } catch {
     strapi.log.error('[magic-link] OTP e-mail delivery failed');
-    i18n.sendError(ctx, 'otp.deliveryFailed', 503, {}, {
-      code: 'OTP_EMAIL_FAILED',
-      resendEndpoint: '/api/magic-link/otp/resend',
-    });
+    i18n.sendError(
+      ctx,
+      'otp.deliveryFailed',
+      503,
+      {},
+      {
+        code: 'OTP_EMAIL_FAILED',
+        resendEndpoint: '/api/magic-link/otp/resend',
+      }
+    );
     return false;
   }
 };
@@ -214,7 +222,8 @@ module.exports = {
       return i18n.sendError(ctx, 'token.invalid', 400);
     }
 
-    const pendingChallenge = token.challenge && !token.challenge.verifiedAt ? token.challenge : null;
+    const pendingChallenge =
+      token.challenge && !token.challenge.verifiedAt ? token.challenge : null;
     const isValid = pendingChallenge
       ? await magicLink.isTokenValid({ ...token, is_used: false })
       : await magicLink.isTokenValid(token);
@@ -334,7 +343,8 @@ module.exports = {
         })
       )
       .then((outcome) => {
-        if (outcome !== 'sent') strapi.log.debug(`[magic-link] send-link finished without mail: ${outcome}`);
+        if (outcome !== 'sent')
+          strapi.log.debug(`[magic-link] send-link finished without mail: ${outcome}`);
       })
       .catch(() => {
         strapi.log.error('[magic-link] send-link processing failed');
@@ -360,7 +370,8 @@ module.exports = {
     const { loginToken, totpCode, backupCode } = parseBody(mfaVerifyTotpSchema, ctx.request.body);
 
     if (!(await allowRequest(ctx, ctx.request.ip, 'otp'))) return undefined;
-    if (!(await allowRequest(ctx, limiterKey('totp-challenge', loginToken), 'otp'))) return undefined;
+    if (!(await allowRequest(ctx, limiterKey('totp-challenge', loginToken), 'otp')))
+      return undefined;
 
     const magicLink = plugin().service('magic-link');
     const otpService = plugin().service('otp');
@@ -415,11 +426,16 @@ module.exports = {
       user,
       settings,
       context: filterContext(token.context, settings),
-      source: verification.method === 'backup-code' ? 'Magic Link + backup code (MFA)' : 'Magic Link + TOTP (MFA)',
+      source:
+        verification.method === 'backup-code'
+          ? 'Magic Link + backup code (MFA)'
+          : 'Magic Link + TOTP (MFA)',
       claims: { mfaVerified: true },
       extras: {
         mfaVerified: true,
-        ...(verification.method === 'backup-code' ? { backupCodesRemaining: verification.remaining } : {}),
+        ...(verification.method === 'backup-code'
+          ? { backupCodesRemaining: verification.remaining }
+          : {}),
       },
     });
     return ctx.send(body);
@@ -442,8 +458,10 @@ module.exports = {
     // client cannot lock a victim out with a handful of requests, and many
     // clients together still cannot brute-force one account (AUTH-26).
     if (!(await allowRequest(ctx, ctx.request.ip, 'login'))) return undefined;
-    if (!(await allowRequest(ctx, limiterKey('totp-login', `${email}|${ctx.request.ip}`), 'otp'))) return undefined;
-    if (!(await allowRequest(ctx, limiterKey('totp-login-account', email), 'login'))) return undefined;
+    if (!(await allowRequest(ctx, limiterKey('totp-login', `${email}|${ctx.request.ip}`), 'otp')))
+      return undefined;
+    if (!(await allowRequest(ctx, limiterKey('totp-login-account', email), 'login')))
+      return undefined;
 
     const magicLink = plugin().service('magic-link');
     const otpService = plugin().service('otp');

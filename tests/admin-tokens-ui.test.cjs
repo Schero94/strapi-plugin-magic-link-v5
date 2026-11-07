@@ -63,7 +63,12 @@ test('blocked tokens are derived from is_active/is_used, not a missing status fi
   );
   const active = model.getTokenActions(token(), NOW);
   assert.deepEqual(
-    { activate: active.canActivate, block: active.canBlock, extend: active.canExtend, reissue: active.canReissue },
+    {
+      activate: active.canActivate,
+      block: active.canBlock,
+      extend: active.canExtend,
+      reissue: active.canReissue,
+    },
     { activate: false, block: true, extend: true, reissue: false }
   );
   const used = model.getTokenActions(token({ is_active: false, is_used: true }), NOW);
@@ -86,7 +91,12 @@ test('stats count each derived state once and blocked tokens are not counted as 
 });
 
 test('normalizeToken turns SQLite 0/1 into booleans and invalid dates into null', () => {
-  const normalized = model.normalizeToken({ is_active: 0, is_used: 1, created_at: PAST, expires_at: 'nope' });
+  const normalized = model.normalizeToken({
+    is_active: 0,
+    is_used: 1,
+    created_at: PAST,
+    expires_at: 'nope',
+  });
   assert.equal(normalized.is_active, false);
   assert.equal(normalized.is_used, true);
   assert.equal(normalized.createdAt, PAST);
@@ -95,14 +105,36 @@ test('normalizeToken turns SQLite 0/1 into booleans and invalid dates into null'
 
 test('filter, search and sort never mutate the token list and sort status by derived state', () => {
   const list = [
-    token({ id: 1, documentId: 'doc-aaaaaaaa11111111', email: 'b@example.invalid', is_active: false }),
-    token({ id: 2, documentId: 'doc-bbbbbbbb22222222', email: 'a@example.invalid', ip_address: '203.0.113.7' }),
-    token({ id: 3, documentId: 'doc-cccccccc33333333', email: 'c@example.invalid', expires_at: PAST }),
+    token({
+      id: 1,
+      documentId: 'doc-aaaaaaaa11111111',
+      email: 'b@example.invalid',
+      is_active: false,
+    }),
+    token({
+      id: 2,
+      documentId: 'doc-bbbbbbbb22222222',
+      email: 'a@example.invalid',
+      ip_address: '203.0.113.7',
+    }),
+    token({
+      id: 3,
+      documentId: 'doc-cccccccc33333333',
+      email: 'c@example.invalid',
+      expires_at: PAST,
+    }),
   ];
   const snapshot = JSON.stringify(list);
 
-  const byStatus = model.filterAndSortTokens(list, { sortBy: 'status', sortOrder: 'asc', now: NOW });
-  assert.deepEqual(byStatus.map((t) => t.id), [2, 3, 1]);
+  const byStatus = model.filterAndSortTokens(list, {
+    sortBy: 'status',
+    sortOrder: 'asc',
+    now: NOW,
+  });
+  assert.deepEqual(
+    byStatus.map((t) => t.id),
+    [2, 3, 1]
+  );
   assert.equal(JSON.stringify(list), snapshot, 'input array untouched');
 
   assert.deepEqual(
@@ -120,7 +152,9 @@ test('filter, search and sort never mutate the token list and sort status by der
     'search matches the reference shown in the table'
   );
   assert.deepEqual(
-    model.filterAndSortTokens(list, { sortBy: 'email', sortOrder: 'desc', now: NOW }).map((t) => t.email),
+    model
+      .filterAndSortTokens(list, { sortBy: 'email', sortOrder: 'desc', now: NOW })
+      .map((t) => t.email),
     ['c@example.invalid', 'b@example.invalid', 'a@example.invalid']
   );
 });
@@ -161,15 +195,24 @@ test('create form validation rejects bad email, ttl out of range, invalid JSON a
   assert.equal(model.validateCreateForm({ email: '', ttl: 24 }).errors.email, 'required');
   assert.equal(model.validateCreateForm({ email: 'no-at-sign', ttl: 24 }).errors.email, 'format');
   for (const ttl of [0, -1, 1.5, 721, undefined, Number.NaN]) {
-    assert.equal(model.validateCreateForm({ email: 'a@example.invalid', ttl }).errors.ttl, 'range', String(ttl));
+    assert.equal(
+      model.validateCreateForm({ email: 'a@example.invalid', ttl }).errors.ttl,
+      'range',
+      String(ttl)
+    );
   }
-  assert.equal(model.validateCreateForm({ email: 'a@example.invalid', ttl: 720 }).errors.ttl, undefined);
   assert.equal(
-    model.validateCreateForm({ email: 'a@example.invalid', ttl: 1, contextText: '{oops' }).errors.context,
+    model.validateCreateForm({ email: 'a@example.invalid', ttl: 720 }).errors.ttl,
+    undefined
+  );
+  assert.equal(
+    model.validateCreateForm({ email: 'a@example.invalid', ttl: 1, contextText: '{oops' }).errors
+      .context,
     'json'
   );
   assert.equal(
-    model.validateCreateForm({ email: 'a@example.invalid', ttl: 1, contextText: '[1,2]' }).errors.context,
+    model.validateCreateForm({ email: 'a@example.invalid', ttl: 1, contextText: '[1,2]' }).errors
+      .context,
     'object'
   );
   const reserved = model.validateCreateForm({
@@ -209,7 +252,11 @@ test('extend preview mirrors the server and day input must be an integer from 1 
   const fromFuture = model.computeExtendedExpiry(FUTURE, 7, NOW);
   assert.equal(fromFuture.toISOString(), '2026-12-08T12:00:00.000Z');
   const fromExpired = model.computeExtendedExpiry(PAST, 1, NOW);
-  assert.equal(fromExpired.toISOString(), '2026-11-08T12:00:00.000Z', 'expired tokens extend from now');
+  assert.equal(
+    fromExpired.toISOString(),
+    '2026-11-08T12:00:00.000Z',
+    'expired tokens extend from now'
+  );
   for (const days of [0, -5, 1.5, 366, undefined]) {
     assert.equal(model.isIntegerInRange(days, model.EXTEND_LIMITS), false, String(days));
   }
@@ -219,13 +266,19 @@ test('extend preview mirrors the server and day input must be an integer from 1 
 test('login link prefers the server URL, then frontend URL, confirmation URL and API route (UI-22)', () => {
   const secret = 'synthetic-token-value';
   assert.equal(
-    model.buildLoginUrl({ loginUrl: 'https://app.example.invalid/login?loginToken=x', token: secret }),
+    model.buildLoginUrl({
+      loginUrl: 'https://app.example.invalid/login?loginToken=x',
+      token: secret,
+    }),
     'https://app.example.invalid/login?loginToken=x'
   );
   assert.equal(
     model.buildLoginUrl({
       token: secret,
-      settings: { frontend_url: 'https://app.example.invalid/', frontend_login_path: '/auth/magic' },
+      settings: {
+        frontend_url: 'https://app.example.invalid/',
+        frontend_login_path: '/auth/magic',
+      },
       origin: 'https://admin.example.invalid',
     }),
     'https://app.example.invalid/auth/magic?loginToken=synthetic-token-value'
@@ -241,7 +294,10 @@ test('login link prefers the server URL, then frontend URL, confirmation URL and
     model.buildLoginUrl({ token: secret, settings: null, origin: 'https://admin.example.invalid' }),
     'https://admin.example.invalid/api/magic-link/login?loginToken=synthetic-token-value'
   );
-  assert.equal(model.buildLoginUrl({ token: secret, settings: { confirmationUrl: 'not a url' } }), '');
+  assert.equal(
+    model.buildLoginUrl({ token: secret, settings: { confirmationUrl: 'not a url' } }),
+    ''
+  );
   assert.equal(model.buildLoginUrl({ loginUrl: 'javascript:alert(1)', token: '' }), '');
 });
 
@@ -282,7 +338,10 @@ test('TokenTabs renders the WAI-ARIA tabs pattern with one selected, focusable t
   );
   assert.match(html, /role="tablist"[^>]*aria-label="Token views"/);
   assert.equal((html.match(/role="tab"/g) || []).length, 2);
-  assert.match(html, /id="magic-link-tab-b"[^>]*aria-selected="true"[^>]*aria-controls="magic-link-panel-b"[^>]*tabindex="0"/);
+  assert.match(
+    html,
+    /id="magic-link-tab-b"[^>]*aria-selected="true"[^>]*aria-controls="magic-link-panel-b"[^>]*tabindex="0"/
+  );
   assert.match(html, /id="magic-link-tab-a"[^>]*aria-selected="false"[^>]*tabindex="-1"/);
 });
 
@@ -290,22 +349,58 @@ test('Tokens view files use DS tokens, shared dialogs and translated, labelled c
   for (const file of VIEW_FILES) {
     const source = read(file);
     assert.equal(/var\(--colors-/.test(source), false, `${file}: no --colors-* variables`);
-    assert.equal(/window\.confirm\(|[^.\w]confirm\(/.test(source), false, `${file}: no window.confirm`);
-    assert.equal(source.includes('navigator.clipboard'), false, `${file}: clipboard via useCopyToClipboard`);
-    assert.equal(/'de-DE'|'en-US'|toLocale(Date)?String\(/.test(source), false, `${file}: locale-aware formatting`);
+    assert.equal(
+      /window\.confirm\(|[^.\w]confirm\(/.test(source),
+      false,
+      `${file}: no window.confirm`
+    );
+    assert.equal(
+      source.includes('navigator.clipboard'),
+      false,
+      `${file}: clipboard via useCopyToClipboard`
+    );
+    assert.equal(
+      /'de-DE'|'en-US'|toLocale(Date)?String\(/.test(source),
+      false,
+      `${file}: locale-aware formatting`
+    );
     assert.equal(/\p{Extended_Pictographic}|[✓✔⚠]/u.test(source), false, `${file}: no emoji`);
-    assert.equal(/font-?size:\s*'?(9|10|11|13|15)px/i.test(source), false, `${file}: DS font scale, 12px minimum`);
-    assert.equal(/fontSize:\s*'(0\.\d+|1\.\d+)rem'/.test(source), false, `${file}: no rem overrides`);
+    assert.equal(
+      /font-?size:\s*'?(9|10|11|13|15)px/i.test(source),
+      false,
+      `${file}: DS font scale, 12px minimum`
+    );
+    assert.equal(
+      /fontSize:\s*'(0\.\d+|1\.\d+)rem'/.test(source),
+      false,
+      `${file}: no rem overrides`
+    );
     assert.equal(/console\.(log|debug|error)/.test(source), false, `${file}: no console output`);
     assert.equal(/getTrad\(|useIntl\(/.test(source), false, `${file}: t() with English defaults`);
     assert.equal(/\bas="/.test(source), false, `${file}: DS 2 uses tag, not as`);
-    assert.equal(/position:\s*'fixed'/.test(source), false, `${file}: DS Modal instead of fixed overlays`);
-    assert.equal(/#[0-9a-fA-F]{3,8}\b/.test(source.replace(/byScheme\([^)]*\)/g, '')), false, `${file}: hex only in byScheme`);
+    assert.equal(
+      /position:\s*'fixed'/.test(source),
+      false,
+      `${file}: DS Modal instead of fixed overlays`
+    );
+    assert.equal(
+      /#[0-9a-fA-F]{3,8}\b/.test(source.replace(/byScheme\([^)]*\)/g, '')),
+      false,
+      `${file}: hex only in byScheme`
+    );
   }
 
   const filterBar = read('admin/src/pages/Tokens/components/TokensFilterBar.jsx');
-  assert.equal((filterBar.match(/aria-label=/g) || []).length >= 2, true, 'both selects are labelled');
-  assert.match(filterBar, /<Searchbar[\s\S]*?>\s*\{t\('tokens\.search\.label'/, 'Searchbar has its label child');
+  assert.equal(
+    (filterBar.match(/aria-label=/g) || []).length >= 2,
+    true,
+    'both selects are labelled'
+  );
+  assert.match(
+    filterBar,
+    /<Searchbar[\s\S]*?>\s*\{t\('tokens\.search\.label'/,
+    'Searchbar has its label child'
+  );
   assert.equal(/key=\{`searchbar/.test(filterBar), false, 'no Searchbar remount key');
 
   const table = read('admin/src/pages/Tokens/components/TokensTable.jsx');
@@ -314,7 +409,10 @@ test('Tokens view files use DS tokens, shared dialogs and translated, labelled c
   assert.ok(table.includes('ip_address') && !table.includes('login_ip'), 'table reads ip_address');
 
   const created = read('admin/src/pages/Tokens/components/CreatedTokenModal.jsx');
-  assert.ok(created.includes('onInteractOutside={preventClose}'), 'one-time token survives overlay clicks');
+  assert.ok(
+    created.includes('onInteractOutside={preventClose}'),
+    'one-time token survives overlay clicks'
+  );
   assert.ok(created.includes('onEscapeKeyDown={preventClose}'), 'one-time token survives Escape');
   assert.ok(created.includes('useCopyToClipboard'));
 
@@ -327,18 +425,38 @@ test('Tokens view files use DS tokens, shared dialogs and translated, labelled c
 test('Tokens page gates every control by the 6.0 RBAC capabilities (UI-31)', () => {
   const page = read('admin/src/pages/Tokens/TokensProfessional.jsx');
   assert.ok(page.includes('useMagicLinkRBAC()'));
-  assert.ok(page.includes('useTokenSettings({ enabled: canReadSettings })'), 'settings fetched only with settings.read');
+  assert.ok(
+    page.includes('useTokenSettings({ enabled: canReadSettings })'),
+    'settings fetched only with settings.read'
+  );
   assert.ok(page.includes('useTokenList({ enabled: canRead })'));
-  assert.match(page, /\{canReadSettings \? \(\s*<HeaderButton type="button" onClick=\{\(\) => navigate\('\/settings\/magic-link\/config'\)\}/);
-  assert.match(page, /\{canManage \? \(\s*<HeaderButton type="button" onClick=\{\(\) => setIsCreateOpen\(true\)\}/);
+  assert.match(
+    page,
+    /\{canReadSettings \? \(\s*<HeaderButton type="button" onClick=\{\(\) => navigate\('\/settings\/magic-link\/config'\)\}/
+  );
+  assert.match(
+    page,
+    /\{canManage \? \(\s*<HeaderButton type="button" onClick=\{\(\) => setIsCreateOpen\(true\)\}/
+  );
   assert.ok(page.includes('<Page.NoPermissions />'));
   assert.ok(page.includes('<PluginPageTitle>'));
 
   const panel = read('admin/src/pages/Tokens/MagicLinksPanel.jsx');
-  for (const handler of ['deleteToken', 'bulkDelete', 'blockToken', 'activateToken', 'reissueToken', 'extend']) {
+  for (const handler of [
+    'deleteToken',
+    'bulkDelete',
+    'blockToken',
+    'activateToken',
+    'reissueToken',
+    'extend',
+  ]) {
     const start = panel.indexOf(`const ${handler} = async`);
     assert.ok(start >= 0, handler);
-    assert.match(panel.slice(start, start + 200), /if \(!canManage/, `${handler} checks canManage first`);
+    assert.match(
+      panel.slice(start, start + 200),
+      /if \(!canManage/,
+      `${handler} checks canManage first`
+    );
   }
   assert.ok(panel.includes('Promise.allSettled'), 'bulk delete reports partial results');
 });

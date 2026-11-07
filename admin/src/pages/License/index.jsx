@@ -242,8 +242,7 @@ const Stack = styled(Flex)`
  */
 const LicenseKeyBanner = styled.section`
   background:
-    linear-gradient(rgba(15, 23, 42, 0.25), rgba(15, 23, 42, 0.25)),
-    ${brand.violetGradient};
+    linear-gradient(rgba(15, 23, 42, 0.25), rgba(15, 23, 42, 0.25)), ${brand.violetGradient};
   border-radius: ${theme.borderRadius.lg};
   padding: ${space(6)} ${space(7)};
   color: ${brand.onFill};
@@ -634,32 +633,29 @@ const LicenseView = () => {
   // Only sets state after the request settles, so the mount effect does not
   // trigger cascading renders. UI resets for a manual refresh happen in the
   // click handler (refreshLicenseStatus).
-  const loadLicenseStatus = useCallback(
-    async () => {
-      requestRef.current?.abort();
-      const controller = new AbortController();
-      requestRef.current = controller;
+  const loadLicenseStatus = useCallback(async () => {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
 
-      try {
-        const response = await get('/magic-link/license/status', { signal: controller.signal });
-        if (controller.signal.aborted) return;
-        setLicenseData(response.data);
-        setLoadError(null);
-        setStatus('ready');
-      } catch (err) {
-        if (controller.signal.aborted) return;
-        // Keep only the status; the message is translated at render time.
-        setLoadError({ status: err?.status ?? err?.response?.status });
-        setStatus('error');
-      } finally {
-        if (requestRef.current === controller) {
-          requestRef.current = null;
-          setIsRefreshing(false);
-        }
+    try {
+      const response = await get('/magic-link/license/status', { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      setLicenseData(response.data);
+      setLoadError(null);
+      setStatus('ready');
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      // Keep only the status; the message is translated at render time.
+      setLoadError({ status: err?.status ?? err?.response?.status });
+      setStatus('error');
+    } finally {
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+        setIsRefreshing(false);
       }
-    },
-    [get]
-  );
+    }
+  }, [get]);
 
   const refreshLicenseStatus = useCallback(() => {
     setIsRefreshing(true);

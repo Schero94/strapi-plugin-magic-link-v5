@@ -46,7 +46,11 @@ const collectUsages = () => {
     for (const match of source.matchAll(T_CALL)) {
       const key = unescape(match[1] ?? match[2]);
       const fallback = match[3] ?? match[4];
-      usages.push({ file: rel, id: key.startsWith(PREFIX) ? key : PREFIX + key, fallback: fallback === undefined ? undefined : unescape(fallback) });
+      usages.push({
+        file: rel,
+        id: key.startsWith(PREFIX) ? key : PREFIX + key,
+        fallback: fallback === undefined ? undefined : unescape(fallback),
+      });
     }
     for (const match of source.matchAll(GET_TRANSLATION)) {
       const key = unescape(match[1] ?? match[2]);
@@ -67,7 +71,13 @@ test('every translation id used by the admin code exists in all five locales', (
   const { usages } = collectUsages();
   for (const locale of LOCALES) {
     const messages = readLocale(locale);
-    const missing = [...new Set(usages.filter(({ id }) => typeof messages[id] !== 'string').map(({ id, file }) => `${id} (${file})`))];
+    const missing = [
+      ...new Set(
+        usages
+          .filter(({ id }) => typeof messages[id] !== 'string')
+          .map(({ id, file }) => `${id} (${file})`)
+      ),
+    ];
     assert.deepEqual(missing, [], `${locale}.json is missing ids`);
   }
 });
@@ -76,7 +86,9 @@ test('the English defaultMessage next to each id matches en.json', () => {
   const { usages } = collectUsages();
   const en = readLocale('en');
   const drift = usages
-    .filter(({ fallback, id }) => fallback !== undefined && en[id] !== undefined && en[id] !== fallback)
+    .filter(
+      ({ fallback, id }) => fallback !== undefined && en[id] !== undefined && en[id] !== fallback
+    )
     .map(({ id, file, fallback }) => `${id} (${file}): code "${fallback}" vs en.json "${en[id]}"`);
   assert.deepEqual([...new Set(drift)], []);
 });

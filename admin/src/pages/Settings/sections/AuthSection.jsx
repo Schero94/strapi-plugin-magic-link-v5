@@ -1,6 +1,14 @@
 import { SingleSelect, SingleSelectOption, TextInput } from '@strapi/design-system';
 import { useMagicLinkIntl } from '../../../hooks/useMagicLinkIntl';
-import { CardGrid, FieldGrid, GroupTitle, Panel, SectionBody, SettingField, ToggleCard } from '../components/SettingsUi';
+import {
+  CardGrid,
+  FieldGrid,
+  GroupTitle,
+  Panel,
+  SectionBody,
+  SettingField,
+  ToggleCard,
+} from '../components/SettingsUi';
 
 /**
  * Authentication options, user creation strategy and session lifetime.
@@ -23,7 +31,10 @@ export const AuthSection = ({ settings, update, disabled, errorFor, statusOn, st
     {
       key: 'welcome_email',
       title: t('settings.auth.welcomeEmail.title', 'Welcome Email'),
-      description: t('settings.auth.welcomeEmail.description', 'Sends a welcome email to newly created users.'),
+      description: t(
+        'settings.auth.welcomeEmail.description',
+        'Sends a welcome email to newly created users.'
+      ),
     },
     {
       key: 'use_jwt_token',
@@ -49,7 +60,10 @@ export const AuthSection = ({ settings, update, disabled, errorFor, statusOn, st
         <GroupTitle
           align="center"
           title={t('settings.auth.options.title', 'AUTHENTICATION OPTIONS')}
-          subtitle={t('settings.auth.options.subtitle', 'Configure how users are authenticated and managed')}
+          subtitle={t(
+            'settings.auth.options.subtitle',
+            'Configure how users are authenticated and managed'
+          )}
         />
         <CardGrid $min="200px">
           {toggles.map((toggle) => (
@@ -83,7 +97,10 @@ export const AuthSection = ({ settings, update, disabled, errorFor, statusOn, st
             disabled={disabled}
           >
             <SingleSelectOption value="email">
-              {t('settings.auth.strategy.email', 'Email only: the account is created with the email address')}
+              {t(
+                'settings.auth.strategy.email',
+                'Email only: the account is created with the email address'
+              )}
             </SingleSelectOption>
             <SingleSelectOption value="emailUsername">
               {t(
@@ -92,7 +109,10 @@ export const AuthSection = ({ settings, update, disabled, errorFor, statusOn, st
               )}
             </SingleSelectOption>
             <SingleSelectOption value="manual">
-              {t('settings.auth.strategy.manual', 'Manual: no automatic creation, users must exist')}
+              {t(
+                'settings.auth.strategy.manual',
+                'Manual: no automatic creation, users must exist'
+              )}
             </SingleSelectOption>
           </SingleSelect>
         </SettingField>

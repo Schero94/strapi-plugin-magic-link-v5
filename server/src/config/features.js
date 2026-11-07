@@ -6,26 +6,26 @@
 module.exports = {
   // FREE/DEMO Features
   free: {
-    maxTokens: 100,           // 100 aktive Tokens gleichzeitig
-    maxSessions: 50,          // 50 aktive JWT Sessions
-    maxIPBans: 10,            // 10 gebannte IPs
+    maxTokens: 100, // 100 aktive Tokens gleichzeitig
+    maxSessions: 50, // 50 aktive JWT Sessions
+    maxIPBans: 10, // 10 gebannte IPs
     features: [
-      'basic-magic-link',     // Basis Magic Link Auth
-      'email-templates',      // Basis Email Templates
-      'jwt-sessions',         // JWT Session Management
-      'ip-tracking',          // IP Tracking für Security
-      'rate-limiting',        // Basis Rate Limiting
-      'auto-user-creation',   // Auto User Creation
-      'token-management',     // Token Dashboard
-      'ip-bans',             // IP Ban Management
+      'basic-magic-link', // Basis Magic Link Auth
+      'email-templates', // Basis Email Templates
+      'jwt-sessions', // JWT Session Management
+      'ip-tracking', // IP Tracking für Security
+      'rate-limiting', // Basis Rate Limiting
+      'auto-user-creation', // Auto User Creation
+      'token-management', // Token Dashboard
+      'ip-bans', // IP Ban Management
     ],
   },
 
   // PREMIUM Features
   premium: {
-    maxTokens: 1000,          // 1000 aktive Tokens
-    maxSessions: 500,         // 500 aktive Sessions
-    maxIPBans: 100,           // 100 gebannte IPs
+    maxTokens: 1000, // 1000 aktive Tokens
+    maxSessions: 500, // 500 aktive Sessions
+    maxIPBans: 100, // 100 gebannte IPs
     features: [
       'basic-magic-link',
       'email-templates',
@@ -35,24 +35,24 @@ module.exports = {
       'auto-user-creation',
       'token-management',
       'ip-bans',
-      'otp-email',            // Email OTP (6-digit code)
-      'mfa-totp',             // MFA: Magic Link + TOTP (Szenario 1)
+      'otp-email', // Email OTP (6-digit code)
+      'mfa-totp', // MFA: Magic Link + TOTP (Szenario 1)
       'custom-email-templates', // Custom HTML/Text Templates
       'email-designer-integration', // Email Designer 5 Support
       'magic-mail-integration', // MagicMail Integration
       'advanced-rate-limiting', // Custom Rate Limits
-      'session-management',   // Erweiterte Session Verwaltung
-      'bulk-operations',      // Bulk Token/Session Operations
-      'extended-logging',     // Erweiterte Login-Info Logs
+      'session-management', // Erweiterte Session Verwaltung
+      'bulk-operations', // Bulk Token/Session Operations
+      'extended-logging', // Erweiterte Login-Info Logs
       'custom-redirect-urls', // Custom Redirect URLs per Token
     ],
   },
 
   // ADVANCED Features
   advanced: {
-    maxTokens: -1,            // Unlimited
-    maxSessions: -1,          // Unlimited
-    maxIPBans: -1,            // Unlimited
+    maxTokens: -1, // Unlimited
+    maxSessions: -1, // Unlimited
+    maxIPBans: -1, // Unlimited
     features: [
       'basic-magic-link',
       'email-templates',
@@ -63,9 +63,9 @@ module.exports = {
       'token-management',
       'ip-bans',
       'otp-email',
-      'mfa-totp',             // MFA: Magic Link + TOTP (Szenario 1)
-      'otp-totp',             // TOTP (Authenticator Apps)
-      'totp-primary-login',   // Login with Email + TOTP only (Szenario 2)
+      'mfa-totp', // MFA: Magic Link + TOTP (Szenario 1)
+      'otp-totp', // TOTP (Authenticator Apps)
+      'totp-primary-login', // Login with Email + TOTP only (Szenario 2)
       'custom-email-templates',
       'email-designer-integration',
       'magic-mail-integration',
@@ -75,8 +75,8 @@ module.exports = {
       'extended-logging',
       'custom-redirect-urls',
       'webhook-notifications', // Webhooks für Events
-      'api-access-tokens',    // API Tokens für Programmatic Access
-      'advanced-analytics',   // Analytics Dashboard
+      'api-access-tokens', // API Tokens für Programmatic Access
+      'advanced-analytics', // Analytics Dashboard
       'custom-token-context', // Custom Context Data in Tokens
       'geolocation-tracking', // GeoIP Tracking
       'device-fingerprinting', // Device Fingerprinting
@@ -99,11 +99,11 @@ module.exports = {
       'token-management',
       'ip-bans',
       'otp-email',
-      'mfa-totp',             // MFA: Magic Link + TOTP (Szenario 1)
+      'mfa-totp', // MFA: Magic Link + TOTP (Szenario 1)
       'otp-totp',
-      'totp-primary-login',   // Login with Email + TOTP only (Szenario 2)
-      'otp-backup-codes',     // Backup Recovery Codes
-      'biometric-support',    // WebAuthn/FIDO2
+      'totp-primary-login', // Login with Email + TOTP only (Szenario 2)
+      'otp-backup-codes', // Backup Recovery Codes
+      'biometric-support', // WebAuthn/FIDO2
       'custom-email-templates',
       'email-designer-integration',
       'magic-mail-integration',
@@ -119,14 +119,14 @@ module.exports = {
       'geolocation-tracking',
       'device-fingerprinting',
       'suspicious-login-alerts',
-      'sso-integration',      // SSO/SAML Integration
-      'ldap-sync',           // LDAP/AD Sync
-      'audit-logs',          // Vollständige Audit Logs
-      'compliance-reports',  // GDPR/SOC2 Reports
-      'priority-support',    // 24/7 Priority Support
+      'sso-integration', // SSO/SAML Integration
+      'ldap-sync', // LDAP/AD Sync
+      'audit-logs', // Vollständige Audit Logs
+      'compliance-reports', // GDPR/SOC2 Reports
+      'priority-support', // 24/7 Priority Support
       'custom-security-rules', // Custom Security Rules
-      'multi-tenant',        // Multi-Tenant Support
-      'white-label',         // White-Label Branding
+      'multi-tenant', // Multi-Tenant Support
+      'white-label', // White-Label Branding
     ],
   },
 
@@ -179,7 +179,7 @@ module.exports = {
     if (isPremium && this.premium.features.includes(featureName)) {
       return true;
     }
-    
+
     return this.free.features.includes(featureName);
   },
 
@@ -188,11 +188,14 @@ module.exports = {
    */
   getMaxTokens(licenseData) {
     if (!licenseData) return this.free.maxTokens;
-    
-    if (licenseData.featureEnterprise === true || licenseData.features?.enterprise === true) return this.enterprise.maxTokens;
-    if (licenseData.featureAdvanced === true || licenseData.features?.advanced === true) return this.advanced.maxTokens;
-    if (licenseData.featurePremium === true || licenseData.features?.premium === true) return this.premium.maxTokens;
-    
+
+    if (licenseData.featureEnterprise === true || licenseData.features?.enterprise === true)
+      return this.enterprise.maxTokens;
+    if (licenseData.featureAdvanced === true || licenseData.features?.advanced === true)
+      return this.advanced.maxTokens;
+    if (licenseData.featurePremium === true || licenseData.features?.premium === true)
+      return this.premium.maxTokens;
+
     return this.free.maxTokens;
   },
 
@@ -201,11 +204,14 @@ module.exports = {
    */
   getMaxSessions(licenseData) {
     if (!licenseData) return this.free.maxSessions;
-    
-    if (licenseData.featureEnterprise === true || licenseData.features?.enterprise === true) return this.enterprise.maxSessions;
-    if (licenseData.featureAdvanced === true || licenseData.features?.advanced === true) return this.advanced.maxSessions;
-    if (licenseData.featurePremium === true || licenseData.features?.premium === true) return this.premium.maxSessions;
-    
+
+    if (licenseData.featureEnterprise === true || licenseData.features?.enterprise === true)
+      return this.enterprise.maxSessions;
+    if (licenseData.featureAdvanced === true || licenseData.features?.advanced === true)
+      return this.advanced.maxSessions;
+    if (licenseData.featurePremium === true || licenseData.features?.premium === true)
+      return this.premium.maxSessions;
+
     return this.free.maxSessions;
   },
 
@@ -214,11 +220,14 @@ module.exports = {
    */
   getMaxIPBans(licenseData) {
     if (!licenseData) return this.free.maxIPBans;
-    
-    if (licenseData.featureEnterprise === true || licenseData.features?.enterprise === true) return this.enterprise.maxIPBans;
-    if (licenseData.featureAdvanced === true || licenseData.features?.advanced === true) return this.advanced.maxIPBans;
-    if (licenseData.featurePremium === true || licenseData.features?.premium === true) return this.premium.maxIPBans;
-    
+
+    if (licenseData.featureEnterprise === true || licenseData.features?.enterprise === true)
+      return this.enterprise.maxIPBans;
+    if (licenseData.featureAdvanced === true || licenseData.features?.advanced === true)
+      return this.advanced.maxIPBans;
+    if (licenseData.featurePremium === true || licenseData.features?.premium === true)
+      return this.premium.maxIPBans;
+
     return this.free.maxIPBans;
   },
 
@@ -227,11 +236,14 @@ module.exports = {
    */
   getTierName(licenseData) {
     if (!licenseData) return 'free';
-    
-    if (licenseData.featureEnterprise === true || licenseData.features?.enterprise === true) return 'enterprise';
-    if (licenseData.featureAdvanced === true || licenseData.features?.advanced === true) return 'advanced';
-    if (licenseData.featurePremium === true || licenseData.features?.premium === true) return 'premium';
-    
+
+    if (licenseData.featureEnterprise === true || licenseData.features?.enterprise === true)
+      return 'enterprise';
+    if (licenseData.featureAdvanced === true || licenseData.features?.advanced === true)
+      return 'advanced';
+    if (licenseData.featurePremium === true || licenseData.features?.premium === true)
+      return 'premium';
+
     return 'free';
-  }
+  },
 };

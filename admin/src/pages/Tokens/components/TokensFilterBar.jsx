@@ -50,9 +50,7 @@ export const TokensFilterBar = ({
         >
           {STATUS_FILTERS.map((value) => (
             <SingleSelectOption key={value} value={value}>
-              {value === 'all'
-                ? t('tokens.filter.all', 'All statuses')
-                : getStatusLabel(t, value)}
+              {value === 'all' ? t('tokens.filter.all', 'All statuses') : getStatusLabel(t, value)}
             </SingleSelectOption>
           ))}
         </SingleSelect>

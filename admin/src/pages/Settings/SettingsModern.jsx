@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { Accordion, Alert, Badge, Box, Button, Flex, Typography } from '@strapi/design-system';
-import { ArrowClockwise, Check, Clock, Code, Cog, Key, Lock, Mail, WarningCircle } from '@strapi/icons';
+import {
+  ArrowClockwise,
+  Check,
+  Clock,
+  Code,
+  Cog,
+  Key,
+  Lock,
+  Mail,
+  WarningCircle,
+} from '@strapi/icons';
 import { Page, useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useMagicLinkIntl } from '../../hooks/useMagicLinkIntl';
 import { useMagicLinkRBAC } from '../../hooks/useMagicLinkRBAC';
@@ -248,36 +258,57 @@ const SettingsModern = () => {
       const error = clientErrors[key];
       if (!error) {
         return serverErrors[key]
-          ? t('settings.validation.server', 'The server rejected this value. Check it and save again.')
+          ? t(
+              'settings.validation.server',
+              'The server rejected this value. Check it and save again.'
+            )
           : undefined;
       }
       switch (error.code) {
         case 'url':
-          return t('settings.validation.url', 'Enter an https URL. http is only allowed for localhost.');
+          return t(
+            'settings.validation.url',
+            'Enter an https URL. http is only allowed for localhost.'
+          );
         case 'path':
-          return t('settings.validation.path', 'Enter a path that starts with / and contains only URL characters.');
+          return t(
+            'settings.validation.path',
+            'Enter a path that starts with / and contains only URL characters.'
+          );
         case 'jwtExpiry':
           return t(
             'settings.auth.jwtExpiration.invalid',
             'Enter a number followed by m, h or d, such as 15m, 1h or 30d.'
           );
         case 'email':
-          return t('settings.email.invalidEmail', 'Enter a valid email address or leave this field blank.');
+          return t(
+            'settings.email.invalidEmail',
+            'Enter a valid email address or leave this field blank.'
+          );
         case 'range':
           return t('settings.validation.range', 'Enter a whole number from {min} to {max}.', {
             min: formatNumber(error.min),
             max: formatNumber(error.max),
           });
         case 'length':
-          return t('settings.validation.length', 'Use at most {max} characters.', { max: formatNumber(error.max) });
-        case 'list':
-          return t('settings.validation.list', 'Use at most {max} fields with up to 128 characters each.', {
-            max: error.max,
+          return t('settings.validation.length', 'Use at most {max} characters.', {
+            max: formatNumber(error.max),
           });
+        case 'list':
+          return t(
+            'settings.validation.list',
+            'Use at most {max} fields with up to 128 characters each.',
+            {
+              max: error.max,
+            }
+          );
         case 'digits':
           return t('settings.validation.digits', 'Choose 6 or 8 digits.');
         default:
-          return t('settings.validation.server', 'The server rejected this value. Check it and save again.');
+          return t(
+            'settings.validation.server',
+            'The server rejected this value. Check it and save again.'
+          );
       }
     },
     [clientErrors, serverErrors, t, formatNumber]
@@ -300,7 +331,8 @@ const SettingsModern = () => {
         emailDesignerInstalled: payload.emailDesignerInstalled === true,
         magicMailInstalled: payload.magicMailInstalled === true,
         emailProviderConfigured: payload.emailProviderConfigured === true,
-        emailProviderName: typeof payload.emailProviderName === 'string' ? payload.emailProviderName : null,
+        emailProviderName:
+          typeof payload.emailProviderName === 'string' ? payload.emailProviderName : null,
       });
       setLoadState('ready');
     } catch {
@@ -335,7 +367,9 @@ const SettingsModern = () => {
     try {
       const res = await get('/magic-link/totp/enrollment-summary');
       const summary = parseEnrollmentSummary(res?.data);
-      setEnrollment(summary ? { status: 'ready', summary } : { status: 'unavailable', summary: null });
+      setEnrollment(
+        summary ? { status: 'ready', summary } : { status: 'unavailable', summary: null }
+      );
     } catch {
       setEnrollment({ status: 'unavailable', summary: null });
     }
@@ -428,7 +462,10 @@ const SettingsModern = () => {
       focusField(errorKeys[0]);
       toggleNotification({
         type: 'warning',
-        message: t('settings.save.invalid', 'Some fields need attention. Fix them before you save.'),
+        message: t(
+          'settings.save.invalid',
+          'Some fields need attention. Fix them before you save.'
+        ),
       });
       return;
     }
@@ -454,7 +491,10 @@ const SettingsModern = () => {
         focusField(field);
         toggleNotification({
           type: 'danger',
-          message: t('settings.save.rejected', 'The server rejected a value. Check the highlighted field.'),
+          message: t(
+            'settings.save.rejected',
+            'The server rejected a value. Check the highlighted field.'
+          ),
         });
       } else {
         toggleNotification({
@@ -526,7 +566,12 @@ const SettingsModern = () => {
     return (
       <Page.Main>
         {pageTitle}
-        <Page.Error content={t('common.permissions.loadError', 'Your permissions could not be loaded. Reload the page to try again.')} />
+        <Page.Error
+          content={t(
+            'common.permissions.loadError',
+            'Your permissions could not be loaded. Reload the page to try again.'
+          )}
+        />
       </Page.Main>
     );
   }
@@ -581,7 +626,10 @@ const SettingsModern = () => {
       value: 'general',
       icon: Cog,
       title: t('settings.section.general', 'General'),
-      description: t('settings.section.general.description', 'Language, main features, link lifetime and URLs'),
+      description: t(
+        'settings.section.general.description',
+        'Language, main features, link lifetime and URLs'
+      ),
       content: <GeneralSection {...sectionProps} />,
     },
     {
@@ -595,7 +643,10 @@ const SettingsModern = () => {
       value: 'mfa',
       icon: Lock,
       title: t('settings.section.mfa', 'Sign-in modes and MFA'),
-      description: t('settings.section.mfa.description', 'Magic link, email code or authenticator app'),
+      description: t(
+        'settings.section.mfa.description',
+        'Magic link, email code or authenticator app'
+      ),
       content: (
         <MfaSection
           {...sectionProps}
@@ -608,7 +659,10 @@ const SettingsModern = () => {
       value: 'email',
       icon: Mail,
       title: t('settings.section.email', 'Email'),
-      description: t('settings.section.email.description', 'Sender, templates and email integrations'),
+      description: t(
+        'settings.section.email.description',
+        'Sender, templates and email integrations'
+      ),
       content: (
         <EmailSection
           {...sectionProps}
@@ -622,7 +676,10 @@ const SettingsModern = () => {
       value: 'ratelimit',
       icon: Clock,
       title: t('settings.section.rateLimit', 'Rate limiting'),
-      description: t('settings.section.rateLimit.description', 'Protect against abuse and brute-force attacks'),
+      description: t(
+        'settings.section.rateLimit.description',
+        'Protect against abuse and brute-force attacks'
+      ),
       content: (
         <RateLimitSection
           {...sectionProps}
@@ -639,7 +696,10 @@ const SettingsModern = () => {
       value: 'advanced',
       icon: Code,
       title: t('settings.section.advanced', 'Advanced'),
-      description: t('settings.section.advanced.description', 'Public registration and plugin compatibility'),
+      description: t(
+        'settings.section.advanced.description',
+        'Public registration and plugin compatibility'
+      ),
       content: <AdvancedSection {...sectionProps} />,
     },
   ];
@@ -696,7 +756,9 @@ const SettingsModern = () => {
                 startIcon={<Check />}
                 disabled={isSaving || isPermissionLoading || !canWriteSettings || !isDirty}
               >
-                {isSaving ? t('settings.save.saving', 'Saving...') : t('settings.save.button', 'Save Changes')}
+                {isSaving
+                  ? t('settings.save.saving', 'Saving...')
+                  : t('settings.save.button', 'Save Changes')}
               </SaveButton>
             ) : null}
           </HeaderActions>
@@ -709,7 +771,10 @@ const SettingsModern = () => {
               closeLabel={t('common.close', 'Close')}
               title={t('settings.permission.readOnlyTitle', 'Read-only')}
             >
-              {t('settings.permission.readOnly', 'You have read-only access. Changes cannot be saved.')}
+              {t(
+                'settings.permission.readOnly',
+                'You have read-only access. Changes cannot be saved.'
+              )}
             </Alert>
           ) : null}
 
@@ -725,8 +790,18 @@ const SettingsModern = () => {
                 <BulletList>
                   <li>{t('settings.info.line1', 'Changes take effect after you save.')}</li>
                   <li>{t('settings.info.line2', 'Make sure all URLs are correctly configured')}</li>
-                  <li>{t('settings.info.line3', 'Test the configuration after saving with a test token')}</li>
-                  <li>{t('settings.info.line4', 'Green cards are active features, grey cards are inactive.')}</li>
+                  <li>
+                    {t(
+                      'settings.info.line3',
+                      'Test the configuration after saving with a test token'
+                    )}
+                  </li>
+                  <li>
+                    {t(
+                      'settings.info.line4',
+                      'Green cards are active features, grey cards are inactive.'
+                    )}
+                  </li>
                 </BulletList>
               </Typography>
             </Flex>
@@ -741,9 +816,13 @@ const SettingsModern = () => {
                       icon={section.icon}
                       description={
                         invalidSections.has(section.value)
-                          ? t('settings.section.hasErrors', '{description} (contains fields to fix)', {
-                              description: section.description,
-                            })
+                          ? t(
+                              'settings.section.hasErrors',
+                              '{description} (contains fields to fix)',
+                              {
+                                description: section.description,
+                              }
+                            )
                           : section.description
                       }
                     >
@@ -763,7 +842,10 @@ const SettingsModern = () => {
                 {t('settings.footer.quickhelp', 'Quick Help')}
               </Typography>
               <Typography variant="pi" textColor="neutral700">
-                {t('settings.footer.reminder', 'After saving, create a test token and try the magic link.')}
+                {t(
+                  'settings.footer.reminder',
+                  'After saving, create a test token and try the magic link.'
+                )}
               </Typography>
             </Flex>
           </FooterBox>

@@ -26,7 +26,9 @@ const { normalizeIpAddress } = require('../utils/ip-address');
  */
 module.exports = async (policyContext, _config, { strapi }) => {
   const unavailable = () =>
-    new errors.PolicyError('Authentication is temporarily unavailable.', { code: 'IP_BAN_CHECK_UNAVAILABLE' });
+    new errors.PolicyError('Authentication is temporarily unavailable.', {
+      code: 'IP_BAN_CHECK_UNAVAILABLE',
+    });
 
   const ipAddress = normalizeIpAddress(policyContext.request?.ip);
   if (!ipAddress) throw unavailable();
@@ -41,7 +43,9 @@ module.exports = async (policyContext, _config, { strapi }) => {
   }
 
   if (isBanned) {
-    throw new errors.ForbiddenError('This request cannot be completed.', { code: 'IP_ADDRESS_BLOCKED' });
+    throw new errors.ForbiddenError('This request cannot be completed.', {
+      code: 'IP_ADDRESS_BLOCKED',
+    });
   }
   return true;
 };

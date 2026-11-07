@@ -28,7 +28,12 @@ import {
   SwitchRow,
   Tile,
 } from '../components/SettingsUi';
-import { buildDefaultTemplates, fieldId, isCustomTemplate, templateStats } from '../utils/settingsForm';
+import {
+  buildDefaultTemplates,
+  fieldId,
+  isCustomTemplate,
+  templateStats,
+} from '../utils/settingsForm';
 
 /** Placeholders the server provides for every login e-mail. */
 const PLACEHOLDERS = ['LOGIN_URL', 'EXPIRY_TEXT', 'EMAIL', 'USER', 'URL', 'CODE', 'EXPIRES_AT'];
@@ -72,10 +77,18 @@ export const EmailSection = ({
   const gallery = useMemo(() => getTemplateList(), []);
   const defaults = buildDefaultTemplates({
     heading: t('settings.email.default.heading', 'Sign in'),
-    intro: t('settings.email.default.intro', 'Use the button below to sign in. No password needed.'),
+    intro: t(
+      'settings.email.default.intro',
+      'Use the button below to sign in. No password needed.'
+    ),
     button: t('settings.email.default.button', 'Sign in now'),
-    expiry: t('settings.email.default.expiry', 'The link expires in {expiry}.', { expiry: '{{EXPIRY_TEXT}}' }),
-    ignore: t('settings.email.default.ignore', 'If you did not request this email, you can ignore it.'),
+    expiry: t('settings.email.default.expiry', 'The link expires in {expiry}.', {
+      expiry: '{{EXPIRY_TEXT}}',
+    }),
+    ignore: t(
+      'settings.email.default.ignore',
+      'If you did not request this email, you can ignore it.'
+    ),
   });
 
   const currentHtml = toPlaceholderSyntax(settings.message_html);
@@ -95,8 +108,12 @@ export const EmailSection = ({
   const requestTemplate = (request) => {
     if (disabled) return;
     const overwrites =
-      ('message_html' in request.values && htmlIsCustom && request.values.message_html !== settings.message_html) ||
-      ('message_text' in request.values && textIsCustom && request.values.message_text !== settings.message_text);
+      ('message_html' in request.values &&
+        htmlIsCustom &&
+        request.values.message_html !== settings.message_html) ||
+      ('message_text' in request.values &&
+        textIsCustom &&
+        request.values.message_text !== settings.message_text);
     if (overwrites) {
       setPendingTemplate(request);
     } else {
@@ -111,14 +128,18 @@ export const EmailSection = ({
     (template) => String(template.id) === String(settings.magic_mail_template_id ?? '')
   );
   const htmlStats = templateStats(settings.message_html);
-  const usingThirdParty = (emailDesignerInstalled && settings.use_email_designer) || settings.use_magic_mail;
+  const usingThirdParty =
+    (emailDesignerInstalled && settings.use_email_designer) || settings.use_magic_mail;
 
   return (
     <SectionBody>
       {emailProviderConfigured || magicMailInstalled ? (
         <Note tone="success" icon={Check} compact>
           {magicMailInstalled
-            ? t('settings.email.provider.magicMail', 'Email provider: Magic Mail (advanced routing)')
+            ? t(
+                'settings.email.provider.magicMail',
+                'Email provider: Magic Mail (advanced routing)'
+              )
             : t('settings.email.provider.configured', 'Email provider: {name}', {
                 name: emailProviderName || t('settings.email.provider.defaultName', 'configured'),
               })}
@@ -139,7 +160,10 @@ export const EmailSection = ({
             </span>
             <BulletList>
               <li>
-                {t('settings.email.provider.missing.nodemailer', 'Install Nodemailer (recommended):')}{' '}
+                {t(
+                  'settings.email.provider.missing.nodemailer',
+                  'Install Nodemailer (recommended):'
+                )}{' '}
                 <Mono>npm install @strapi/provider-email-nodemailer</Mono>{' '}
                 {t('settings.email.provider.missing.configure', 'and configure it in {file}.', {
                   file: 'config/plugins.js',
@@ -164,13 +188,19 @@ export const EmailSection = ({
 
       <GroupTitle
         title={t('settings.email.sender.title', 'SENDER INFORMATION')}
-        subtitle={t('settings.email.sender.subtitle', 'This information appears in emails sent to users')}
+        subtitle={t(
+          'settings.email.sender.subtitle',
+          'This information appears in emails sent to users'
+        )}
       />
       <FieldGrid $columns={3}>
         <SettingField
           name="from_name"
           label={t('settings.email.fromName.label', 'Sender Name')}
-          hint={t('settings.email.fromName.hint', 'The name users see as the sender, such as your app name.')}
+          hint={t(
+            'settings.email.fromName.hint',
+            'The name users see as the sender, such as your app name.'
+          )}
           error={errorFor('from_name')}
         >
           <TextInput
@@ -201,7 +231,10 @@ export const EmailSection = ({
         <SettingField
           name="response_email"
           label={t('settings.email.responseEmail.label', 'Reply-to email')}
-          hint={t('settings.email.responseEmail.hint', 'Optional. Replies from users go to this address.')}
+          hint={t(
+            'settings.email.responseEmail.hint',
+            'Optional. Replies from users go to this address.'
+          )}
           error={errorFor('response_email')}
         >
           <TextInput
@@ -260,8 +293,13 @@ export const EmailSection = ({
                     : undefined
                 }
                 error={
-                  settings.email_designer_template_id && !designerSelected && emailDesignerTemplates.length > 0
-                    ? t('settings.email.template.missing', 'The saved template no longer exists. Select another one.')
+                  settings.email_designer_template_id &&
+                  !designerSelected &&
+                  emailDesignerTemplates.length > 0
+                    ? t(
+                        'settings.email.template.missing',
+                        'The saved template no longer exists. Select another one.'
+                      )
                     : undefined
                 }
               >
@@ -272,15 +310,24 @@ export const EmailSection = ({
                   disabled={disabled || emailDesignerTemplates.length === 0}
                 >
                   {emailDesignerTemplates.map((template) => (
-                    <SingleSelectOption key={templateValue(template)} value={templateValue(template)}>
-                      {templateName(template, t('settings.email.template.fallbackName', 'Template {id}'))}
+                    <SingleSelectOption
+                      key={templateValue(template)}
+                      value={templateValue(template)}
+                    >
+                      {templateName(
+                        template,
+                        t('settings.email.template.fallbackName', 'Template {id}')
+                      )}
                     </SingleSelectOption>
                   ))}
                 </SingleSelect>
               </SettingField>
               {emailDesignerTemplates.length === 0 ? (
                 <Note tone="warning" icon={WarningCircle} compact>
-                  {t('settings.email.designer.noTemplates', 'No templates found. Create one in Email Designer 5 first.')}
+                  {t(
+                    'settings.email.designer.noTemplates',
+                    'No templates found. Create one in Email Designer 5 first.'
+                  )}
                 </Note>
               ) : null}
               <Note tone="primary" compact>
@@ -316,15 +363,22 @@ export const EmailSection = ({
                 'Optional. Templates are managed in Magic Mail. The choice applies after you save.'
               )}
               error={
-                settings.magic_mail_template_id && !magicMailSelected && magicMailTemplates.length > 0
-                  ? t('settings.email.template.missing', 'The saved template no longer exists. Select another one.')
+                settings.magic_mail_template_id &&
+                !magicMailSelected &&
+                magicMailTemplates.length > 0
+                  ? t(
+                      'settings.email.template.missing',
+                      'The saved template no longer exists. Select another one.'
+                    )
                   : undefined
               }
             >
               <SingleSelect
                 value={magicMailSelected ? String(settings.magic_mail_template_id) : null}
                 onChange={(value) => {
-                  const template = magicMailTemplates.find((item) => String(item.id) === String(value));
+                  const template = magicMailTemplates.find(
+                    (item) => String(item.id) === String(value)
+                  );
                   patch({
                     magic_mail_template_id: String(value),
                     magic_mail_template_reference_id: template?.templateReferenceId ?? '',
@@ -335,7 +389,10 @@ export const EmailSection = ({
               >
                 {magicMailTemplates.map((template) => (
                   <SingleSelectOption key={template.id} value={String(template.id)}>
-                    {templateName(template, t('settings.email.template.fallbackName', 'Template {id}'))}
+                    {templateName(
+                      template,
+                      t('settings.email.template.fallbackName', 'Template {id}')
+                    )}
                   </SingleSelectOption>
                 ))}
               </SingleSelect>
@@ -384,10 +441,14 @@ export const EmailSection = ({
                   type="button"
                   onClick={() =>
                     copy(code, {
-                      success: t('settings.email.placeholders.copied', '{placeholder} copied', { placeholder: code }),
+                      success: t('settings.email.placeholders.copied', '{placeholder} copied', {
+                        placeholder: code,
+                      }),
                     })
                   }
-                  aria-label={t('settings.email.placeholders.copyLabel', 'Copy {placeholder}', { placeholder: code })}
+                  aria-label={t('settings.email.placeholders.copyLabel', 'Copy {placeholder}', {
+                    placeholder: code,
+                  })}
                 >
                   <Flex gap={2} alignItems="center" justifyContent="space-between" width="100%">
                     <Typography variant="omega" fontWeight="bold" textColor="neutral800">
@@ -406,12 +467,18 @@ export const EmailSection = ({
                           'settings.email.placeholders.expiry.description',
                           'How long the link stays valid, such as 1 hour.'
                         ),
-                        EMAIL: t('settings.email.placeholders.email.description', 'Email address of the recipient.'),
+                        EMAIL: t(
+                          'settings.email.placeholders.email.description',
+                          'Email address of the recipient.'
+                        ),
                         USER: t(
                           'settings.email.placeholders.username.description',
                           'Username of the recipient, or the email address when there is none.'
                         ),
-                        URL: t('settings.email.placeholders.url.description', 'Login URL without the token.'),
+                        URL: t(
+                          'settings.email.placeholders.url.description',
+                          'Login URL without the token.'
+                        ),
                         CODE: t(
                           'settings.email.placeholders.code.description',
                           'The token alone, for custom link formats only.'
@@ -462,7 +529,12 @@ export const EmailSection = ({
                           });
                         }}
                       >
-                        <Flex gap={2} alignItems="center" justifyContent="space-between" width="100%">
+                        <Flex
+                          gap={2}
+                          alignItems="center"
+                          justifyContent="space-between"
+                          width="100%"
+                        >
                           <Typography variant="omega" fontWeight="bold" textColor="neutral800">
                             {template.label}
                           </Typography>
@@ -485,7 +557,11 @@ export const EmailSection = ({
             <Card>
               <Flex gap={2} justifyContent="space-between" alignItems="center" wrap="wrap">
                 <Flex gap={2} alignItems="center" wrap="wrap">
-                  <SubsectionHeading tag="h4" variant="delta" id={`${fieldId('message_html')}-label`}>
+                  <SubsectionHeading
+                    tag="h4"
+                    variant="delta"
+                    id={`${fieldId('message_html')}-label`}
+                  >
                     {t('settings.email.html.title', 'HTML template')}
                   </SubsectionHeading>
                   <Badge variant="success">{t('settings.email.html.badge', 'Main Template')}</Badge>
@@ -504,7 +580,11 @@ export const EmailSection = ({
                   {t('settings.email.html.loadDefault', 'Load Default Template')}
                 </Button>
               </Flex>
-              <Typography variant="pi" textColor="neutral600" id={`${fieldId('message_html')}-hint`}>
+              <Typography
+                variant="pi"
+                textColor="neutral600"
+                id={`${fieldId('message_html')}-hint`}
+              >
                 {t(
                   'settings.email.html.description',
                   'HTML version of the login email. Use the placeholders above, at least {placeholder}.',
@@ -554,7 +634,11 @@ export const EmailSection = ({
             <Card>
               <Flex gap={2} justifyContent="space-between" alignItems="center" wrap="wrap">
                 <Flex gap={2} alignItems="center" wrap="wrap">
-                  <SubsectionHeading tag="h4" variant="delta" id={`${fieldId('message_text')}-label`}>
+                  <SubsectionHeading
+                    tag="h4"
+                    variant="delta"
+                    id={`${fieldId('message_text')}-label`}
+                  >
                     {t('settings.email.text.title', 'Plain text template')}
                   </SubsectionHeading>
                   <Badge>{t('settings.email.text.badge', 'Fallback')}</Badge>
@@ -573,7 +657,11 @@ export const EmailSection = ({
                   {t('settings.email.text.loadDefault', 'Load Default Template')}
                 </Button>
               </Flex>
-              <Typography variant="pi" textColor="neutral600" id={`${fieldId('message_text')}-hint`}>
+              <Typography
+                variant="pi"
+                textColor="neutral600"
+                id={`${fieldId('message_text')}-hint`}
+              >
                 {t(
                   'settings.email.text.description',
                   'Text version for email clients without HTML. Placeholders are inserted as they are.'

@@ -53,7 +53,8 @@ const serialize = (strapi, task) => {
 const scrubLegacyToken = (session) => {
   if (!session || !Object.prototype.hasOwnProperty.call(session, 'jwtToken')) return session;
   const { jwtToken, ...rest } = session;
-  const legacyHash = typeof jwtToken === 'string' && jwtToken ? cryptoUtils.hashJwt(jwtToken) : undefined;
+  const legacyHash =
+    typeof jwtToken === 'string' && jwtToken ? cryptoUtils.hashJwt(jwtToken) : undefined;
   return { ...rest, jwtTokenHash: rest.jwtTokenHash || legacyHash };
 };
 
@@ -134,7 +135,15 @@ async function appendJwtSession(strapi, record) {
  * @param {object} [params.extra]
  * @returns {object}
  */
-function buildSessionRecord({ jwtToken, user, expiresAt, requestInfo = {}, source, context, extra }) {
+function buildSessionRecord({
+  jwtToken,
+  user,
+  expiresAt,
+  requestInfo = {},
+  source,
+  context,
+  extra,
+}) {
   return {
     id: `session_${Date.now()}_${createId(12)}`,
     userId: user.id,

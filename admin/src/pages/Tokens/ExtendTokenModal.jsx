@@ -64,7 +64,11 @@ const ExtendTokenModal = ({ token, onClose, onSubmit }) => {
   const daysValid = isIntegerInRange(days, EXTEND_LIMITS);
   const customError =
     isCustom && !daysValid
-      ? t('tokens.extend.customError', 'Enter a whole number of days from {min} to {max}.', EXTEND_LIMITS)
+      ? t(
+          'tokens.extend.customError',
+          'Enter a whole number of days from {min} to {max}.',
+          EXTEND_LIMITS
+        )
       : undefined;
 
   const handleSubmit = async (event) => {
@@ -107,8 +111,19 @@ const ExtendTokenModal = ({ token, onClose, onSubmit }) => {
                 </div>
               </InfoList>
 
-              <Flex direction="column" alignItems="stretch" gap={2} role="group" aria-labelledby="extend-presets-label">
-                <Typography id="extend-presets-label" variant="pi" fontWeight="bold" textColor="neutral800">
+              <Flex
+                direction="column"
+                alignItems="stretch"
+                gap={2}
+                role="group"
+                aria-labelledby="extend-presets-label"
+              >
+                <Typography
+                  id="extend-presets-label"
+                  variant="pi"
+                  fontWeight="bold"
+                  textColor="neutral800"
+                >
                   {t('tokens.extend.selectExtension', 'Select extension')}
                 </Typography>
                 <PresetGrid>
@@ -163,7 +178,11 @@ const ExtendTokenModal = ({ token, onClose, onSubmit }) => {
                       </Flex>
                     </dt>
                     <dd>
-                      <Typography variant="omega" fontWeight="semiBold" textColor={daysValid ? 'success600' : 'neutral600'}>
+                      <Typography
+                        variant="omega"
+                        fontWeight="semiBold"
+                        textColor={daysValid ? 'success600' : 'neutral600'}
+                      >
                         {daysValid
                           ? formatDateTime(computeExtendedExpiry(token.expires_at, days))
                           : t('common.emptyValue', '-')}
@@ -175,7 +194,13 @@ const ExtendTokenModal = ({ token, onClose, onSubmit }) => {
             </Flex>
           </Modal.Body>
           <Modal.Footer justifyContent="flex-end" gap={2}>
-            <Button type="button" variant="tertiary" size="M" onClick={requestClose} disabled={isSubmitting}>
+            <Button
+              type="button"
+              variant="tertiary"
+              size="M"
+              onClick={requestClose}
+              disabled={isSubmitting}
+            >
               {t('common.cancel', 'Cancel')}
             </Button>
             <Button

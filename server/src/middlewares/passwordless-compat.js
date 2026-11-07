@@ -18,7 +18,10 @@ const ROUTES = ['send-link', 'login'];
 
 module.exports = (_config, { strapi }) => {
   return async (ctx, next) => {
-    const prefix = String(strapi.config?.get?.('api.rest.prefix', '/api') || '/api').replace(/\/+$/, '');
+    const prefix = String(strapi.config?.get?.('api.rest.prefix', '/api') || '/api').replace(
+      /\/+$/,
+      ''
+    );
     const compatBase = `${prefix}/passwordless/`;
     const path = ctx.path || '';
 
@@ -31,7 +34,9 @@ module.exports = (_config, { strapi }) => {
       return next();
     }
 
-    const settings = await strapi.store({ type: 'plugin', name: 'magic-link' }).get({ key: 'settings' });
+    const settings = await strapi
+      .store({ type: 'plugin', name: 'magic-link' })
+      .get({ key: 'settings' });
     if (!settings?.passwordlessCompatibility) {
       return next();
     }

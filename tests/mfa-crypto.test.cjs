@@ -48,7 +48,10 @@ const withEnv = async (env, fn) => {
 
 test('missing secrets stop the start unless development secrets are explicitly allowed', async () => {
   await withEnv({}, () => {
-    assert.throws(() => cryptoUtils.assertSecretsConfigured(), /MAGIC_LINK_ENCRYPTION_KEY is required/);
+    assert.throws(
+      () => cryptoUtils.assertSecretsConfigured(),
+      /MAGIC_LINK_ENCRYPTION_KEY is required/
+    );
   });
   await withEnv({ NODE_ENV: 'staging', MAGIC_LINK_ENCRYPTION_KEY: randomKey() }, () => {
     assert.throws(() => cryptoUtils.assertSecretsConfigured(), /MAGIC_LINK_OTP_PEPPER is required/);
@@ -58,20 +61,33 @@ test('missing secrets stop the start unless development secrets are explicitly a
     assert.equal(cryptoUtils.decrypt(cryptoUtils.encrypt('value')), 'value');
   });
   await withEnv({ NODE_ENV: 'production', MAGIC_LINK_ALLOW_DEV_SECRETS: 'true' }, () => {
-    assert.throws(() => cryptoUtils.assertSecretsConfigured(), /required/, 'production ignores the dev escape hatch');
+    assert.throws(
+      () => cryptoUtils.assertSecretsConfigured(),
+      /required/,
+      'production ignores the dev escape hatch'
+    );
   });
 });
 
 test('short keys and peppers are rejected', async () => {
-  await withEnv({ MAGIC_LINK_ENCRYPTION_KEY: 'short-key', MAGIC_LINK_OTP_PEPPER: randomKey() }, () => {
-    assert.throws(() => cryptoUtils.assertSecretsConfigured(), /at least 32 characters/);
-  });
-  await withEnv({ MAGIC_LINK_ENCRYPTION_KEY: randomKey(), MAGIC_LINK_OTP_PEPPER: 'sixteen-chars-xx' }, () => {
-    assert.throws(() => cryptoUtils.assertSecretsConfigured(), /min 32 characters/);
-  });
-  await withEnv({ MAGIC_LINK_ENCRYPTION_KEY: randomKey(), MAGIC_LINK_OTP_PEPPER: randomKey() }, () => {
-    assert.doesNotThrow(() => cryptoUtils.assertSecretsConfigured());
-  });
+  await withEnv(
+    { MAGIC_LINK_ENCRYPTION_KEY: 'short-key', MAGIC_LINK_OTP_PEPPER: randomKey() },
+    () => {
+      assert.throws(() => cryptoUtils.assertSecretsConfigured(), /at least 32 characters/);
+    }
+  );
+  await withEnv(
+    { MAGIC_LINK_ENCRYPTION_KEY: randomKey(), MAGIC_LINK_OTP_PEPPER: 'sixteen-chars-xx' },
+    () => {
+      assert.throws(() => cryptoUtils.assertSecretsConfigured(), /min 32 characters/);
+    }
+  );
+  await withEnv(
+    { MAGIC_LINK_ENCRYPTION_KEY: randomKey(), MAGIC_LINK_OTP_PEPPER: randomKey() },
+    () => {
+      assert.doesNotThrow(() => cryptoUtils.assertSecretsConfigured());
+    }
+  );
 });
 
 test('key rotation: the previous key still decrypts and bootstrap re-encrypts TOTP secrets', async () => {
@@ -79,23 +95,47 @@ test('key rotation: the previous key still decrypts and bootstrap re-encrypts TO
   const newKey = randomKey();
   const pepper = randomKey();
   let legacyCiphertext;
-  await withEnv({ MAGIC_LINK_ALLOW_DEV_SECRETS: 'true', MAGIC_LINK_ENCRYPTION_KEY: oldKey, MAGIC_LINK_OTP_PEPPER: pepper }, () => {
-    legacyCiphertext = cryptoUtils.encrypt('JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP');
-  });
+  await withEnv(
+    {
+      MAGIC_LINK_ALLOW_DEV_SECRETS: 'true',
+      MAGIC_LINK_ENCRYPTION_KEY: oldKey,
+      MAGIC_LINK_OTP_PEPPER: pepper,
+    },
+    () => {
+      legacyCiphertext = cryptoUtils.encrypt('JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP');
+    }
+  );
 
   await withEnv({ MAGIC_LINK_ENCRYPTION_KEY: newKey, MAGIC_LINK_OTP_PEPPER: pepper }, () => {
-    assert.throws(() => cryptoUtils.decrypt(legacyCiphertext), 'without the previous key the old ciphertext fails');
+    assert.throws(
+      () => cryptoUtils.decrypt(legacyCiphertext),
+      'without the previous key the old ciphertext fails'
+    );
   });
 
   await withEnv(
-    { MAGIC_LINK_ENCRYPTION_KEY: newKey, MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS: oldKey, MAGIC_LINK_OTP_PEPPER: pepper },
+    {
+      MAGIC_LINK_ENCRYPTION_KEY: newKey,
+      MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS: oldKey,
+      MAGIC_LINK_OTP_PEPPER: pepper,
+    },
     async () => {
       assert.deepEqual(cryptoUtils.decryptWithInfo(legacyCiphertext), {
         value: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP',
         usedPreviousKey: true,
       });
       const { strapi, tables } = createMfaStrapi({
-        totpConfigs: [{ id: 1, principalType: 'users-permissions', principalKey: 'up:1', userId: 1, email: 'a@example.test', secret: legacyCiphertext, enabled: true }],
+        totpConfigs: [
+          {
+            id: 1,
+            principalType: 'users-permissions',
+            principalKey: 'up:1',
+            userId: 1,
+            email: 'a@example.test',
+            secret: legacyCiphertext,
+            enabled: true,
+          },
+        ],
       });
       const stats = await createOtpService({ strapi }).migrateTotpConfigs();
       assert.equal(stats.reencrypted, 1);
@@ -110,10 +150,13 @@ test('key rotation: the previous key still decrypts and bootstrap re-encrypts TO
 });
 
 test('keyed hashes depend on the pepper and the purpose', async () => {
-  await withEnv({ MAGIC_LINK_ENCRYPTION_KEY: randomKey(), MAGIC_LINK_OTP_PEPPER: randomKey() }, () => {
-    const a = cryptoUtils.keyedHash('backup-code', 'up:1:CODE');
-    assert.match(a, /^[0-9a-f]{64}$/);
-    assert.notEqual(a, cryptoUtils.keyedHash('totp-setup', 'up:1:CODE'));
-    assert.notEqual(a, nodeCrypto.createHash('sha256').update('up:1:CODE').digest('hex'));
-  });
+  await withEnv(
+    { MAGIC_LINK_ENCRYPTION_KEY: randomKey(), MAGIC_LINK_OTP_PEPPER: randomKey() },
+    () => {
+      const a = cryptoUtils.keyedHash('backup-code', 'up:1:CODE');
+      assert.match(a, /^[0-9a-f]{64}$/);
+      assert.notEqual(a, cryptoUtils.keyedHash('totp-setup', 'up:1:CODE'));
+      assert.notEqual(a, nodeCrypto.createHash('sha256').update('up:1:CODE').digest('hex'));
+    }
+  );
 });

@@ -69,7 +69,9 @@ module.exports = async ({ strapi }) => {
     if (migration.changed || settings.store_login_info === undefined) {
       await pluginStore.set({ key: 'settings', value: next });
       if (migration.removedKeys > 0) {
-        strapi.log.info(`[magic-link] Removed ${migration.removedKeys} obsolete WhatsApp/SMS setting(s)`);
+        strapi.log.info(
+          `[magic-link] Removed ${migration.removedKeys} obsolete WhatsApp/SMS setting(s)`
+        );
       }
     }
   }
@@ -87,7 +89,9 @@ module.exports = async ({ strapi }) => {
       );
     }
   } catch {
-    strapi.log.error('[magic-link] TOTP enrolment migration failed; unmigrated enrolments stay inactive');
+    strapi.log.error(
+      '[magic-link] TOTP enrolment migration failed; unmigrated enrolments stay inactive'
+    );
   }
 
   // Admin RBAC (6.0.0): read, manage, tokens.issue, settings.read/update.
@@ -96,10 +100,14 @@ module.exports = async ({ strapi }) => {
   try {
     const { roles } = await migrateLegacyAccessPermission(strapi);
     if (roles > 0) {
-      strapi.log.info(`[magic-link] Migrated the 5.x "access" permission to read + manage for ${roles} role(s)`);
+      strapi.log.info(
+        `[magic-link] Migrated the 5.x "access" permission to read + manage for ${roles} role(s)`
+      );
     }
   } catch {
-    strapi.log.error('[magic-link] Admin permission migration failed; grant Magic Link Read/Manage to roles manually');
+    strapi.log.error(
+      '[magic-link] Admin permission migration failed; grant Magic Link Read/Manage to roles manually'
+    );
   }
 
   warnOnUnsafeProxyConfig(strapi);
@@ -130,7 +138,8 @@ module.exports = async ({ strapi }) => {
     4000,
     async () => {
       const count = await plugin().service('magic-link').deactivateLegacyTokens();
-      if (count > 0) strapi.log.info(`[magic-link] Deactivated ${count} legacy unhashed login token(s)`);
+      if (count > 0)
+        strapi.log.info(`[magic-link] Deactivated ${count} legacy unhashed login token(s)`);
     },
     () => strapi.log.debug('[magic-link] Legacy token cleanup skipped')
   );
@@ -167,7 +176,9 @@ module.exports = async ({ strapi }) => {
         data: { provider: 'local' },
       });
       if (updated?.count > 0) {
-        strapi.log.info(`[magic-link] Migrated ${updated.count} user(s) from provider "magic-link" to "local"`);
+        strapi.log.info(
+          `[magic-link] Migrated ${updated.count} user(s) from provider "magic-link" to "local"`
+        );
       }
     },
     () => strapi.log.error('[magic-link] Provider migration failed')

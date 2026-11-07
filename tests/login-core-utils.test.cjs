@@ -19,7 +19,9 @@ const auth = require('../server/src/controllers/auth');
 
 test('template renderer never executes template code (AUTH-04/ADM-01/STR-02)', () => {
   let executed = false;
-  global.__magicLinkTemplateProbe = () => { executed = true; };
+  global.__magicLinkTemplateProbe = () => {
+    executed = true;
+  };
   const templates = [
     '<%= global.__magicLinkTemplateProbe() %>',
     '<% global.__magicLinkTemplateProbe() %>',
@@ -37,11 +39,26 @@ test('template renderer never executes template code (AUTH-04/ADM-01/STR-02)', (
 });
 
 test('template renderer escapes HTML values and supports legacy syntaxes', () => {
-  const variables = { USER: '<img src=x onerror=alert(1)>', LOGIN_URL: 'https://a.test/?a=1&b="2"', EMAIL: 'a@b.test' };
-  const html = renderTemplate('<p>{{USER}}</p><a href="<%= LOGIN_URL %>">{link}</a> {username} {{ email }}', variables, { html: true });
-  assert.equal(html, '<p>&lt;img src=x onerror=alert(1)&gt;</p><a href="https://a.test/?a=1&amp;b=&quot;2&quot;">https://a.test/?a=1&amp;b=&quot;2&quot;</a> &lt;img src=x onerror=alert(1)&gt; a@b.test');
+  const variables = {
+    USER: '<img src=x onerror=alert(1)>',
+    LOGIN_URL: 'https://a.test/?a=1&b="2"',
+    EMAIL: 'a@b.test',
+  };
+  const html = renderTemplate(
+    '<p>{{USER}}</p><a href="<%= LOGIN_URL %>">{link}</a> {username} {{ email }}',
+    variables,
+    { html: true }
+  );
+  assert.equal(
+    html,
+    '<p>&lt;img src=x onerror=alert(1)&gt;</p><a href="https://a.test/?a=1&amp;b=&quot;2&quot;">https://a.test/?a=1&amp;b=&quot;2&quot;</a> &lt;img src=x onerror=alert(1)&gt; a@b.test'
+  );
   assert.equal(renderTemplate('{{USER}}', variables), variables.USER, 'plain text is not escaped');
-  assert.equal(renderTemplate('a{{NOT_DOCUMENTED}}b', variables), 'ab', 'unknown placeholders never throw');
+  assert.equal(
+    renderTemplate('a{{NOT_DOCUMENTED}}b', variables),
+    'ab',
+    'unknown placeholders never throw'
+  );
   assert.equal(renderTemplate('{display: block}', variables), '{display: block}');
 });
 
@@ -71,15 +88,32 @@ test('every documented template variable is provided (DOC-08/FUN-07)', () => {
 });
 
 test('login URL builder honours frontend_url, query strings and the API fallback (AUTH-27/FUN-05)', () => {
-  const strapi = { config: { get: (key, fallback) => ({ 'server.url': 'https://cms.example.test', 'api.rest.prefix': '/rest' })[key] ?? fallback } };
+  const strapi = {
+    config: {
+      get: (key, fallback) =>
+        ({ 'server.url': 'https://cms.example.test', 'api.rest.prefix': '/rest' })[key] ?? fallback,
+    },
+  };
 
-  let { loginUrl } = buildLoginUrl({ frontend_url: 'https://app.example.test/', frontend_login_path: 'auth/magic' }, 'tok&en', strapi);
+  let { loginUrl } = buildLoginUrl(
+    { frontend_url: 'https://app.example.test/', frontend_login_path: 'auth/magic' },
+    'tok&en',
+    strapi
+  );
   assert.equal(loginUrl, 'https://app.example.test/auth/magic?loginToken=tok%26en');
 
-  ({ loginUrl } = buildLoginUrl({ confirmationUrl: 'https://app.example.test/login?lang=de#top' }, 'abc', strapi));
+  ({ loginUrl } = buildLoginUrl(
+    { confirmationUrl: 'https://app.example.test/login?lang=de#top' },
+    'abc',
+    strapi
+  ));
   assert.equal(loginUrl, 'https://app.example.test/login?lang=de&loginToken=abc#top');
 
-  ({ loginUrl } = buildLoginUrl({ confirmationUrl: 'javascript:alert(1)', frontend_url: 'http://evil.test' }, 'abc', strapi));
+  ({ loginUrl } = buildLoginUrl(
+    { confirmationUrl: 'javascript:alert(1)', frontend_url: 'http://evil.test' },
+    'abc',
+    strapi
+  ));
   assert.equal(loginUrl, 'https://cms.example.test/rest/magic-link/login?loginToken=abc');
 
   assert.equal(isAllowedLinkUrl('http://localhost:3000/x'), true);
@@ -90,7 +124,15 @@ test('login URL builder honours frontend_url, query strings and the API fallback
 });
 
 test('context policy strips reserved keys and applies the admin allow/deny lists (AUTH-10)', () => {
-  const raw = { redirectTo: '/a', role: 'admin', requiresTOTP: true, userId: 1, password: 'x', nested: { a: { b: { c: { d: 1 } } } }, __proto__: { polluted: true } };
+  const raw = {
+    redirectTo: '/a',
+    role: 'admin',
+    requiresTOTP: true,
+    userId: 1,
+    password: 'x',
+    nested: { a: { b: { c: { d: 1 } } } },
+    __proto__: { polluted: true },
+  };
   assert.deepEqual(filterContext(raw, {}), { redirectTo: '/a', role: 'admin' });
   assert.deepEqual(filterContext(raw, { context_whitelist: ['redirectTo'] }), { redirectTo: '/a' });
   assert.deepEqual(filterContext(raw, { context_blacklist: 'role, other' }), { redirectTo: '/a' });
@@ -101,17 +143,20 @@ test('context policy strips reserved keys and applies the admin allow/deny lists
 });
 
 test('stored settings are migrated to the email-only 6.0 contract (DOC-04/DOC-05/DOC-M04)', () => {
-  const { settings, changed, removedKeys } = migrateSettings({
-    whatsapp_enabled: true,
-    whatsapp_message_text: 'x',
-    sms_api_secret: 'synthetic-secret',
-    sms_provider: null,
-    otp_type: 'sms',
-    token_length: 8,
-    confirmationUrl: 'http://localhost:1337/',
-    message_text: 'Go: <%= URL %>?loginToken=<%= CODE %>',
-    from_name: 'Shop',
-  }, { serverUrl: 'http://localhost:1337', clampTokenLength });
+  const { settings, changed, removedKeys } = migrateSettings(
+    {
+      whatsapp_enabled: true,
+      whatsapp_message_text: 'x',
+      sms_api_secret: 'synthetic-secret',
+      sms_provider: null,
+      otp_type: 'sms',
+      token_length: 8,
+      confirmationUrl: 'http://localhost:1337/',
+      message_text: 'Go: <%= URL %>?loginToken=<%= CODE %>',
+      from_name: 'Shop',
+    },
+    { serverUrl: 'http://localhost:1337', clampTokenLength }
+  );
 
   assert.equal(changed, true);
   assert.equal(removedKeys, 4);
@@ -122,7 +167,10 @@ test('stored settings are migrated to the email-only 6.0 contract (DOC-04/DOC-05
     message_text: 'Go: {{LOGIN_URL}}',
     from_name: 'Shop',
   });
-  assert.equal(migrateSettings(settings, { serverUrl: 'http://localhost:1337', clampTokenLength }).changed, false);
+  assert.equal(
+    migrateSettings(settings, { serverUrl: 'http://localhost:1337', clampTokenLength }).changed,
+    false
+  );
 });
 
 test('server i18n returns translated messages and ignores unknown locales (FUN-02)', () => {
@@ -130,7 +178,15 @@ test('server i18n returns translated messages and ignores unknown locales (FUN-0
   assert.equal(i18n.t('errors.token.invalid', 'de'), 'Ungültiger oder abgelaufener Token');
   assert.equal(i18n.t('errors.token.invalid', '../../etc'), 'Invalid or expired token');
   for (const locale of ['de', 'en', 'es', 'fr', 'pt']) {
-    for (const key of ['challenge.invalid', 'mfa.setupRequired', 'mfa.invalidCode', 'otp.deliveryFailed', 'totp.loginDisabled', 'credentials.invalid', 'rate.limit.exceeded']) {
+    for (const key of [
+      'challenge.invalid',
+      'mfa.setupRequired',
+      'mfa.invalidCode',
+      'otp.deliveryFailed',
+      'totp.loginDisabled',
+      'credentials.invalid',
+      'rate.limit.exceeded',
+    ]) {
       assert.notEqual(i18n.t(`errors.${key}`, locale), `errors.${key}`, `${locale}:${key}`);
     }
   }

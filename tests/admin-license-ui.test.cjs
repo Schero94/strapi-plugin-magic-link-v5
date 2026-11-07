@@ -73,7 +73,10 @@ const stubs = {
     useNotification: () => ({ toggleNotification() {} }),
     useRBAC: (permissions) => (isSettingsCheck(permissions) ? rbac.settings : rbac.plugin),
   },
-  '@strapi/icons': new Proxy({}, { get: (_target, name) => (name === '__esModule' ? false : () => null) }),
+  '@strapi/icons': new Proxy(
+    {},
+    { get: (_target, name) => (name === '__esModule' ? false : () => null) }
+  ),
 };
 
 const mod = loadAdminModule(PAGE, { stubs });
@@ -102,16 +105,27 @@ test('getLicenseView maps status payloads and never treats a masked key as the f
   assert.equal(none.fullKey, null);
   assert.equal(none.maskedKey, '');
 
-  const active = mod.getLicenseView({ valid: true, hasKey: true, data: { licenseKey: SYNTHETIC_KEY } });
+  const active = mod.getLicenseView({
+    valid: true,
+    hasKey: true,
+    data: { licenseKey: SYNTHETIC_KEY },
+  });
   assert.equal(active.kind, 'active');
   assert.equal(active.fullKey, SYNTHETIC_KEY);
   assert.equal(active.isActive, true);
 
-  const unverified = mod.getLicenseView({ valid: false, hasKey: true, data: { licenseKey: SYNTHETIC_KEY, isActive: false } });
+  const unverified = mod.getLicenseView({
+    valid: false,
+    hasKey: true,
+    data: { licenseKey: SYNTHETIC_KEY, isActive: false },
+  });
   assert.equal(unverified.kind, 'unverified');
   assert.equal(unverified.isActive, false);
 
-  const serverMasked = mod.getLicenseView({ hasKey: true, data: { licenseKeyMasked: '••••-ABCD' } });
+  const serverMasked = mod.getLicenseView({
+    hasKey: true,
+    data: { licenseKeyMasked: '••••-ABCD' },
+  });
   assert.equal(serverMasked.fullKey, null);
   assert.equal(serverMasked.maskedKey, '••••-ABCD');
 
@@ -129,8 +143,25 @@ test('holderName joins trimmed names and is empty when none are set', () => {
 
 test('the license file uses the given labels and the file name carries no key characters', () => {
   const content = mod.buildLicenseFileContent(
-    { key: SYNTHETIC_KEY, name: 'Ada Example', email: 'ada@example.test', status: 'Aktiv', expires: 'Nie', generated: 'heute' },
-    { title: 'Titel', key: 'Schlüssel', holder: 'Inhaber', name: 'Name', email: 'E-Mail', statusSection: 'Lizenzstatus', status: 'Status', expires: 'Läuft ab am', generated: 'Erstellt' }
+    {
+      key: SYNTHETIC_KEY,
+      name: 'Ada Example',
+      email: 'ada@example.test',
+      status: 'Aktiv',
+      expires: 'Nie',
+      generated: 'heute',
+    },
+    {
+      title: 'Titel',
+      key: 'Schlüssel',
+      holder: 'Inhaber',
+      name: 'Name',
+      email: 'E-Mail',
+      statusSection: 'Lizenzstatus',
+      status: 'Status',
+      expires: 'Läuft ab am',
+      generated: 'Erstellt',
+    }
   );
   assert.match(content, /^Titel\n/);
   assert.match(content, new RegExp(`Schlüssel: ${SYNTHETIC_KEY}`));
@@ -150,7 +181,15 @@ test('licenseErrorMessage maps statuses to translated text and ignores server me
 });
 
 test('describeLicense formats expiry through the given formatter and falls back to Never', () => {
-  const view = mod.getLicenseView({ hasKey: true, data: { licenseKey: SYNTHETIC_KEY, expiresAt: '2030-01-02T00:00:00Z', firstName: 'Ada', lastName: 'Example' } });
+  const view = mod.getLicenseView({
+    hasKey: true,
+    data: {
+      licenseKey: SYNTHETIC_KEY,
+      expiresAt: '2030-01-02T00:00:00Z',
+      firstName: 'Ada',
+      lastName: 'Example',
+    },
+  });
   const described = mod.describeLicense(view, t, () => 'FORMATTED');
   assert.equal(described.expiresText, 'FORMATTED');
   assert.equal(described.name, 'Ada Example');
@@ -160,10 +199,24 @@ test('describeLicense formats expiry through the given formatter and falls back 
 });
 
 test('overview shows only the masked key and no key actions without the full-key right', () => {
-  const view = mod.getLicenseView({ valid: true, hasKey: true, data: { licenseKey: SYNTHETIC_KEY, email: 'ada@example.test' } });
-  const props = { view, revealed: true, alertDismissed: false, onDismissAlert() {}, onToggleReveal() {}, onCopy() {}, onDownload() {} };
+  const view = mod.getLicenseView({
+    valid: true,
+    hasKey: true,
+    data: { licenseKey: SYNTHETIC_KEY, email: 'ada@example.test' },
+  });
+  const props = {
+    view,
+    revealed: true,
+    alertDismissed: false,
+    onDismissAlert() {},
+    onToggleReveal() {},
+    onCopy() {},
+    onDownload() {},
+  };
 
-  const readOnly = renderEn(React.createElement(mod.LicenseOverview, { ...props, canUseFullKey: false }));
+  const readOnly = renderEn(
+    React.createElement(mod.LicenseOverview, { ...props, canUseFullKey: false })
+  );
   assert.equal(readOnly.includes(SYNTHETIC_KEY), false, 'full key is not rendered');
   assert.match(readOnly, /ABCD/);
   assert.equal(readOnly.includes('Copy key'), false);
@@ -171,19 +224,27 @@ test('overview shows only the masked key and no key actions without the full-key
   assert.match(readOnly, /data-alert="success"/);
   assert.match(readOnly, /data-close-label="Dismiss message"/);
 
-  const manager = renderEn(React.createElement(mod.LicenseOverview, { ...props, canUseFullKey: true, revealed: false }));
+  const manager = renderEn(
+    React.createElement(mod.LicenseOverview, { ...props, canUseFullKey: true, revealed: false })
+  );
   assert.equal(manager.includes(SYNTHETIC_KEY), false, 'key is hidden until revealed');
   assert.match(manager, /Show key/);
   assert.match(manager, /aria-pressed="false"/);
   assert.match(manager, /Copy key/);
 
-  const revealed = renderEn(React.createElement(mod.LicenseOverview, { ...props, canUseFullKey: true, revealed: true }));
+  const revealed = renderEn(
+    React.createElement(mod.LicenseOverview, { ...props, canUseFullKey: true, revealed: true })
+  );
   assert.equal(revealed.includes(SYNTHETIC_KEY), true);
   assert.match(revealed, /Hide key/);
   assert.match(revealed, /aria-pressed="true"/);
 
   const empty = renderEn(
-    React.createElement(mod.LicenseOverview, { ...props, view: mod.getLicenseView({ valid: true, hasKey: false }), canUseFullKey: false })
+    React.createElement(mod.LicenseOverview, {
+      ...props,
+      view: mod.getLicenseView({ valid: true, hasKey: false }),
+      canUseFullKey: false,
+    })
   );
   assert.match(empty, /data-alert="default"/);
   assert.match(empty, /No key registered/);
@@ -201,7 +262,10 @@ test('page view follows RBAC: loading, permission error, no permission, then the
   assert.match(renderEn(React.createElement(mod.LicenseView)), /data-page="error"/);
 
   // Token read/manage rights alone do not open the License page.
-  set({ allowedActions: { canRead: true, canManage: true } }, { allowedActions: { canRead: false, canUpdate: false } });
+  set(
+    { allowedActions: { canRead: true, canManage: true } },
+    { allowedActions: { canRead: false, canUpdate: false } }
+  );
   assert.match(renderEn(React.createElement(mod.LicenseView)), /data-page="no-permissions"/);
 
   set({ allowedActions: {} }, { allowedActions: { canRead: true, canUpdate: false } });
@@ -247,7 +311,9 @@ const MERGED = Boolean(EN['magic-link.license.title']);
 
 test(
   'every License message id used in the page is translated with its English default',
-  { skip: MERGED ? false : 'license i18n fragments are not merged into admin/src/translations yet' },
+  {
+    skip: MERGED ? false : 'license i18n fragments are not merged into admin/src/translations yet',
+  },
   () => {
     const pairs = [...SOURCE.matchAll(/\bt\(\s*'(license\.[\w.]+)',\s*'((?:[^'\\]|\\.)*)'/g)];
     assert.ok(pairs.length > 20);

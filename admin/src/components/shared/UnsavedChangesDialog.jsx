@@ -22,7 +22,10 @@ export const UnsavedChangesDialog = ({ guard, title, description, confirmLabel }
       title={title ?? t('common.unsaved.title', 'Discard unsaved changes?')}
       description={
         description ??
-        t('common.unsaved.description', 'You have unsaved changes. If you continue, they will be lost.')
+        t(
+          'common.unsaved.description',
+          'You have unsaved changes. If you continue, they will be lost.'
+        )
       }
       confirmLabel={confirmLabel ?? t('common.unsaved.confirm', 'Discard changes')}
       cancelLabel={t('common.unsaved.cancel', 'Keep editing')}

@@ -57,7 +57,10 @@ const createLoginCoreStrapi = ({
   const state = {
     tokens: [],
     users: users.map((user) => ({ ...user })),
-    stores: { 'magic-link': { settings: { ...settings } }, 'users-permissions': { advanced: { ...advanced } } },
+    stores: {
+      'magic-link': { settings: { ...settings } },
+      'users-permissions': { advanced: { ...advanced } },
+    },
     mails: [],
     otpMails: [],
     otpCreated: [],
@@ -72,9 +75,15 @@ const createLoginCoreStrapi = ({
   let nextId = 1;
 
   const tokenDocs = {
-    findMany: async ({ filters = {} } = {}) => state.tokens.filter((row) => matchesWhere(row, filters)).map((row) => ({ ...row })),
+    findMany: async ({ filters = {} } = {}) =>
+      state.tokens.filter((row) => matchesWhere(row, filters)).map((row) => ({ ...row })),
     create: async ({ data }) => {
-      const row = { id: nextId, documentId: `token-${nextId}`, createdAt: new Date().toISOString(), ...data };
+      const row = {
+        id: nextId,
+        documentId: `token-${nextId}`,
+        createdAt: new Date().toISOString(),
+        ...data,
+      };
       nextId += 1;
       state.tokens.push(row);
       return { ...row };
@@ -87,7 +96,8 @@ const createLoginCoreStrapi = ({
   };
 
   const userDocs = {
-    findMany: async ({ filters = {} } = {}) => state.users.filter((row) => matchesWhere(row, filters)).map((row) => ({ ...row })),
+    findMany: async ({ filters = {} } = {}) =>
+      state.users.filter((row) => matchesWhere(row, filters)).map((row) => ({ ...row })),
     findOne: async ({ documentId }) => {
       const row = state.users.find((candidate) => candidate.documentId === documentId);
       return row ? { ...row } : null;
@@ -100,7 +110,11 @@ const createLoginCoreStrapi = ({
     },
   };
 
-  const configValues = { 'api.rest.prefix': '/api', 'server.url': 'http://localhost:1337', ...config };
+  const configValues = {
+    'api.rest.prefix': '/api',
+    'server.url': 'http://localhost:1337',
+    ...config,
+  };
 
   const otpService = {
     getTOTPStatus: async (userId) => totp[userId] || { configured: false, enabled: false },
@@ -144,9 +158,11 @@ const createLoginCoreStrapi = ({
         return {
           updateMany: async ({ where, data }) => {
             const rows = state.tokens.filter((row) => matchesWhere(row, where));
-            rows.forEach((row) => Object.assign(row, JSON.parse(JSON.stringify(data)), {
-              ...(data.used_at instanceof Date ? { used_at: data.used_at } : {}),
-            }));
+            rows.forEach((row) =>
+              Object.assign(row, JSON.parse(JSON.stringify(data)), {
+                ...(data.used_at instanceof Date ? { used_at: data.used_at } : {}),
+              })
+            );
             return { count: rows.length };
           },
           deleteMany: async ({ where }) => {
@@ -157,14 +173,24 @@ const createLoginCoreStrapi = ({
         };
       },
     },
-    getModel: (uid) => (uid === USER_UID
-      ? { uid, attributes: { password: { private: true }, resetPasswordToken: { private: true }, confirmationToken: { private: true }, internalNote: { private: true } } }
-      : null),
+    getModel: (uid) =>
+      uid === USER_UID
+        ? {
+            uid,
+            attributes: {
+              password: { private: true },
+              resetPasswordToken: { private: true },
+              confirmationToken: { private: true },
+              internalNote: { private: true },
+            },
+          }
+        : null,
     contentAPI: {
       sanitize: {
-        output: async (entity, model) => Object.fromEntries(
-          Object.entries(entity).filter(([key]) => !model.attributes[key]?.private)
-        ),
+        output: async (entity, model) =>
+          Object.fromEntries(
+            Object.entries(entity).filter(([key]) => !model.attributes[key]?.private)
+          ),
       },
     },
     sessionManager: (origin) => {
@@ -173,9 +199,15 @@ const createLoginCoreStrapi = ({
         generateRefreshToken: async (userId, deviceId, options) => {
           const sessionId = `up-session-${state.upSessions.length + 1}`;
           state.upSessions.push({ userId, deviceId, options, sessionId });
-          return { token: `refresh-${sessionId}`, sessionId, absoluteExpiresAt: new Date(Date.now() + 86400000).toISOString() };
+          return {
+            token: `refresh-${sessionId}`,
+            sessionId,
+            absoluteExpiresAt: new Date(Date.now() + 86400000).toISOString(),
+          };
         },
-        generateAccessToken: async (refreshToken) => ({ token: fakeJwt({ refreshToken, type: 'access' }, '10m') }),
+        generateAccessToken: async (refreshToken) => ({
+          token: fakeJwt({ refreshToken, type: 'access' }, '10m'),
+        }),
         revokeSessionById: async (userId, sessionId) => {
           state.revokedUpSessions.push({ userId, sessionId });
           return true;
@@ -185,34 +217,62 @@ const createLoginCoreStrapi = ({
     plugin(name) {
       if (name === 'magic-link') {
         return {
-          service: (key) => ({
-            'magic-link': magicLinkService,
-            otp: otpService,
-            'rate-limiter': { checkRateLimit: async () => rateLimit },
-          })[key],
+          service: (key) =>
+            ({
+              'magic-link': magicLinkService,
+              otp: otpService,
+              'rate-limiter': { checkRateLimit: async () => rateLimit },
+            })[key],
         };
       }
       if (name === 'users-permissions') {
         return {
-          service: (key) => (key === 'jwt'
-            ? { issue: (payload, options = {}) => { state.issued.push({ payload, options }); return fakeJwt(payload, options.expiresIn); } }
-            : { edit: async (id, data) => { state.edits.push({ id, data }); const row = state.users.find((u) => u.id === id); if (row) Object.assign(row, data); } }),
+          service: (key) =>
+            key === 'jwt'
+              ? {
+                  issue: (payload, options = {}) => {
+                    state.issued.push({ payload, options });
+                    return fakeJwt(payload, options.expiresIn);
+                  },
+                }
+              : {
+                  edit: async (id, data) => {
+                    state.edits.push({ id, data });
+                    const row = state.users.find((u) => u.id === id);
+                    if (row) Object.assign(row, data);
+                  },
+                },
         };
       }
       if (name === 'email') {
-        return { service: () => ({ send: async (mail) => { state.mails.push(mail); } }) };
+        return {
+          service: () => ({
+            send: async (mail) => {
+              state.mails.push(mail);
+            },
+          }),
+        };
       }
       return undefined;
     },
-    log: Object.fromEntries(['debug', 'info', 'warn', 'error'].map((level) => [
-      level,
-      (...parts) => state.logs.push(`${level}: ${parts.map(String).join(' ')}`),
-    ])),
+    log: Object.fromEntries(
+      ['debug', 'info', 'warn', 'error'].map((level) => [
+        level,
+        (...parts) => state.logs.push(`${level}: ${parts.map(String).join(' ')}`),
+      ])
+    ),
   };
 
   const magicLinkService = createMagicLinkService({ strapi });
   global.strapi = strapi;
-  return { strapi, state, magicLinkService, setConfig: (key, value) => { configValues[key] = value; } };
+  return {
+    strapi,
+    state,
+    magicLinkService,
+    setConfig: (key, value) => {
+      configValues[key] = value;
+    },
+  };
 };
 
 /**
@@ -221,7 +281,13 @@ const createLoginCoreStrapi = ({
  * @param {object} [options] - Request parts.
  * @returns {object} Context.
  */
-const createCtx = ({ method = 'GET', query = {}, body, headers = {}, path = '/api/magic-link/login' } = {}) => {
+const createCtx = ({
+  method = 'GET',
+  query = {},
+  body,
+  headers = {},
+  path = '/api/magic-link/login',
+} = {}) => {
   const responseHeaders = {};
   const cookies = [];
   return {
@@ -229,11 +295,25 @@ const createCtx = ({ method = 'GET', query = {}, body, headers = {}, path = '/ap
     path,
     query,
     state: {},
-    request: { body, ip: '192.0.2.10', header: { 'user-agent': 'synthetic-agent', ...headers }, headers: { 'user-agent': 'synthetic-agent', ...headers } },
+    request: {
+      body,
+      ip: '192.0.2.10',
+      header: { 'user-agent': 'synthetic-agent', ...headers },
+      headers: { 'user-agent': 'synthetic-agent', ...headers },
+    },
     responseHeaders,
-    cookies: { set: (name, value, options) => cookies.push({ name, value, options }), list: cookies },
-    set(name, value) { responseHeaders[name] = value; },
-    send(payload) { this.status = this.status || 200; this.body = payload; return payload; },
+    cookies: {
+      set: (name, value, options) => cookies.push({ name, value, options }),
+      list: cookies,
+    },
+    set(name, value) {
+      responseHeaders[name] = value;
+    },
+    send(payload) {
+      this.status = this.status || 200;
+      this.body = payload;
+      return payload;
+    },
   };
 };
 

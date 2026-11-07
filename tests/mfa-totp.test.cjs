@@ -35,7 +35,9 @@ const codeFor = (secret, totp, now = Date.now()) => totpUtils.generateCode({ sec
  */
 const enrol = async (service, principal, email, origin = 'admin') => {
   const setup = await service.beginSetup(principal, email, { origin });
-  const confirm = await service.confirmSetup(principal, await codeFor(setup.secret, setup), { origin });
+  const confirm = await service.confirmSetup(principal, await codeFor(setup.secret, setup), {
+    origin,
+  });
   assert.equal(confirm.valid, true);
   return { secret: setup.secret, setup, confirm };
 };
@@ -45,28 +47,55 @@ test('RFC 6238 test vector and speakeasy-era base32 secrets stay valid with otpl
   assert.equal(await codeFor(RFC_SECRET_BASE32, sha1, 59_000), '94287082');
   assert.equal(await codeFor(RFC_SECRET_BASE32, sha1, 1_111_111_109_000), '07081804');
   assert.deepEqual(
-    await totpUtils.verifyCode({ secret: RFC_SECRET_BASE32, code: '94287082', totp: sha1, now: 59_000 }),
+    await totpUtils.verifyCode({
+      secret: RFC_SECRET_BASE32,
+      code: '94287082',
+      totp: sha1,
+      now: 59_000,
+    }),
     { valid: true, timeStep: 1 }
   );
-  assert.equal((await totpUtils.verifyCode({ secret: RFC_SECRET_BASE32, code: '94287083', totp: sha1, now: 59_000 })).valid, false);
-  assert.equal((await totpUtils.verifyCode({ secret: RFC_SECRET_BASE32, code: 'abc', totp: sha1, now: 59_000 })).valid, false);
+  assert.equal(
+    (
+      await totpUtils.verifyCode({
+        secret: RFC_SECRET_BASE32,
+        code: '94287083',
+        totp: sha1,
+        now: 59_000,
+      })
+    ).valid,
+    false
+  );
+  assert.equal(
+    (
+      await totpUtils.verifyCode({
+        secret: RFC_SECRET_BASE32,
+        code: 'abc',
+        totp: sha1,
+        now: 59_000,
+      })
+    ).valid,
+    false
+  );
 
   // A 5.x enrolment (encrypted base32 secret, enabled, no stored parameters)
   // keeps working after the upgrade.
   const now = Date.now();
   const { strapi } = createMfaStrapi({
     settings: { totp_algorithm: 'SHA1', totp_digits: 6, totp_period: 30 },
-    totpConfigs: [{
-      id: 1,
-      principalType: 'users-permissions',
-      principalKey: 'up:7',
-      userId: 7,
-      email: 'legacy@example.test',
-      secret: cryptoUtils.encrypt(RFC_SECRET_BASE32),
-      enabled: true,
-      lastUsedStep: null,
-      revision: 0,
-    }],
+    totpConfigs: [
+      {
+        id: 1,
+        principalType: 'users-permissions',
+        principalKey: 'up:7',
+        userId: 7,
+        email: 'legacy@example.test',
+        secret: cryptoUtils.encrypt(RFC_SECRET_BASE32),
+        enabled: true,
+        lastUsedStep: null,
+        revision: 0,
+      },
+    ],
   });
   const service = createOtpService({ strapi });
   const code = await codeFor(RFC_SECRET_BASE32, { algorithm: 'SHA1', digits: 6, period: 30 }, now);
@@ -80,14 +109,24 @@ test('admin and end-user enrolments with equal numeric ids never collide (AUTH-0
   const admin = await enrol(service, { type: 'admin', id: 7 }, 'admin@example.test', 'admin');
 
   const endUserStatus = await service.getTOTPStatus(7);
-  assert.equal(endUserStatus.enabled, false, 'the admin enrolment is not the end user\'s second factor');
+  assert.equal(
+    endUserStatus.enabled,
+    false,
+    "the admin enrolment is not the end user's second factor"
+  );
   const adminCode = await codeFor(admin.secret, admin.setup);
   assert.equal((await service.verifyTOTP(7, adminCode)).valid, false);
-  assert.equal((await service.verifyTOTP({ type: 'users-permissions', id: 7 }, adminCode)).valid, false);
+  assert.equal(
+    (await service.verifyTOTP({ type: 'users-permissions', id: 7 }, adminCode)).valid,
+    false
+  );
 
   const user = await enrol(service, 7, 'user@example.test', 'account');
   assert.notEqual(user.secret, admin.secret);
-  assert.deepEqual(tables[TOTP_UID].rows.map((row) => row.principalKey).sort(), ['admin:7', 'up:7']);
+  assert.deepEqual(tables[TOTP_UID].rows.map((row) => row.principalKey).sort(), [
+    'admin:7',
+    'up:7',
+  ]);
 
   // Removing one never removes the other.
   await service.disableTOTP({ type: 'admin', id: 7 });
@@ -99,7 +138,12 @@ test('admin and end-user enrolments with equal numeric ids never collide (AUTH-0
 
 test('enrolment parameters are stored per user and travel into the otpauth URI (AUTH-21, ADM-15, STR-04, E2E-09)', async () => {
   const { strapi, store } = createMfaStrapi({
-    settings: { totp_algorithm: 'SHA256', totp_digits: 8, totp_period: 60, totp_issuer: 'Example App' },
+    settings: {
+      totp_algorithm: 'SHA256',
+      totp_digits: 8,
+      totp_period: 60,
+      totp_issuer: 'Example App',
+    },
   });
   const service = createOtpService({ strapi });
 
@@ -138,7 +182,9 @@ test('re-enrolment keeps the active authenticator until the new one is confirmed
   assert.equal((await service.getTOTPStatus(9)).pendingSetup, true);
 
   // A setup started elsewhere cannot be confirmed through another entry point.
-  const wrongOrigin = await service.confirmSetup(9, await codeFor(next.secret, next), { origin: 'login' });
+  const wrongOrigin = await service.confirmSetup(9, await codeFor(next.secret, next), {
+    origin: 'login',
+  });
   assert.equal(wrongOrigin.valid, false);
 
   const realNow = Date.now;
@@ -146,12 +192,17 @@ test('re-enrolment keeps the active authenticator until the new one is confirmed
   Date.now = () => future;
   try {
     // The old authenticator still works for logins.
-    assert.equal((await service.verifyTOTP(9, await codeFor(old.secret, old.setup, future))).valid, true);
+    assert.equal(
+      (await service.verifyTOTP(9, await codeFor(old.secret, old.setup, future))).valid,
+      true
+    );
   } finally {
     Date.now = realNow;
   }
 
-  const confirmed = await service.confirmSetup(9, await codeFor(next.secret, next), { origin: 'account' });
+  const confirmed = await service.confirmSetup(9, await codeFor(next.secret, next), {
+    origin: 'account',
+  });
   assert.equal(confirmed.valid, true);
   assert.equal(row().pending, null);
   assert.equal(cryptoUtils.decrypt(row().secret), next.secret);
@@ -185,23 +236,40 @@ test('backup codes: strong, hashed, owner-bound, single use and atomic (AUTH-20,
 
   assert.equal(codes.length, 10);
   assert.equal(new Set(codes).size, 10);
-  for (const code of codes) assert.match(code, /^[A-HJKMNP-TV-Z2-9]{4}(-[A-HJKMNP-TV-Z2-9]{4}){3}$/);
+  for (const code of codes)
+    assert.match(code, /^[A-HJKMNP-TV-Z2-9]{4}(-[A-HJKMNP-TV-Z2-9]{4}){3}$/);
   const stored = JSON.stringify(tables[TOTP_UID].rows);
-  assert.equal(codes.some((code) => stored.includes(code) || stored.includes(code.replace(/-/g, ''))), false);
+  assert.equal(
+    codes.some((code) => stored.includes(code) || stored.includes(code.replace(/-/g, ''))),
+    false
+  );
 
-  assert.equal((await service.consumeBackupCode({ type: 'admin', id: 9 }, codes[0])).valid, false, 'owner-bound');
+  assert.equal(
+    (await service.consumeBackupCode({ type: 'admin', id: 9 }, codes[0])).valid,
+    false,
+    'owner-bound'
+  );
 
-  const parallel = await Promise.all([service.consumeBackupCode(9, codes[0]), service.consumeBackupCode(9, codes[0])]);
+  const parallel = await Promise.all([
+    service.consumeBackupCode(9, codes[0]),
+    service.consumeBackupCode(9, codes[0]),
+  ]);
   assert.equal(parallel.filter((result) => result.valid).length, 1, 'one code, one use');
   assert.equal((await service.consumeBackupCode(9, codes[0])).valid, false);
 
-  const lower = await service.verifySecondFactor(9, { backupCode: codes[1].toLowerCase().replace(/-/g, ' ') });
+  const lower = await service.verifySecondFactor(9, {
+    backupCode: codes[1].toLowerCase().replace(/-/g, ' '),
+  });
   assert.equal(lower.valid, true);
   assert.equal(lower.method, 'backup-code');
   assert.equal((await service.getTOTPStatus(9)).backupCodesRemaining, 8);
 
   const fresh = await service.regenerateBackupCodes(9);
-  assert.equal((await service.consumeBackupCode(9, codes[2])).valid, false, 'old codes are replaced');
+  assert.equal(
+    (await service.consumeBackupCode(9, codes[2])).valid,
+    false,
+    'old codes are replaced'
+  );
   assert.equal((await service.consumeBackupCode(9, fresh[0])).valid, true);
 });
 
@@ -209,21 +277,43 @@ test('setups that require an e-mail proof cannot be confirmed without the bound 
   const { strapi } = createMfaStrapi();
   const service = createOtpService({ strapi });
 
-  const setup = await service.beginSetup(9, 'person@example.test', { origin: 'account', requireEmailProof: true });
+  const setup = await service.beginSetup(9, 'person@example.test', {
+    origin: 'account',
+    requireEmailProof: true,
+  });
   assert.ok(setup.binding);
-  const entry = await service.createOTP('person@example.test', 'totp-setup', { magicLinkToken: setup.binding });
+  const entry = await service.createOTP('person@example.test', 'totp-setup', {
+    magicLinkToken: setup.binding,
+  });
   const code = await codeFor(setup.secret, setup);
 
-  assert.equal((await service.confirmSetup(9, code, { origin: 'account' })).error, 'email_proof_required');
-  const foreign = await service.createOTP('person@example.test', 'totp-setup', { magicLinkToken: 'other-binding' });
   assert.equal(
-    (await service.confirmSetup(9, code, { origin: 'account', emailProof: { email: 'person@example.test', code: foreign.code } })).valid,
+    (await service.confirmSetup(9, code, { origin: 'account' })).error,
+    'email_proof_required'
+  );
+  const foreign = await service.createOTP('person@example.test', 'totp-setup', {
+    magicLinkToken: 'other-binding',
+  });
+  assert.equal(
+    (
+      await service.confirmSetup(9, code, {
+        origin: 'account',
+        emailProof: { email: 'person@example.test', code: foreign.code },
+      })
+    ).valid,
     false
   );
   // The foreign code replaced the right one (single active code), so request a new one.
-  const fresh = await service.createOTP('person@example.test', 'totp-setup', { magicLinkToken: setup.binding });
+  const fresh = await service.createOTP('person@example.test', 'totp-setup', {
+    magicLinkToken: setup.binding,
+  });
   assert.equal(
-    (await service.confirmSetup(9, code, { origin: 'account', emailProof: { email: 'person@example.test', code: entry.code } })).valid,
+    (
+      await service.confirmSetup(9, code, {
+        origin: 'account',
+        emailProof: { email: 'person@example.test', code: entry.code },
+      })
+    ).valid,
     false,
     'a superseded e-mail code is rejected'
   );
@@ -238,11 +328,25 @@ test('pre-6.0 enrolments are migrated fail-closed (AUTH-03 migration)', async ()
   const legacySecret = cryptoUtils.encrypt(RFC_SECRET_BASE32);
   const { strapi, tables } = createMfaStrapi({
     settings: { totp_algorithm: 'SHA1', totp_digits: 6, totp_period: 30 },
-    adminUsers: [{ id: 1, email: 'admin@example.test' }, { id: 3, email: 'boss@example.test' }],
-    upUsers: [{ id: 1, email: 'someone-else@example.test' }, { id: 2, email: 'user@example.test' }, { id: 3, email: 'boss@example.test' }],
+    adminUsers: [
+      { id: 1, email: 'admin@example.test' },
+      { id: 3, email: 'boss@example.test' },
+    ],
+    upUsers: [
+      { id: 1, email: 'someone-else@example.test' },
+      { id: 2, email: 'user@example.test' },
+      { id: 3, email: 'boss@example.test' },
+    ],
     totpConfigs: [
       // Enrolled by admin 1 (the only 5.x path); u-p user 1 is a different person.
-      { id: 10, userId: 1, email: 'admin@example.test', secret: legacySecret, enabled: true, backupCodes: ['abc'] },
+      {
+        id: 10,
+        userId: 1,
+        email: 'admin@example.test',
+        secret: legacySecret,
+        enabled: true,
+        backupCodes: ['abc'],
+      },
       // E-mail matches the users-permissions user 2.
       { id: 11, userId: 2, email: 'user@example.test', secret: legacySecret, enabled: true },
       // Nobody owns this e-mail any more.
@@ -264,9 +368,17 @@ test('pre-6.0 enrolments are migrated fail-closed (AUTH-03 migration)', async ()
   assert.equal(byId[13].principalKey, 'up:3');
   assert.equal(byId[11].algorithm, 'SHA1');
 
-  assert.equal((await service.getTOTPStatus(1)).enabled, false, 'u-p user 1 does not inherit the admin authenticator');
+  assert.equal(
+    (await service.getTOTPStatus(1)).enabled,
+    false,
+    'u-p user 1 does not inherit the admin authenticator'
+  );
   assert.equal((await service.getTOTPStatus(2)).enabled, true);
-  assert.deepEqual(await service.migrateTotpConfigs(), { assigned: 0, disabled: 0, reencrypted: 0 }, 'idempotent');
+  assert.deepEqual(
+    await service.migrateTotpConfigs(),
+    { assigned: 0, disabled: 0, reencrypted: 0 },
+    'idempotent'
+  );
 });
 
 test('TOTP setup and verification logs contain no principal id, e-mail, secret or code', async () => {

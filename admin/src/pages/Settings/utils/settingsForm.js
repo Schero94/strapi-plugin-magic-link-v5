@@ -175,7 +175,8 @@ export const parseList = (value) => {
 };
 
 /** @param {unknown} value @returns {string} the list as editable text */
-export const formatList = (value) => (typeof value === 'string' ? value : parseList(value).join(', '));
+export const formatList = (value) =>
+  typeof value === 'string' ? value : parseList(value).join(', ');
 
 /**
  * Validates the form. Returns one error descriptor per invalid field.
@@ -192,7 +193,10 @@ export const validateSettings = (settings = {}) => {
   if (!isValidFrontendPath(settings.frontend_login_path)) {
     errors.frontend_login_path = { code: 'path' };
   }
-  if (settings.jwt_token_expires_in !== undefined && !isValidJwtExpiry(settings.jwt_token_expires_in)) {
+  if (
+    settings.jwt_token_expires_in !== undefined &&
+    !isValidJwtExpiry(settings.jwt_token_expires_in)
+  ) {
     errors.jwt_token_expires_in = { code: 'jwtExpiry' };
   }
   for (const key of ['from_email', 'response_email']) {
@@ -206,7 +210,11 @@ export const validateSettings = (settings = {}) => {
       errors[key] = { code: 'range', min, max };
     }
   }
-  if (settings.totp_digits !== undefined && settings.totp_digits !== 6 && settings.totp_digits !== 8) {
+  if (
+    settings.totp_digits !== undefined &&
+    settings.totp_digits !== 6 &&
+    settings.totp_digits !== 8
+  ) {
     errors.totp_digits = { code: 'digits' };
   }
   for (const [key, max] of Object.entries(STRING_LIMITS)) {
@@ -457,9 +465,13 @@ export const buildLoginUrlPreview = (settings = {}, origin = 'http://localhost:1
   };
   const frontend = typeof settings.frontend_url === 'string' ? settings.frontend_url.trim() : '';
   if (frontend && isValidLinkUrl(frontend)) {
-    return { url: withToken(joinUrl(frontend, settings.frontend_login_path || '')), source: 'frontend' };
+    return {
+      url: withToken(joinUrl(frontend, settings.frontend_login_path || '')),
+      source: 'frontend',
+    };
   }
-  const confirmation = typeof settings.confirmationUrl === 'string' ? settings.confirmationUrl.trim() : '';
+  const confirmation =
+    typeof settings.confirmationUrl === 'string' ? settings.confirmationUrl.trim() : '';
   if (confirmation && isValidLinkUrl(confirmation)) {
     return { url: withToken(confirmation), source: 'confirmation' };
   }
@@ -473,7 +485,8 @@ export const buildLoginUrlPreview = (settings = {}, origin = 'http://localhost:1
 const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
 /** @param {unknown} value @returns {string} */
-export const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
+export const escapeHtml = (value) =>
+  String(value ?? '').replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
 
 /**
  * Simple default e-mail in the admin language, using the safe placeholders.
@@ -529,4 +542,5 @@ export const templateStats = (value) => {
 };
 
 /** DOM id of a field, used for focus and labels. */
-export const fieldId = (key) => `magic-link-settings-${String(key).replace(/[^A-Za-z0-9_-]/g, '-')}`;
+export const fieldId = (key) =>
+  `magic-link-settings-${String(key).replace(/[^A-Za-z0-9_-]/g, '-')}`;

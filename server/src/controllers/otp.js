@@ -63,7 +63,10 @@ const limiterKey = (scope, value) =>
  */
 const enforceOtpRateLimits = async (ctx, email, scope) => {
   const rateLimiter = plugin().service('rate-limiter');
-  for (const key of [`ip:${scope}:${ctx.request.ip}`, email ? limiterKey(`email:${scope}`, email) : null]) {
+  for (const key of [
+    `ip:${scope}:${ctx.request.ip}`,
+    email ? limiterKey(`email:${scope}`, email) : null,
+  ]) {
     if (!key) continue;
     const check = await rateLimiter.checkRateLimit(key, 'otp');
     if (!check?.allowed) {
@@ -99,7 +102,10 @@ const minutesOf = (seconds) => Math.max(1, Math.ceil(Number(seconds) / 60));
 
 const deliveryFailed = (ctx) => {
   ctx.status = 503;
-  ctx.body = { success: false, error: { code: 'OTP_EMAIL_FAILED', message: 'The code could not be sent.' } };
+  ctx.body = {
+    success: false,
+    error: { code: 'OTP_EMAIL_FAILED', message: 'The code could not be sent.' },
+  };
   return ctx.body;
 };
 
@@ -167,7 +173,8 @@ module.exports = {
 
       const settings = await readSettings();
       const mode = bindingMode(settings);
-      if (mode === 'refused') return ctx.badRequest('magicLinkToken is required while MFA is active');
+      if (mode === 'refused')
+        return ctx.badRequest('magicLinkToken is required while MFA is active');
 
       let boundToken = null;
       if (mode === 'strict') {
@@ -178,7 +185,9 @@ module.exports = {
             'magicLinkToken is required. Call /magic-link/login first and pass the returned loginToken as magicLinkToken.'
           );
         }
-        boundToken = await plugin().service('magic-link').validateBindingForChallenge(magicLinkToken, email, 'otp');
+        boundToken = await plugin()
+          .service('magic-link')
+          .validateBindingForChallenge(magicLinkToken, email, 'otp');
         if (!boundToken) {
           strapi.log.warn('[magic-link] OTP send: challenge binding rejected');
           return ctx.send({ success: true, message: GENERIC_OTP_RESPONSE });
@@ -240,20 +249,32 @@ module.exports = {
 
       let boundToken = null;
       if (mode === 'strict') {
-        boundToken = await magicLinkService.validateBindingForChallenge(magicLinkToken, email, 'otp');
+        boundToken = await magicLinkService.validateBindingForChallenge(
+          magicLinkToken,
+          email,
+          'otp'
+        );
         if (!boundToken) {
           strapi.log.warn('[magic-link] OTP verify: challenge binding rejected');
           return ctx.badRequest(GENERIC_FAILURE);
         }
       }
 
-      const verification = await otpService.verifyOTP(email, code, 'email', boundToken?.token || null);
+      const verification = await otpService.verifyOTP(
+        email,
+        code,
+        'email',
+        boundToken?.token || null
+      );
       if (!verification.valid) return ctx.badRequest(GENERIC_FAILURE);
 
       const users = await strapi.documents(USER_UID).findMany({ filters: { email }, limit: 1 });
       const user = users && users[0];
       if (!user || user.blocked) return ctx.badRequest(GENERIC_FAILURE);
-      if (boundToken?.challenge?.userDocumentId && boundToken.challenge.userDocumentId !== user.documentId) {
+      if (
+        boundToken?.challenge?.userDocumentId &&
+        boundToken.challenge.userDocumentId !== user.documentId
+      ) {
         return ctx.badRequest(GENERIC_FAILURE);
       }
 
@@ -310,7 +331,8 @@ module.exports = {
 
       const settings = await readSettings();
       const mode = bindingMode(settings);
-      if (mode === 'refused') return ctx.badRequest('magicLinkToken is required while MFA is active');
+      if (mode === 'refused')
+        return ctx.badRequest('magicLinkToken is required while MFA is active');
 
       let boundToken = null;
       if (mode === 'strict') {
@@ -319,7 +341,9 @@ module.exports = {
             'magicLinkToken is required for OTP resend. Call /magic-link/login first and pass the returned loginToken as magicLinkToken.'
           );
         }
-        boundToken = await plugin().service('magic-link').validateBindingForChallenge(magicLinkToken, email, 'otp');
+        boundToken = await plugin()
+          .service('magic-link')
+          .validateBindingForChallenge(magicLinkToken, email, 'otp');
         if (!boundToken) {
           strapi.log.warn('[magic-link] OTP resend: challenge binding rejected');
           return ctx.send({ success: true, message: GENERIC_OTP_RESPONSE });
@@ -332,11 +356,14 @@ module.exports = {
         limit: 1,
       });
       if (lastCodes && lastCodes.length > 0) {
-        const secondsSinceLastSend = (Date.now() - new Date(lastCodes[0].createdAt).getTime()) / 1000;
+        const secondsSinceLastSend =
+          (Date.now() - new Date(lastCodes[0].createdAt).getTime()) / 1000;
         if (secondsSinceLastSend < otpSettings.resendCooldown) {
           const waitTime = Math.ceil(otpSettings.resendCooldown - secondsSinceLastSend);
           ctx.set('Retry-After', String(waitTime));
-          return ctx.tooManyRequests(`Please wait ${waitTime} seconds before requesting a new code`);
+          return ctx.tooManyRequests(
+            `Please wait ${waitTime} seconds before requesting a new code`
+          );
         }
       }
 
@@ -358,7 +385,11 @@ module.exports = {
         return deliveryFailed(ctx);
       }
 
-      return ctx.send({ success: true, message: 'New OTP code sent successfully', expiresIn: otpSettings.expiry });
+      return ctx.send({
+        success: true,
+        message: 'New OTP code sent successfully',
+        expiresIn: otpSettings.expiry,
+      });
     } catch {
       strapi.log.error('[magic-link] OTP resend request failed');
       return ctx.badRequest('Failed to resend OTP code');
@@ -441,7 +472,11 @@ module.exports = {
   async cleanup(ctx) {
     try {
       const deleted = await plugin().service('otp').cleanupExpiredCodes();
-      return ctx.send({ success: true, deleted, message: 'Expired OTP codes cleaned up successfully' });
+      return ctx.send({
+        success: true,
+        deleted,
+        message: 'Expired OTP codes cleaned up successfully',
+      });
     } catch {
       strapi.log.error('[magic-link] Admin OTP cleanup request failed');
       return ctx.badRequest('Failed to cleanup OTP codes');
@@ -486,12 +521,18 @@ module.exports = {
       const principal = adminPrincipal(ctx);
       const status = await otpService.getTOTPStatus(principal);
       if (status.enabled) {
-        const check = token ? await verifyCurrentFactor(otpService, principal, token) : { valid: false };
+        const check = token
+          ? await verifyCurrentFactor(otpService, principal, token)
+          : { valid: false };
         if (!check.valid) return ctx.forbidden('A current authenticator code is required');
       }
-      const { binding: _binding, ...data } = await otpService.beginSetup(principal, ctx.state.user.email, {
-        origin: 'admin',
-      });
+      const { binding: _binding, ...data } = await otpService.beginSetup(
+        principal,
+        ctx.state.user.email,
+        {
+          origin: 'admin',
+        }
+      );
       return ctx.send({ success: true, data });
     } catch {
       strapi.log.error('[magic-link] Admin TOTP setup request failed');
@@ -595,7 +636,11 @@ module.exports = {
       const check = await otpService.verifyTOTP(principal, token);
       if (!check.valid) return ctx.forbidden('A current authenticator code is required');
       const codes = await otpService.regenerateBackupCodes(principal);
-      return ctx.send({ success: true, codes, message: 'Backup codes generated. Store them securely!' });
+      return ctx.send({
+        success: true,
+        codes,
+        message: 'Backup codes generated. Store them securely!',
+      });
     } catch {
       strapi.log.error('[magic-link] Admin TOTP backup-code request failed');
       return ctx.badRequest('Failed to generate backup codes');

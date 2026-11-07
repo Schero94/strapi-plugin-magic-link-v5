@@ -132,7 +132,12 @@ module.exports = {
   async enroll(ctx) {
     setNoStoreHeaders(ctx);
     const { loginToken } = parseBody(totpEnrollStartSchema, ctx.request.body);
-    if (!(await allow(ctx, [`ip:totp-enroll:${ctx.request.ip}`, limiterKey('totp-enroll', loginToken)]))) {
+    if (
+      !(await allow(ctx, [
+        `ip:totp-enroll:${ctx.request.ip}`,
+        limiterKey('totp-enroll', loginToken),
+      ]))
+    ) {
       return undefined;
     }
 
@@ -143,7 +148,9 @@ module.exports = {
     const status = await otpService.getTOTPStatus(loaded.user.id);
     if (status.enabled) return i18n.sendError(ctx, 'totp.alreadyEnrolled', 409);
 
-    const setup = await otpService.beginSetup(loaded.user.id, loaded.user.email, { origin: 'login' });
+    const setup = await otpService.beginSetup(loaded.user.id, loaded.user.email, {
+      origin: 'login',
+    });
     return ctx.send({ data: publicSetup(setup) });
   },
 
@@ -157,7 +164,12 @@ module.exports = {
   async enrollConfirm(ctx) {
     setNoStoreHeaders(ctx);
     const { loginToken, totpCode } = parseBody(totpEnrollConfirmSchema, ctx.request.body);
-    if (!(await allow(ctx, [`ip:totp-enroll:${ctx.request.ip}`, limiterKey('totp-enroll-confirm', loginToken)]))) {
+    if (
+      !(await allow(ctx, [
+        `ip:totp-enroll:${ctx.request.ip}`,
+        limiterKey('totp-enroll-confirm', loginToken),
+      ]))
+    ) {
       return undefined;
     }
 
@@ -234,7 +246,8 @@ module.exports = {
     const { totpCode } = parseBody(totpSetupSchema, ctx.request.body);
     const user = requireUser(ctx);
     if (!user) return undefined;
-    if (!(await allow(ctx, [`ip:totp-setup:${ctx.request.ip}`, `user:totp-setup:${user.id}`]))) return undefined;
+    if (!(await allow(ctx, [`ip:totp-setup:${ctx.request.ip}`, `user:totp-setup:${user.id}`])))
+      return undefined;
 
     const otpService = plugin().service('otp');
     const status = await otpService.getTOTPStatus(user.id);
@@ -243,7 +256,10 @@ module.exports = {
       if (!check.valid) return i18n.sendError(ctx, 'totp.currentCodeRequired', 403);
     }
 
-    const setup = await otpService.beginSetup(user.id, user.email, { origin: 'account', requireEmailProof: true });
+    const setup = await otpService.beginSetup(user.id, user.email, {
+      origin: 'account',
+      requireEmailProof: true,
+    });
     const otpSettings = await otpService.getOTPSettings();
     const entry = await otpService.createOTP(user.email, 'totp-setup', {
       magicLinkToken: setup.binding,
@@ -279,11 +295,15 @@ module.exports = {
     const { totpCode, emailCode } = parseBody(totpConfirmSchema, ctx.request.body);
     const user = requireUser(ctx);
     if (!user) return undefined;
-    if (!(await allow(ctx, [`ip:totp-confirm:${ctx.request.ip}`, `user:totp-confirm:${user.id}`]))) return undefined;
+    if (!(await allow(ctx, [`ip:totp-confirm:${ctx.request.ip}`, `user:totp-confirm:${user.id}`])))
+      return undefined;
 
     const result = await plugin()
       .service('otp')
-      .confirmSetup(user.id, totpCode, { origin: 'account', emailProof: { email: user.email, code: emailCode } });
+      .confirmSetup(user.id, totpCode, {
+        origin: 'account',
+        emailProof: { email: user.email, code: emailCode },
+      });
     if (!result.valid) {
       if (result.error === 'totp_not_setup') return i18n.sendError(ctx, 'totp.noPendingSetup', 400);
       if (result.error === 'invalid_email_code' || result.error === 'email_proof_required') {
@@ -305,7 +325,8 @@ module.exports = {
     const { totpCode, backupCode } = parseBody(totpDisableSchema, ctx.request.body);
     const user = requireUser(ctx);
     if (!user) return undefined;
-    if (!(await allow(ctx, [`ip:totp-disable:${ctx.request.ip}`, `user:totp-disable:${user.id}`]))) return undefined;
+    if (!(await allow(ctx, [`ip:totp-disable:${ctx.request.ip}`, `user:totp-disable:${user.id}`])))
+      return undefined;
 
     const otpService = plugin().service('otp');
     const status = await otpService.getTOTPStatus(user.id);
@@ -329,7 +350,8 @@ module.exports = {
     const { totpCode } = parseBody(totpBackupCodesSchema, ctx.request.body);
     const user = requireUser(ctx);
     if (!user) return undefined;
-    if (!(await allow(ctx, [`ip:totp-backup:${ctx.request.ip}`, `user:totp-backup:${user.id}`]))) return undefined;
+    if (!(await allow(ctx, [`ip:totp-backup:${ctx.request.ip}`, `user:totp-backup:${user.id}`])))
+      return undefined;
 
     const otpService = plugin().service('otp');
     const status = await otpService.getTOTPStatus(user.id);

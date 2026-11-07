@@ -14,11 +14,7 @@ const emailHelpers = require('./email-helpers');
  * @returns {string} HTML email
  */
 const generateOTPEmailHTML = (code, options = {}) => {
-  const {
-    appName = 'Magic Link',
-    expiryMinutes = 5,
-    userName = null
-  } = options;
+  const { appName = 'Magic Link', expiryMinutes = 5, userName = null } = options;
 
   const content = `
     <table border="0" cellpadding="0" cellspacing="0" width="100%">
@@ -83,7 +79,7 @@ const generateOTPEmailHTML = (code, options = {}) => {
   return emailHelpers.wrapEmailTemplate(content, {
     title: 'Your Verification Code',
     preheader: `Your ${expiryMinutes}-minute verification code: ${code}`,
-    backgroundColor: '#f9fafb'
+    backgroundColor: '#f9fafb',
   });
 };
 
@@ -94,11 +90,7 @@ const generateOTPEmailHTML = (code, options = {}) => {
  * @returns {string} Plain text email
  */
 const generateOTPEmailText = (code, options = {}) => {
-  const {
-    appName = 'Magic Link',
-    expiryMinutes = 5,
-    userName = null
-  } = options;
+  const { appName = 'Magic Link', expiryMinutes = 5, userName = null } = options;
 
   return `
 Your Verification Code
@@ -127,24 +119,22 @@ Please do not reply to this email
  * @param {Object} user - User object (optional)
  */
 const sendOTPEmail = async (otpEntry, settings, user = null) => {
-  const expiryMinutes = Math.ceil(
-    (new Date(otpEntry.expires_at) - new Date()) / 1000 / 60
-  );
+  const expiryMinutes = Math.ceil((new Date(otpEntry.expires_at) - new Date()) / 1000 / 60);
 
   const html = generateOTPEmailHTML(otpEntry.code, {
     appName: settings.from_name || 'Magic Link',
     expiryMinutes,
-    userName: user?.username || user?.firstname || null
+    userName: user?.username || user?.firstname || null,
   });
 
   const text = generateOTPEmailText(otpEntry.code, {
     appName: settings.from_name || 'Magic Link',
     expiryMinutes,
-    userName: user?.username || user?.firstname || null
+    userName: user?.username || user?.firstname || null,
   });
 
   const headers = emailHelpers.getEmailHeaders({
-    replyTo: settings.response_email
+    replyTo: settings.response_email,
   });
 
   // Validate email
@@ -153,7 +143,7 @@ const sendOTPEmail = async (otpEntry, settings, user = null) => {
     from: settings.from_email ? `${settings.from_name} <${settings.from_email}>` : undefined,
     subject: `Your verification code: ${otpEntry.code}`,
     text,
-    html
+    html,
   });
 
   if (!validation.valid) {
@@ -161,15 +151,18 @@ const sendOTPEmail = async (otpEntry, settings, user = null) => {
   }
 
   // Send email
-  await strapi.plugin('email').service('email').send({
-    to: otpEntry.email,
-    from: settings.from_email ? `${settings.from_name} <${settings.from_email}>` : undefined,
-    replyTo: settings.response_email || undefined,
-    subject: `Your verification code: ${otpEntry.code}`,
-    text,
-    html,
-    headers
-  });
+  await strapi
+    .plugin('email')
+    .service('email')
+    .send({
+      to: otpEntry.email,
+      from: settings.from_email ? `${settings.from_name} <${settings.from_email}>` : undefined,
+      replyTo: settings.response_email || undefined,
+      subject: `Your verification code: ${otpEntry.code}`,
+      text,
+      html,
+      headers,
+    });
 
   strapi.log.info(`OTP email sent to ${otpEntry.email}`);
 };
@@ -177,6 +170,5 @@ const sendOTPEmail = async (otpEntry, settings, user = null) => {
 module.exports = {
   generateOTPEmailHTML,
   generateOTPEmailText,
-  sendOTPEmail
+  sendOTPEmail,
 };
-

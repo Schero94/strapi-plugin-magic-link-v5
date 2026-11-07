@@ -14,7 +14,7 @@ const getEmailHeaders = (options = {}) => {
   const headers = {
     'X-Mailer': 'Strapi Magic Link',
     'X-Priority': '1', // High priority
-    'Importance': 'high',
+    Importance: 'high',
     'X-MSMail-Priority': 'High', // Outlook
   };
 
@@ -37,7 +37,7 @@ const wrapEmailTemplate = (content, options = {}) => {
     title = 'Magic Link Login',
     preheader = 'Your secure login link is ready',
     backgroundColor = '#f4f4f4',
-    containerWidth = '600px'
+    containerWidth = '600px',
   } = options;
 
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -199,7 +199,7 @@ const createPlainTextVersion = (html) => {
     .replace(/\s+/g, ' ')
     .replace(/\n\s*\n/g, '\n\n')
     .trim();
-  
+
   return text;
 };
 
@@ -235,7 +235,7 @@ const validateEmailConfig = (emailConfig) => {
   return {
     valid: errors.length === 0,
     errors,
-    warnings
+    warnings,
   };
 };
 
@@ -243,6 +243,5 @@ module.exports = {
   getEmailHeaders,
   wrapEmailTemplate,
   createPlainTextVersion,
-  validateEmailConfig
+  validateEmailConfig,
 };
-

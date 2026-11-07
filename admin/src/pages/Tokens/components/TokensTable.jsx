@@ -142,7 +142,10 @@ export const TokensTable = ({
             {t('tokens.error.title', 'Tokens could not be loaded')}
           </Typography>
           <Typography tag="p" variant="omega" textColor="neutral600">
-            {t('tokens.error.description', 'Check your connection and permissions, then try again.')}
+            {t(
+              'tokens.error.description',
+              'Check your connection and permissions, then try again.'
+            )}
           </Typography>
           <Button variant="secondary" size="M" startIcon={<ArrowClockwise />} onClick={onRetry}>
             {t('tokens.actions.retry', 'Try again')}
@@ -171,7 +174,10 @@ export const TokensTable = ({
                   'tokens.empty.noData.description',
                   'Tokens appear here when users request a login link or an admin creates one.'
                 )
-              : t('tokens.empty.noMatch.description', 'No token matches the search or status filter.')}
+              : t(
+                  'tokens.empty.noMatch.description',
+                  'No token matches the search or status filter.'
+                )}
           </Typography>
           {noData && canManage ? (
             <GradientButton type="button" onClick={onCreate}>
@@ -242,7 +248,9 @@ export const TokensTable = ({
                 {canManage ? (
                   <Td>
                     <Checkbox
-                      aria-label={t('tokens.table.select', 'Select {email}', { email: token.email })}
+                      aria-label={t('tokens.table.select', 'Select {email}', {
+                        email: token.email,
+                      })}
                       checked={selectedKeys.includes(key)}
                       onCheckedChange={(checked) => onToggleRow(key, checked === true)}
                     />
@@ -276,12 +284,18 @@ export const TokensTable = ({
                           <Check focusable="false" />
                         </MetaIcon>
                         <Typography variant="pi" textColor="neutral600">
-                          {t('tokens.table.usedOn', 'Used {date}', { date: formatDateTime(token.used_at) })}
+                          {t('tokens.table.usedOn', 'Used {date}', {
+                            date: formatDateTime(token.used_at),
+                          })}
                         </Typography>
                       </Flex>
                     ) : null}
                     {token.ip_address ? (
-                      <Typography variant="pi" textColor="neutral600" style={{ fontFamily: 'monospace' }}>
+                      <Typography
+                        variant="pi"
+                        textColor="neutral600"
+                        style={{ fontFamily: 'monospace' }}
+                      >
                         {t('tokens.table.ip', 'IP: {ip}', { ip: token.ip_address })}
                       </Typography>
                     ) : null}
@@ -381,9 +395,7 @@ export const TokensTable = ({
               </PreviousLink>
               {getPaginationItems(page, pageCount).map((item, index) =>
                 item === 'dots' ? (
-                  <Dots key={`dots-${index}`}>
-                    {t('tokens.pagination.more', 'More pages')}
-                  </Dots>
+                  <Dots key={`dots-${index}`}>{t('tokens.pagination.more', 'More pages')}</Dots>
                 ) : (
                   <PageLink
                     key={item}

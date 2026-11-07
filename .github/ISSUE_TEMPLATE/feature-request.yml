@@ -7,9 +7,9 @@ body:
     attributes:
       value: |
         ## Thanks for suggesting a feature!
-        
+
         Please describe your idea in detail below.
-        
+
   - type: dropdown
     id: feature-area
     attributes:
@@ -31,7 +31,7 @@ body:
         - Other
     validations:
       required: true
-      
+
   - type: textarea
     id: problem
     attributes:
@@ -39,7 +39,7 @@ body:
       description: What problem does this feature solve?
     validations:
       required: true
-      
+
   - type: textarea
     id: solution
     attributes:
@@ -47,7 +47,7 @@ body:
       description: How would you like to see this implemented?
     validations:
       required: true
-      
+
   - type: textarea
     id: alternatives
     attributes:
@@ -55,7 +55,7 @@ body:
       description: Have you considered any alternatives?
     validations:
       required: false
-      
+
   - type: textarea
     id: example
     attributes:
@@ -63,7 +63,7 @@ body:
       description: Provide examples, mockups, or code snippets
     validations:
       required: false
-      
+
   - type: checkboxes
     id: terms
     attributes:

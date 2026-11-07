@@ -32,10 +32,13 @@ const matches = (row, where = {}) =>
       if ('$gt' in condition) return new Date(value).getTime() > new Date(condition.$gt).getTime();
       if ('$lt' in condition) return new Date(value).getTime() < new Date(condition.$lt).getTime();
       if ('$null' in condition) return (value === null || value === undefined) === condition.$null;
-      if ('$notNull' in condition) return (value !== null && value !== undefined) === condition.$notNull;
+      if ('$notNull' in condition)
+        return (value !== null && value !== undefined) === condition.$notNull;
       if ('$in' in condition) return condition.$in.includes(value);
       if ('$containsi' in condition) {
-        return String(value || '').toLowerCase().includes(String(condition.$containsi).toLowerCase());
+        return String(value || '')
+          .toLowerCase()
+          .includes(String(condition.$containsi).toLowerCase());
       }
       throw new Error(`Unsupported operator in ${JSON.stringify(condition)}`);
     }
@@ -111,7 +114,13 @@ const createTable = (rows = []) => {
  * @param {object} [options] - { settings, otpCodes, totpConfigs, adminUsers, upUsers }.
  * @returns {object} { strapi, tables, mails, logs }.
  */
-const createMfaStrapi = ({ settings = {}, otpCodes = [], totpConfigs = [], adminUsers = [], upUsers = [] } = {}) => {
+const createMfaStrapi = ({
+  settings = {},
+  otpCodes = [],
+  totpConfigs = [],
+  adminUsers = [],
+  upUsers = [],
+} = {}) => {
   const tables = {
     'plugin::magic-link.otp-code': createTable(otpCodes),
     'plugin::magic-link.totp-config': createTable(totpConfigs),
@@ -141,7 +150,10 @@ const createMfaStrapi = ({ settings = {}, otpCodes = [], totpConfigs = [], admin
       return undefined;
     },
     log: Object.fromEntries(
-      ['debug', 'info', 'warn', 'error'].map((level) => [level, (...parts) => logs.push(parts.map(String).join(' '))])
+      ['debug', 'info', 'warn', 'error'].map((level) => [
+        level,
+        (...parts) => logs.push(parts.map(String).join(' ')),
+      ])
     ),
   };
   global.strapi = strapi;

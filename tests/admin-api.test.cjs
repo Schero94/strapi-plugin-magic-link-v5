@@ -16,7 +16,11 @@ const createRateLimiter = require('../server/src/services/rate-limiter');
 const { normalizeLimiterIdentifier } = require('../server/src/services/rate-limiter');
 const sessionStore = require('../server/src/utils/jwt-session-store');
 const cryptoUtils = require('../server/src/utils/crypto');
-const { settingsUpdateSchema, parseBody, licenseStoreKeySchema } = require('../server/src/controllers/validation');
+const {
+  settingsUpdateSchema,
+  parseBody,
+  licenseStoreKeySchema,
+} = require('../server/src/controllers/validation');
 const lifecycle = require('../server/src/utils/lifecycle');
 
 const silentLog = { debug() {}, info() {}, warn() {}, error() {} };
@@ -62,7 +66,10 @@ test('IPv4-mapped IPv6 addresses normalise to IPv4 and IPv6 rate-limit keys use 
   assert.equal(ipRateLimitKey('2001:db8::1'), '2001:db8:0:0::/64');
   assert.equal(ipRateLimitKey('garbage'), 'unknown');
 
-  assert.equal(normalizeLimiterIdentifier('ip:totp-setup:2001:db8:1:2::5'), 'ip:totp-setup:2001:db8:1:2::/64');
+  assert.equal(
+    normalizeLimiterIdentifier('ip:totp-setup:2001:db8:1:2::5'),
+    'ip:totp-setup:2001:db8:1:2::/64'
+  );
   assert.equal(normalizeLimiterIdentifier('::ffff:198.51.100.7'), '198.51.100.7');
   assert.equal(normalizeLimiterIdentifier('user:totp:7'), 'user:totp:7');
 });
@@ -78,35 +85,73 @@ const limiterFor = (settings, config = {}) => {
       log: silentLog,
     },
   });
-  return { service, setSettings: (next) => { current = next; } };
+  return {
+    service,
+    setSettings: (next) => {
+      current = next;
+    },
+  };
 };
 
 test('rotating IPv6 addresses inside one /64 shares one rate-limit bucket', async () => {
-  const { service } = limiterFor({ rate_limit_enabled: true, rate_limit_max_attempts: 2, rate_limit_window_minutes: 5 });
+  const { service } = limiterFor({
+    rate_limit_enabled: true,
+    rate_limit_max_attempts: 2,
+    rate_limit_window_minutes: 5,
+  });
 
   assert.equal((await service.checkRateLimit('2001:db8:5:6::1', 'ip')).allowed, true);
   assert.equal((await service.checkRateLimit('2001:db8:5:6::2', 'ip')).allowed, true);
   assert.equal((await service.checkRateLimit('2001:db8:5:6:abcd::9', 'ip')).allowed, false);
-  assert.equal((await service.checkRateLimit('2001:db8:5:7::1', 'ip')).allowed, true, 'another /64 is separate');
+  assert.equal(
+    (await service.checkRateLimit('2001:db8:5:7::1', 'ip')).allowed,
+    true,
+    'another /64 is separate'
+  );
 });
 
 test('saving unrelated settings keeps counters; changed limits rebuild the limiters', async () => {
-  const { service, setSettings } = limiterFor({ rate_limit_enabled: true, rate_limit_max_attempts: 1, rate_limit_window_minutes: 5 });
+  const { service, setSettings } = limiterFor({
+    rate_limit_enabled: true,
+    rate_limit_max_attempts: 1,
+    rate_limit_window_minutes: 5,
+  });
 
   assert.equal((await service.checkRateLimit('198.51.100.1', 'ip')).allowed, true);
   assert.equal((await service.checkRateLimit('198.51.100.1', 'ip')).allowed, false);
 
-  setSettings({ rate_limit_enabled: true, rate_limit_max_attempts: 1, rate_limit_window_minutes: 5, from_name: 'x' });
+  setSettings({
+    rate_limit_enabled: true,
+    rate_limit_max_attempts: 1,
+    rate_limit_window_minutes: 5,
+    from_name: 'x',
+  });
   await service.reloadSettings();
-  assert.equal((await service.checkRateLimit('198.51.100.1', 'ip')).allowed, false, 'counter survives a save');
+  assert.equal(
+    (await service.checkRateLimit('198.51.100.1', 'ip')).allowed,
+    false,
+    'counter survives a save'
+  );
 
-  setSettings({ rate_limit_enabled: true, rate_limit_max_attempts: 3, rate_limit_window_minutes: 5 });
+  setSettings({
+    rate_limit_enabled: true,
+    rate_limit_max_attempts: 3,
+    rate_limit_window_minutes: 5,
+  });
   await service.reloadSettings();
-  assert.equal((await service.checkRateLimit('198.51.100.1', 'ip')).allowed, true, 'new limits apply');
+  assert.equal(
+    (await service.checkRateLimit('198.51.100.1', 'ip')).allowed,
+    true,
+    'new limits apply'
+  );
 });
 
 test('rate-limit stats report real rejections and admin limits stay on when public limits are off', async () => {
-  const { service } = limiterFor({ rate_limit_enabled: true, rate_limit_max_attempts: 1, rate_limit_window_minutes: 5 });
+  const { service } = limiterFor({
+    rate_limit_enabled: true,
+    rate_limit_max_attempts: 1,
+    rate_limit_window_minutes: 5,
+  });
   await service.checkRateLimit('198.51.100.2', 'email');
   await service.checkRateLimit('198.51.100.2', 'email');
   const stats = await service.getStats();
@@ -123,9 +168,19 @@ test('rate-limit stats report real rejections and admin limits stay on when publ
 
 test('the rate limiter fails closed when its settings cannot be read', async () => {
   const service = createRateLimiter({
-    strapi: { store: () => ({ get: async () => { throw new Error('db down'); } }), log: silentLog },
+    strapi: {
+      store: () => ({
+        get: async () => {
+          throw new Error('db down');
+        },
+      }),
+      log: silentLog,
+    },
   });
-  assert.deepEqual(await service.checkRateLimit('198.51.100.4', 'ip'), { allowed: false, retryAfter: 60 });
+  assert.deepEqual(await service.checkRateLimit('198.51.100.4', 'ip'), {
+    allowed: false,
+    retryAfter: 60,
+  });
 });
 
 // ─────────────────────── JWT session store ───────────────────────
@@ -138,7 +193,11 @@ test('concurrent session appends are serialised and none is lost', async () => {
 
   await Promise.all(
     Array.from({ length: 25 }, (_, index) =>
-      sessionStore.appendJwtSession(strapi, { id: `s${index}`, jwtTokenHash: `h${index}`, expiresAt: futureIso() })
+      sessionStore.appendJwtSession(strapi, {
+        id: `s${index}`,
+        jwtTokenHash: `h${index}`,
+        expiresAt: futureIso(),
+      })
     )
   );
 
@@ -151,7 +210,11 @@ test('session store writes drop plaintext legacy JWTs and long-expired records',
     jwt_sessions: {
       sessions: [
         { id: 'legacy', jwtToken: legacyJwt, expiresAt: futureIso() },
-        { id: 'old', jwtTokenHash: 'x', expiresAt: new Date(Date.now() - sessionStore.RETENTION_MS - 1000).toISOString() },
+        {
+          id: 'old',
+          jwtTokenHash: 'x',
+          expiresAt: new Date(Date.now() - sessionStore.RETENTION_MS - 1000).toISOString(),
+        },
       ],
     },
   });
@@ -159,7 +222,10 @@ test('session store writes drop plaintext legacy JWTs and long-expired records',
   await sessionStore.updateJwtSessions({ store, log: silentLog }, (sessions) => sessions);
 
   const sessions = values.get('jwt_sessions').sessions;
-  assert.deepEqual(sessions.map((session) => session.id), ['legacy']);
+  assert.deepEqual(
+    sessions.map((session) => session.id),
+    ['legacy']
+  );
   assert.equal('jwtToken' in sessions[0], false);
   assert.equal(sessions[0].jwtTokenHash, cryptoUtils.hashJwt(legacyJwt));
   assert.equal(JSON.stringify(values.get('jwt_sessions')).includes(legacyJwt), false);
@@ -180,17 +246,38 @@ const jwtStrapi = (sessions, magicLink) => {
 const ctxFor = (body, adminId = 42) => ({
   request: { body },
   state: { user: { id: adminId } },
-  send(payload) { this.response = payload; return payload; },
-  notFound(message) { this.response = { status: 404, message }; return this.response; },
-  badRequest(message) { this.response = { status: 400, message }; return this.response; },
-  throw(status, message) { const error = new Error(String(message || status)); error.status = status; throw error; },
+  send(payload) {
+    this.response = payload;
+    return payload;
+  },
+  notFound(message) {
+    this.response = { status: 404, message };
+    return this.response;
+  },
+  badRequest(message) {
+    this.response = { status: 400, message };
+    return this.response;
+  },
+  throw(status, message) {
+    const error = new Error(String(message || status));
+    error.status = status;
+    throw error;
+  },
 });
 
 test('revoking a session blocks its hash until the token expiry and records the acting admin', async () => {
   const expiresAt = futureIso(3_600_000);
   const calls = [];
-  const magicLink = { blockJwtTokenByHash: async (...args) => { calls.push(args); return { success: true }; } };
-  const { strapi, values } = jwtStrapi([{ id: 's1', userId: 9, jwtTokenHash: 'hash-1', expiresAt }], magicLink);
+  const magicLink = {
+    blockJwtTokenByHash: async (...args) => {
+      calls.push(args);
+      return { success: true };
+    },
+  };
+  const { strapi, values } = jwtStrapi(
+    [{ id: 's1', userId: 9, jwtTokenHash: 'hash-1', expiresAt }],
+    magicLink
+  );
 
   await withGlobalStrapi(strapi, async () => {
     const ctx = ctxFor({ sessionId: 's1', userId: 'attacker-chosen' });
@@ -207,24 +294,41 @@ test('revoking a session blocks its hash until the token expiry and records the 
 test('revoking by raw token ignores a client-supplied user id', async () => {
   const jwt = 'synthetic.header.payload';
   const calls = [];
-  const magicLink = { blockJwtToken: async (...args) => { calls.push(args); return { success: true }; } };
+  const magicLink = {
+    blockJwtToken: async (...args) => {
+      calls.push(args);
+      return { success: true };
+    },
+  };
   const { strapi, values } = jwtStrapi(
     [{ id: 's2', userId: 11, jwtTokenHash: cryptoUtils.hashJwt(jwt), expiresAt: futureIso() }],
     magicLink
   );
 
-  await withGlobalStrapi(strapi, () => jwtController.revokeToken(ctxFor({ token: jwt, userId: 999 })));
+  await withGlobalStrapi(strapi, () =>
+    jwtController.revokeToken(ctxFor({ token: jwt, userId: 999 }))
+  );
 
   assert.equal(calls[0][1], 11);
   assert.equal(values.get('jwt_sessions').sessions[0].isRevoked, true);
 });
 
 test('revocation is not shown as done when the blocklist write fails', async () => {
-  const magicLink = { blockJwtTokenByHash: async () => { throw new Error('store down'); } };
-  const { strapi, values } = jwtStrapi([{ id: 's3', userId: 1, jwtTokenHash: 'h', expiresAt: futureIso() }], magicLink);
+  const magicLink = {
+    blockJwtTokenByHash: async () => {
+      throw new Error('store down');
+    },
+  };
+  const { strapi, values } = jwtStrapi(
+    [{ id: 's3', userId: 1, jwtTokenHash: 'h', expiresAt: futureIso() }],
+    magicLink
+  );
 
   await withGlobalStrapi(strapi, async () => {
-    await assert.rejects(jwtController.revokeToken(ctxFor({ sessionId: 's3' })), (error) => error.status === 500);
+    await assert.rejects(
+      jwtController.revokeToken(ctxFor({ sessionId: 's3' })),
+      (error) => error.status === 500
+    );
   });
   assert.notEqual(values.get('jwt_sessions').sessions[0].isRevoked, true);
 });
@@ -232,15 +336,31 @@ test('revocation is not shown as done when the blocklist write fails', async () 
 test('revoke requires exactly one of sessionId or token', async () => {
   await withGlobalStrapi(jwtStrapi([], {}).strapi, async () => {
     await assert.rejects(jwtController.revokeToken(ctxFor({})), errors.ValidationError);
-    await assert.rejects(jwtController.revokeToken(ctxFor({ sessionId: 'a', token: 'b.c.d.e.f.g' })), errors.ValidationError);
+    await assert.rejects(
+      jwtController.revokeToken(ctxFor({ sessionId: 'a', token: 'b.c.d.e.f.g' })),
+      errors.ValidationError
+    );
   });
 });
 
 test('refresh-mode sessions cannot be restored after revocation', async () => {
   let unblocked = false;
-  const magicLink = { unblockJwtTokenByHash: async () => { unblocked = true; } };
+  const magicLink = {
+    unblockJwtTokenByHash: async () => {
+      unblocked = true;
+    },
+  };
   const { strapi } = jwtStrapi(
-    [{ id: 's4', userId: 1, jwtTokenHash: 'h', upSessionId: 'up-1', isRevoked: true, expiresAt: futureIso() }],
+    [
+      {
+        id: 's4',
+        userId: 1,
+        jwtTokenHash: 'h',
+        upSessionId: 'up-1',
+        isRevoked: true,
+        expiresAt: futureIso(),
+      },
+    ],
     magicLink
   );
 
@@ -263,15 +383,24 @@ test('parallel revocations of different sessions are both persisted', async () =
   );
 
   await withGlobalStrapi(strapi, () =>
-    Promise.all([jwtController.revokeToken(ctxFor({ sessionId: 'a' })), jwtController.revokeToken(ctxFor({ sessionId: 'b' }))])
+    Promise.all([
+      jwtController.revokeToken(ctxFor({ sessionId: 'a' })),
+      jwtController.revokeToken(ctxFor({ sessionId: 'b' })),
+    ])
   );
 
-  assert.deepEqual(values.get('jwt_sessions').sessions.map((session) => session.isRevoked), [true, true]);
+  assert.deepEqual(
+    values.get('jwt_sessions').sessions.map((session) => session.isRevoked),
+    [true, true]
+  );
 });
 
 test('the session list never returns plaintext JWTs', async () => {
   const legacyJwt = 'synthetic.legacy.visible';
-  const { strapi } = jwtStrapi([{ id: 'l', userId: 1, jwtToken: legacyJwt, expiresAt: futureIso() }], {});
+  const { strapi } = jwtStrapi(
+    [{ id: 'l', userId: 1, jwtToken: legacyJwt, expiresAt: futureIso() }],
+    {}
+  );
   await withGlobalStrapi(strapi, async () => {
     const ctx = ctxFor({});
     await jwtController.getSessions(ctx);
@@ -315,23 +444,36 @@ const tokenStrapi = ({ settings = {}, users = [], sendFails = false, tokenRow } 
     },
   };
   const limiter = {
-    checkRateLimit: async (key, type) => { limiterKeys.push([key, type]); return { allowed: true, retryAfter: 0 }; },
+    checkRateLimit: async (key, type) => {
+      limiterKeys.push([key, type]);
+      return { allowed: true, retryAfter: 0 };
+    },
   };
   const { store } = createStore({ banned_ips: { ips: ['203.0.113.9'] } });
   const strapi = {
     store,
-    config: { get: (key, fallback) => (key === 'server.url' ? 'https://api.example.test' : fallback) },
+    config: {
+      get: (key, fallback) => (key === 'server.url' ? 'https://api.example.test' : fallback),
+    },
     plugin: () => ({ service: (name) => (name === 'rate-limiter' ? limiter : magicLink) }),
     db: {
       query: (uid) => ({
         findMany: async () => (uid === 'plugin::users-permissions.user' ? users : []),
         findOne: async () => tokenRow || null,
-        update: async ({ where, data }) => { updates.push({ where, data }); return { ...(tokenRow || {}), ...data }; },
+        update: async ({ where, data }) => {
+          updates.push({ where, data });
+          return { ...(tokenRow || {}), ...data };
+        },
         delete: async () => ({}),
         count: async () => 0,
       }),
     },
-    log: Object.fromEntries(['debug', 'info', 'warn', 'error'].map((level) => [level, (message) => logs.push(String(message))])),
+    log: Object.fromEntries(
+      ['debug', 'info', 'warn', 'error'].map((level) => [
+        level,
+        (message) => logs.push(String(message)),
+      ])
+    ),
   };
   return { strapi, logs, updates, sent, limiterKeys, created };
 };
@@ -340,13 +482,29 @@ const adminCtx = ({ body, params, canIssue = false } = {}) => ({
   request: { body },
   params,
   query: {},
-  state: { user: { id: 3 }, userAbility: { can: (action) => canIssue && action === 'plugin::magic-link.tokens.issue' } },
+  state: {
+    user: { id: 3 },
+    userAbility: { can: (action) => canIssue && action === 'plugin::magic-link.tokens.issue' },
+  },
   headers: {},
-  set(name, value) { this.headers[name] = value; },
-  send(payload) { this.response = payload; return payload; },
-  notFound(message) { return { status: 404, message }; },
-  badRequest(message) { return { status: 400, message }; },
-  throw(status, message) { const error = new Error(String(message || status)); error.status = status; throw error; },
+  set(name, value) {
+    this.headers[name] = value;
+  },
+  send(payload) {
+    this.response = payload;
+    return payload;
+  },
+  notFound(message) {
+    return { status: 404, message };
+  },
+  badRequest(message) {
+    return { status: 400, message };
+  },
+  throw(status, message) {
+    const error = new Error(String(message || status));
+    error.status = status;
+    throw error;
+  },
 });
 
 const existingUser = { id: 1, email: 'user@example.test', username: 'user', blocked: false };
@@ -355,7 +513,9 @@ test('returning a login link without e-mail requires the tokens.issue permission
   const mock = tokenStrapi({ users: [existingUser] });
   await withGlobalStrapi(mock.strapi, async () => {
     await assert.rejects(
-      tokensController.create(adminCtx({ body: { email: 'user@example.test', send_email: false } })),
+      tokensController.create(
+        adminCtx({ body: { email: 'user@example.test', send_email: false } })
+      ),
       errors.ForbiddenError
     );
   });
@@ -364,11 +524,16 @@ test('returning a login link without e-mail requires the tokens.issue permission
 
 test('an admin with tokens.issue gets the link once, and the audit log names no e-mail or token', async () => {
   const mock = tokenStrapi({ users: [existingUser] });
-  const ctx = adminCtx({ body: { email: 'USER@example.test', send_email: false, ttl: 2 }, canIssue: true });
+  const ctx = adminCtx({
+    body: { email: 'USER@example.test', send_email: false, ttl: 2 },
+    canIssue: true,
+  });
   const result = await withGlobalStrapi(mock.strapi, () => tokensController.create(ctx));
 
   assert.equal(result.token, 'PLAINTEXT-SYNTHETIC-TOKEN-VALUE-0001');
-  assert.ok(result.loginUrl.startsWith('https://api.example.test/api/magic-link/login?loginToken='));
+  assert.ok(
+    result.loginUrl.startsWith('https://api.example.test/api/magic-link/login?loginToken=')
+  );
   assert.equal(result.sent, false);
   assert.equal(ctx.headers['Cache-Control'], 'no-store');
   assert.equal(mock.created[0].email, 'user@example.test');
@@ -379,13 +544,19 @@ test('an admin with tokens.issue gets the link once, and the audit log names no 
   assert.match(logText, /Admin 3 issued login token doc5 \(delivery: direct\)/);
   assert.equal(logText.includes('user@example.test'), false);
   assert.equal(logText.includes('PLAINTEXT-SYNTHETIC'), false);
-  assert.deepEqual(mock.limiterKeys, [['admin:3', 'admin']], 'admin creation uses its own bucket, not the public IP bucket');
+  assert.deepEqual(
+    mock.limiterKeys,
+    [['admin:3', 'admin']],
+    'admin creation uses its own bucket, not the public IP bucket'
+  );
 });
 
 test('e-mailed admin links never return the plaintext token', async () => {
   const mock = tokenStrapi({ users: [existingUser] });
   const result = await withGlobalStrapi(mock.strapi, () =>
-    tokensController.create(adminCtx({ body: { email: 'user@example.test', context: '{"redirectTo":"/app"}' } }))
+    tokensController.create(
+      adminCtx({ body: { email: 'user@example.test', context: '{"redirectTo":"/app"}' } })
+    )
   );
 
   assert.equal(result.sent, true);
@@ -393,7 +564,11 @@ test('e-mailed admin links never return the plaintext token', async () => {
   assert.equal(result.loginUrl, undefined);
   assert.equal(JSON.stringify(result).includes('PLAINTEXT-SYNTHETIC'), false);
   assert.equal(mock.sent.length, 1);
-  assert.deepEqual(mock.created[0].context, { redirectTo: '/app' }, 'JSON-string context from 5.x clients is parsed');
+  assert.deepEqual(
+    mock.created[0].context,
+    { redirectTo: '/app' },
+    'JSON-string context from 5.x clients is parsed'
+  );
 });
 
 test('a failed admin e-mail deactivates the new token and reports 503', async () => {
@@ -412,26 +587,47 @@ test('admin token creation validates input and respects user auto-creation', asy
   await withGlobalStrapi(noUser.strapi, async () => {
     const result = await tokensController.create(adminCtx({ body: { email: 'new@example.test' } }));
     assert.equal(result.status, 400);
-    await assert.rejects(tokensController.create(adminCtx({ body: { email: { $ne: '' } } })), errors.ValidationError);
     await assert.rejects(
-      tokensController.create(adminCtx({ body: { email: 'user@example.test', context: { requiresTOTP: false } } })),
+      tokensController.create(adminCtx({ body: { email: { $ne: '' } } })),
       errors.ValidationError
     );
-    await assert.rejects(tokensController.create(adminCtx({ body: { email: 'user@example.test', ttl: 0 } })), errors.ValidationError);
-    await assert.rejects(tokensController.create(adminCtx({ body: { email: 'user@example.test', ttl: 721 } })), errors.ValidationError);
+    await assert.rejects(
+      tokensController.create(
+        adminCtx({ body: { email: 'user@example.test', context: { requiresTOTP: false } } })
+      ),
+      errors.ValidationError
+    );
+    await assert.rejects(
+      tokensController.create(adminCtx({ body: { email: 'user@example.test', ttl: 0 } })),
+      errors.ValidationError
+    );
+    await assert.rejects(
+      tokensController.create(adminCtx({ body: { email: 'user@example.test', ttl: 721 } })),
+      errors.ValidationError
+    );
   });
 
   const blocked = tokenStrapi({ users: [{ ...existingUser, blocked: true }] });
   await withGlobalStrapi(blocked.strapi, async () => {
-    const result = await tokensController.create(adminCtx({ body: { email: 'user@example.test' } }));
+    const result = await tokensController.create(
+      adminCtx({ body: { email: 'user@example.test' } })
+    );
     assert.equal(result.status, 400);
   });
 });
 
 test('token list responses never include the hash, salt, lookup prefix or challenge', async () => {
   const row = {
-    id: 1, documentId: 'd1', email: 'user@example.test', token: 'HASH', token_salt: 'SALT', token_prefix: 'PREFIX12',
-    challenge: { type: 'totp' }, is_active: 1, is_used: 0, expires_at: futureIso(),
+    id: 1,
+    documentId: 'd1',
+    email: 'user@example.test',
+    token: 'HASH',
+    token_salt: 'SALT',
+    token_prefix: 'PREFIX12',
+    challenge: { type: 'totp' },
+    is_active: 1,
+    is_used: 0,
+    expires_at: futureIso(),
   };
   const strapi = {
     db: { query: () => ({ findMany: async () => [row], count: async () => 1 }) },
@@ -439,13 +635,20 @@ test('token list responses never include the hash, salt, lookup prefix or challe
   };
   const result = await withGlobalStrapi(strapi, () => tokensController.find(adminCtx({})));
   const text = JSON.stringify(result);
-  for (const secret of ['HASH', 'SALT', 'PREFIX12', 'totp']) assert.equal(text.includes(secret), false, secret);
+  for (const secret of ['HASH', 'SALT', 'PREFIX12', 'totp'])
+    assert.equal(text.includes(secret), false, secret);
   assert.equal(result.data[0].is_active, true);
   assert.equal(result.meta.pagination.total, 1);
 });
 
 test('activate refuses used, expired, completed and banned-IP links', async () => {
-  const base = { id: 7, documentId: 'd7', is_active: false, is_used: false, expires_at: futureIso() };
+  const base = {
+    id: 7,
+    documentId: 'd7',
+    is_active: false,
+    is_used: false,
+    expires_at: futureIso(),
+  };
   const cases = [
     [{ ...base, is_used: true }, /single-use/],
     [{ ...base, expires_at: new Date(Date.now() - 1000).toISOString() }, /Expired/],
@@ -469,7 +672,13 @@ test('activate refuses used, expired, completed and banned-IP links', async () =
 });
 
 test('extend accepts 1-365 days and rejects zero, negative and used single-use links', async () => {
-  const tokenRow = { id: 8, documentId: 'd8', is_active: true, is_used: false, expires_at: futureIso() };
+  const tokenRow = {
+    id: 8,
+    documentId: 'd8',
+    is_active: true,
+    is_used: false,
+    expires_at: futureIso(),
+  };
   const mock = tokenStrapi({ tokenRow });
   await withGlobalStrapi(mock.strapi, async () => {
     for (const days of [0, -3, 366, 'abc']) {
@@ -486,7 +695,9 @@ test('extend accepts 1-365 days and rejects zero, negative and used single-use l
 
   const used = tokenStrapi({ tokenRow: { ...tokenRow, is_used: true } });
   await withGlobalStrapi(used.strapi, async () => {
-    const result = await tokensController.extend(adminCtx({ params: { id: 'd8' }, body: { days: 2 } }));
+    const result = await tokensController.extend(
+      adminCtx({ params: { id: 'd8' }, body: { days: 2 } })
+    );
     assert.equal(result.status, 400);
   });
 });
@@ -494,7 +705,10 @@ test('extend accepts 1-365 days and rejects zero, negative and used single-use l
 test('token id parameters reject operator and path payloads', async () => {
   const mock = tokenStrapi({});
   await withGlobalStrapi(mock.strapi, async () => {
-    await assert.rejects(tokensController.block(adminCtx({ params: { id: '../x' } })), errors.ValidationError);
+    await assert.rejects(
+      tokensController.block(adminCtx({ params: { id: '../x' } })),
+      errors.ValidationError
+    );
     await assert.rejects(tokensController.delete(adminCtx({ params: {} })), errors.ValidationError);
   });
 });
@@ -503,38 +717,56 @@ test('token id parameters reject operator and path payloads', async () => {
 
 test('settings URL fields only accept https (http only for localhost) without credentials', () => {
   const parse = (body) => parseBody(settingsUpdateSchema, body);
-  assert.deepEqual(parse({ frontend_url: 'https://app.example.test' }), { frontend_url: 'https://app.example.test' });
-  assert.deepEqual(parse({ confirmationUrl: 'http://localhost:3000/login' }), { confirmationUrl: 'http://localhost:3000/login' });
-  for (const value of ['http://evil.example', 'javascript:alert(1)', 'https://user:pw@example.test', 'ftp://example.test']) {
+  assert.deepEqual(parse({ frontend_url: 'https://app.example.test' }), {
+    frontend_url: 'https://app.example.test',
+  });
+  assert.deepEqual(parse({ confirmationUrl: 'http://localhost:3000/login' }), {
+    confirmationUrl: 'http://localhost:3000/login',
+  });
+  for (const value of [
+    'http://evil.example',
+    'javascript:alert(1)',
+    'https://user:pw@example.test',
+    'ftp://example.test',
+  ]) {
     assert.throws(() => parse({ confirmationUrl: value }), errors.ValidationError, value);
     assert.throws(() => parse({ frontend_url: value }), errors.ValidationError, value);
   }
 });
 
 test('settings updates drop unknown keys and keep known ones', () => {
-  const parsed = parseBody(settingsUpdateSchema, { settings: { create_new_user: true, otp_length: 6, whatever: 1 } });
+  const parsed = parseBody(settingsUpdateSchema, {
+    settings: { create_new_user: true, otp_length: 6, whatever: 1 },
+  });
   assert.deepEqual(parsed, { otp_length: 6 });
 });
 
 test('license store-key rejects malformed keys before any network call', () => {
-  assert.throws(() => parseBody(licenseStoreKeySchema, { licenseKey: '../../x?y', email: 'a@example.test' }), errors.ValidationError);
-  assert.deepEqual(parseBody(licenseStoreKeySchema, { licenseKey: 'ABCD-1234-EFGH', email: 'A@Example.test' }), {
-    licenseKey: 'ABCD-1234-EFGH',
-    email: 'a@example.test',
-  });
+  assert.throws(
+    () => parseBody(licenseStoreKeySchema, { licenseKey: '../../x?y', email: 'a@example.test' }),
+    errors.ValidationError
+  );
+  assert.deepEqual(
+    parseBody(licenseStoreKeySchema, { licenseKey: 'ABCD-1234-EFGH', email: 'A@Example.test' }),
+    {
+      licenseKey: 'ABCD-1234-EFGH',
+      email: 'a@example.test',
+    }
+  );
 });
 
 // ─────────────────────── Lifecycle ───────────────────────
 
 test('RBAC actions are read, manage, tokens.issue and settings read/update, all with a subCategory', () => {
-  assert.deepEqual(lifecycle.RBAC_ACTIONS.map((action) => action.uid), [
-    'read',
-    'manage',
-    'tokens.issue',
-    'settings.read',
-    'settings.update',
-  ]);
-  assert.ok(lifecycle.RBAC_ACTIONS.every((action) => action.subCategory && action.pluginName === 'magic-link'));
+  assert.deepEqual(
+    lifecycle.RBAC_ACTIONS.map((action) => action.uid),
+    ['read', 'manage', 'tokens.issue', 'settings.read', 'settings.update']
+  );
+  assert.ok(
+    lifecycle.RBAC_ACTIONS.every(
+      (action) => action.subCategory && action.pluginName === 'magic-link'
+    )
+  );
 });
 
 test('roles with the 5.x access permission get read + manage, never tokens.issue', async () => {
@@ -549,11 +781,20 @@ test('roles with the 5.x access permission get read + manage, never tokens.issue
     db: {
       query: () => ({
         findMany: async ({ where }) => {
-          if (where.action === 'plugin::magic-link.access') return rows.filter((row) => row.action === where.action);
-          return rows.filter((row) => where.action.$in.includes(row.action) && row.role?.id === where.role.id);
+          if (where.action === 'plugin::magic-link.access')
+            return rows.filter((row) => row.action === where.action);
+          return rows.filter(
+            (row) => where.action.$in.includes(row.action) && row.role?.id === where.role.id
+          );
         },
-        create: async ({ data }) => { created.push(data); return data; },
-        deleteMany: async ({ where }) => { deletedWhere = where; return { count: 2 }; },
+        create: async ({ data }) => {
+          created.push(data);
+          return data;
+        },
+        deleteMany: async ({ where }) => {
+          deletedWhere = where;
+          return { count: 2 };
+        },
       }),
     },
   };
@@ -561,10 +802,11 @@ test('roles with the 5.x access permission get read + manage, never tokens.issue
   const result = await lifecycle.migrateLegacyAccessPermission(strapi);
 
   assert.equal(result.roles, 2);
-  assert.deepEqual(
-    created.map((data) => `${data.role}:${data.action}`).sort(),
-    ['10:plugin::magic-link.manage', '10:plugin::magic-link.read', '11:plugin::magic-link.manage']
-  );
+  assert.deepEqual(created.map((data) => `${data.role}:${data.action}`).sort(), [
+    '10:plugin::magic-link.manage',
+    '10:plugin::magic-link.read',
+    '11:plugin::magic-link.manage',
+  ]);
   assert.deepEqual(deletedWhere, { action: 'plugin::magic-link.access' });
   assert.ok(created.every((data) => data.action !== 'plugin::magic-link.tokens.issue'));
 });
@@ -572,8 +814,22 @@ test('roles with the 5.x access permission get read + manage, never tokens.issue
 test('destroy clears every background timer started by bootstrap', async () => {
   const strapi = { log: silentLog, plugin: () => ({ service: () => ({ cleanup() {} }) }) };
   let ran = 0;
-  lifecycle.runLater(strapi, 20, async () => { ran += 1; }, () => {});
-  lifecycle.runEvery(strapi, 20, async () => { ran += 1; }, () => {});
+  lifecycle.runLater(
+    strapi,
+    20,
+    async () => {
+      ran += 1;
+    },
+    () => {}
+  );
+  lifecycle.runEvery(
+    strapi,
+    20,
+    async () => {
+      ran += 1;
+    },
+    () => {}
+  );
 
   require('../server/src/destroy')({ strapi });
   await new Promise((resolve) => setTimeout(resolve, 60));
@@ -583,7 +839,16 @@ test('destroy clears every background timer started by bootstrap', async () => {
 test('failing background jobs are handled instead of becoming unhandled rejections', async () => {
   const strapi = { log: silentLog };
   let handled = false;
-  lifecycle.runLater(strapi, 1, async () => { throw new Error('synthetic job failure'); }, () => { handled = true; });
+  lifecycle.runLater(
+    strapi,
+    1,
+    async () => {
+      throw new Error('synthetic job failure');
+    },
+    () => {
+      handled = true;
+    }
+  );
   await new Promise((resolve) => setTimeout(resolve, 20));
   assert.equal(handled, true);
   lifecycle.clearTrackedTimers(strapi);
@@ -596,7 +861,12 @@ test('a proxy configuration that trusts any X-Forwarded-For entry is reported', 
     log: { warn: (message) => warnings.push(message) },
   });
   assert.equal(lifecycle.warnOnUnsafeProxyConfig(make({ 'server.proxy.koa': true })), true);
-  assert.equal(lifecycle.warnOnUnsafeProxyConfig(make({ 'server.proxy.koa': true, 'server.proxy.maxIpsCount': 1 })), false);
+  assert.equal(
+    lifecycle.warnOnUnsafeProxyConfig(
+      make({ 'server.proxy.koa': true, 'server.proxy.maxIpsCount': 1 })
+    ),
+    false
+  );
   assert.equal(lifecycle.warnOnUnsafeProxyConfig(make({})), false);
   assert.equal(warnings.length, 1);
 });

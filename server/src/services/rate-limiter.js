@@ -48,7 +48,8 @@ const normalizeLimiterIdentifier = (identifier) => {
   return value;
 };
 
-const positive = (value, fallback) => (Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : fallback);
+const positive = (value, fallback) =>
+  Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : fallback;
 
 module.exports = ({ strapi }) => {
   let limiters = null;
@@ -129,12 +130,22 @@ module.exports = ({ strapi }) => {
         duration: s.loginWindowMinutes * 60,
         blockDuration: s.loginBlockMinutes * 60,
       }),
-      admin: createLimiter({ keyPrefix: 'ml_admin', points: ADMIN_POINTS, duration: ADMIN_WINDOW_SECONDS }),
+      admin: createLimiter({
+        keyPrefix: 'ml_admin',
+        points: ADMIN_POINTS,
+        duration: ADMIN_WINDOW_SECONDS,
+      }),
     };
   }
 
   const signatureOf = (s) =>
-    [s.maxAttempts, s.windowMinutes, s.loginMaxAttempts, s.loginWindowMinutes, s.loginBlockMinutes].join('|');
+    [
+      s.maxAttempts,
+      s.windowMinutes,
+      s.loginMaxAttempts,
+      s.loginWindowMinutes,
+      s.loginBlockMinutes,
+    ].join('|');
 
   /**
    * Returns the current limiters, building them on first use or when the
@@ -185,7 +196,9 @@ module.exports = ({ strapi }) => {
         }
         stats.blocked[limiterType] += 1;
         const retryAfter = Math.ceil(rlRejected.msBeforeNext / 1000) || 1;
-        strapi.log.warn(`[magic-link] Rate limit reached for ${limiterType} requests (retry in ${retryAfter}s)`);
+        strapi.log.warn(
+          `[magic-link] Rate limit reached for ${limiterType} requests (retry in ${retryAfter}s)`
+        );
         return { allowed: false, retryAfter };
       }
     },
@@ -245,7 +258,9 @@ module.exports = ({ strapi }) => {
         totalEntries: blockedTotal,
         ipLimits: stats.blocked.ip,
         emailLimits: stats.blocked.email,
-        backend: getRedisOptions() ? 'redis (rate-limiter-flexible)' : 'in-memory (rate-limiter-flexible)',
+        backend: getRedisOptions()
+          ? 'redis (rate-limiter-flexible)'
+          : 'in-memory (rate-limiter-flexible)',
       };
     },
   };

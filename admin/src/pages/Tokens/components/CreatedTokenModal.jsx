@@ -28,7 +28,8 @@ export const CreatedTokenModal = ({ data, onClose }) => {
 
   if (!data) return null;
 
-  const copyToken = () => copy(data.token, { success: t('tokens.notifications.tokenCopied', 'Token copied') });
+  const copyToken = () =>
+    copy(data.token, { success: t('tokens.notifications.tokenCopied', 'Token copied') });
   const copyLink = () =>
     copy(data.loginUrl, { success: t('tokens.notifications.linkCopied', 'Login link copied') });
 
@@ -113,7 +114,10 @@ export const CreatedTokenModal = ({ data, onClose }) => {
               </div>
             </InfoList>
             <Typography variant="pi" textColor="neutral600">
-              {t('tokens.created.closeHint', 'Close this dialog with Done when you have copied what you need.')}
+              {t(
+                'tokens.created.closeHint',
+                'Close this dialog with Done when you have copied what you need.'
+              )}
             </Typography>
           </Flex>
         </Modal.Body>

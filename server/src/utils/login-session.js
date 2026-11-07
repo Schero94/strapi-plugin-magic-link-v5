@@ -92,7 +92,8 @@ const sanitizeUser = async (strapi, ctx, user) => {
   if (typeof sanitizeOutput === 'function' && model) {
     return sanitizeOutput(user, model, { auth: ctx?.state?.auth });
   }
-  const { id, documentId, username, email, provider, confirmed, blocked, createdAt, updatedAt } = user || {};
+  const { id, documentId, username, email, provider, confirmed, blocked, createdAt, updatedAt } =
+    user || {};
   return { id, documentId, username, email, provider, confirmed, blocked, createdAt, updatedAt };
 };
 
@@ -105,7 +106,9 @@ const sanitizeUser = async (strapi, ctx, user) => {
  */
 const extractDeviceId = (ctx) => {
   const deviceId = ctx?.request?.body?.deviceId;
-  return typeof deviceId === 'string' && deviceId.length > 0 && deviceId.length <= 255 ? deviceId : undefined;
+  return typeof deviceId === 'string' && deviceId.length > 0 && deviceId.length <= 255
+    ? deviceId
+    : undefined;
 };
 
 /**
@@ -157,7 +160,8 @@ const issueRefreshSession = async (strapi, ctx, user) => {
     const isProduction = process.env.NODE_ENV === 'production';
     ctx.cookies.set(upSessions.cookie?.name || 'strapi_up_refresh', refresh.token, {
       httpOnly: true,
-      secure: typeof upSessions.cookie?.secure === 'boolean' ? upSessions.cookie.secure : isProduction,
+      secure:
+        typeof upSessions.cookie?.secure === 'boolean' ? upSessions.cookie.secure : isProduction,
       sameSite: upSessions.cookie?.sameSite ?? 'lax',
       path: upSessions.cookie?.path ?? '/',
       domain: upSessions.cookie?.domain,
@@ -201,7 +205,11 @@ const issueLegacyJwt = async (strapi, user, payload, settings) => {
  * @param {object} [params.extras] - Extra response and session fields.
  * @returns {Promise<object>} Response body.
  */
-const issueLoginSession = async (strapi, ctx, { user, settings, context = {}, source, claims = {}, extras = {} }) => {
+const issueLoginSession = async (
+  strapi,
+  ctx,
+  { user, settings, context = {}, source, claims = {}, extras = {} }
+) => {
   const sanitizedUser = await sanitizeUser(strapi, ctx, user);
   const base = { user: sanitizedUser, context, ...extras };
 

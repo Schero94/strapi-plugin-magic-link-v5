@@ -7,9 +7,9 @@ body:
     attributes:
       value: |
         ## Thanks for taking the time to report a bug!
-        
+
         Please fill out the information below to help us reproduce and fix the issue.
-        
+
   - type: textarea
     id: bug-description
     attributes:
@@ -18,7 +18,7 @@ body:
       placeholder: Describe the bug you're experiencing...
     validations:
       required: true
-      
+
   - type: textarea
     id: expected-behavior
     attributes:
@@ -26,7 +26,7 @@ body:
       description: What did you expect to happen?
     validations:
       required: true
-      
+
   - type: textarea
     id: actual-behavior
     attributes:
@@ -34,7 +34,7 @@ body:
       description: What actually happened?
     validations:
       required: true
-      
+
   - type: textarea
     id: reproduction-steps
     attributes:
@@ -47,7 +47,7 @@ body:
         4. See error...
     validations:
       required: true
-      
+
   - type: dropdown
     id: feature-area
     attributes:
@@ -67,7 +67,7 @@ body:
         - Other
     validations:
       required: true
-      
+
   - type: dropdown
     id: auth-mode
     attributes:
@@ -80,7 +80,7 @@ body:
         - TOTP-Only Login
     validations:
       required: false
-      
+
   - type: input
     id: plugin-version
     attributes:
@@ -88,7 +88,7 @@ body:
       placeholder: e.g. 5.2.7
     validations:
       required: true
-      
+
   - type: input
     id: strapi-version
     attributes:
@@ -96,7 +96,7 @@ body:
       placeholder: e.g. 5.30.1
     validations:
       required: true
-      
+
   - type: input
     id: node-version
     attributes:
@@ -104,7 +104,7 @@ body:
       placeholder: e.g. 20.19.4
     validations:
       required: true
-      
+
   - type: textarea
     id: error-logs
     attributes:
@@ -113,7 +113,7 @@ body:
       render: shell
     validations:
       required: false
-      
+
   - type: textarea
     id: config
     attributes:
@@ -122,7 +122,7 @@ body:
       render: javascript
     validations:
       required: false
-      
+
   - type: textarea
     id: additional-context
     attributes:
@@ -130,7 +130,7 @@ body:
       description: Add any other context, screenshots, or examples
     validations:
       required: false
-      
+
   - type: checkboxes
     id: terms
     attributes:

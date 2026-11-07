@@ -10,7 +10,7 @@ const EMAIL_ADDRESS_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  */
 export function isValidJwtExpiry(value) {
   return (
-    typeof value === "string" &&
+    typeof value === 'string' &&
     value.length <= MAX_JWT_EXPIRY_LENGTH &&
     JWT_EXPIRY_PATTERN.test(value)
   );
@@ -23,11 +23,8 @@ export function isValidJwtExpiry(value) {
  * @returns {boolean} Whether the field is blank or contains a valid email
  */
 export function isValidOptionalEmail(value) {
-  if (typeof value !== "string") return false;
+  if (typeof value !== 'string') return false;
 
   const address = value.trim();
-  return (
-    address === "" ||
-    (address.length <= 320 && EMAIL_ADDRESS_PATTERN.test(address))
-  );
+  return address === '' || (address.length <= 320 && EMAIL_ADDRESS_PATTERN.test(address));
 }

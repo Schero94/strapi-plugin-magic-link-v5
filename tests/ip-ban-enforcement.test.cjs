@@ -32,7 +32,14 @@ test('IP-ban policy denies a banned address with a ForbiddenError that Strapi fo
   const ctx = { request: { ip: '::ffff:192.0.2.25' }, response: { status: 200, body: null } };
   let checked;
   const strapi = {
-    plugin: () => ({ service: () => ({ isIPBanned: async (ip) => { checked = ip; return true; } }) }),
+    plugin: () => ({
+      service: () => ({
+        isIPBanned: async (ip) => {
+          checked = ip;
+          return true;
+        },
+      }),
+    }),
     log: { error() {} },
   };
 
@@ -51,7 +58,13 @@ test('IP-ban policy fails closed when the address or block-list storage cannot b
   const policy = require('../server/src/policies/ip-ban-check');
   const logged = [];
   const strapi = {
-    plugin: () => ({ service: () => ({ isIPBanned: async () => { throw new Error('store details'); } }) }),
+    plugin: () => ({
+      service: () => ({
+        isIPBanned: async () => {
+          throw new Error('store details');
+        },
+      }),
+    }),
     log: { error: (message) => logged.push(message) },
   };
   const isUnavailable = (error) => {
@@ -82,7 +95,11 @@ test('IP-ban service matches an IPv4 ban against the IPv4-mapped IPv6 request fo
 test('IP-ban service propagates storage failures for the route policy to deny safely', async () => {
   const service = createMagicLinkService({
     strapi: {
-      store: () => ({ get: async () => { throw new Error('private storage details'); } }),
+      store: () => ({
+        get: async () => {
+          throw new Error('private storage details');
+        },
+      }),
       log: { error() {} },
     },
   });

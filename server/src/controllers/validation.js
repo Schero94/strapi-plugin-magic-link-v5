@@ -44,7 +44,8 @@ const usernameSchema = z
   .optional();
 
 const REMOVED_DELIVERY_FIELDS = ['phoneNumber', 'phone', 'via'];
-const REMOVED_DELIVERY_MESSAGE = 'Only e-mail delivery is supported; WhatsApp and SMS delivery were removed in 6.0.0';
+const REMOVED_DELIVERY_MESSAGE =
+  'Only e-mail delivery is supported; WhatsApp and SMS delivery were removed in 6.0.0';
 
 // Context from clients: small, bounded records. Reserved keys that carry
 // authentication state are rejected outright (see utils/context-policy.js).
@@ -62,7 +63,10 @@ const contextSchema = z
   .superRefine((context, ctx) => {
     const keys = Object.keys(context);
     if (keys.length > LIMITS.maxKeys) {
-      ctx.addIssue({ code: 'custom', message: `context may contain at most ${LIMITS.maxKeys} keys` });
+      ctx.addIssue({
+        code: 'custom',
+        message: `context may contain at most ${LIMITS.maxKeys} keys`,
+      });
     }
     for (const key of findReservedKeys(context)) {
       ctx.addIssue({ code: 'custom', path: [key], message: 'This context key is reserved' });
@@ -143,7 +147,11 @@ const deviceIdSchema = z.string().min(1).max(255).optional();
 const exactlyOneSecondFactor = (value, ctx) => {
   const count = Number(Boolean(value.totpCode)) + Number(Boolean(value.backupCode));
   if (count !== 1) {
-    ctx.addIssue({ code: 'custom', path: ['totpCode'], message: 'Send either totpCode or backupCode' });
+    ctx.addIssue({
+      code: 'custom',
+      path: ['totpCode'],
+      message: 'Send either totpCode or backupCode',
+    });
   }
 };
 
@@ -250,17 +258,20 @@ const TOKEN_EXTEND_DAYS = Object.freeze({ min: 1, max: 365 });
  */
 const adminContextSchema = z
   .union([
-    z.string().max(LIMITS.maxJsonLength * 4).transform((value, ctx) => {
-      if (value.trim() === '') return {};
-      try {
-        const parsed = JSON.parse(value);
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
-      } catch {
-        // reported below
-      }
-      ctx.addIssue({ code: 'custom', message: 'context must be a JSON object' });
-      return z.NEVER;
-    }),
+    z
+      .string()
+      .max(LIMITS.maxJsonLength * 4)
+      .transform((value, ctx) => {
+        if (value.trim() === '') return {};
+        try {
+          const parsed = JSON.parse(value);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+        } catch {
+          // reported below
+        }
+        ctx.addIssue({ code: 'custom', message: 'context must be a JSON object' });
+        return z.NEVER;
+      }),
     z.record(z.string(), z.unknown()),
   ])
   .pipe(contextSchema.unwrap())
@@ -284,7 +295,12 @@ const adminTokenExtendSchema = z
   .strict();
 
 /** Route parameter for token actions: documentId or numeric id. */
-const tokenIdSchema = z.string().trim().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/);
+const tokenIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(/^[A-Za-z0-9_-]+$/);
 
 /** GET /tokens (admin) query string. Without page/pageSize the newest 1000 tokens are returned. */
 const adminTokenListQuerySchema = z
@@ -327,7 +343,12 @@ const jwtUnrevokeSchema = z
 /** POST /license/store-key (admin, settings.update). */
 const licenseStoreKeySchema = z
   .object({
-    licenseKey: z.string().trim().min(8).max(128).regex(/^[A-Za-z0-9-]+$/, 'Invalid license key format'),
+    licenseKey: z
+      .string()
+      .trim()
+      .min(8)
+      .max(128)
+      .regex(/^[A-Za-z0-9-]+$/, 'Invalid license key format'),
     email: emailSchema,
   })
   .strict();
@@ -366,7 +387,10 @@ const settingsFieldSchemas = {
   otp_resend_cooldown: z.number().int().min(0).max(86_400),
   rate_limit_max_attempts: z.number().int().min(1).max(1_000),
   rate_limit_window_minutes: z.number().int().min(1).max(10_080),
-  totp_digits: z.number().int().refine((value) => value === 6 || value === 8),
+  totp_digits: z
+    .number()
+    .int()
+    .refine((value) => value === 6 || value === 8),
   totp_period: z.number().int().min(15).max(300),
   expire_period: z.number().int().min(10).max(31_536_000),
   // >= 22 URL-safe characters = 132 bits of entropy.
@@ -376,13 +400,25 @@ const settingsFieldSchemas = {
   confirmationUrl: linkUrlSchema,
   callback_url: linkUrlSchema,
   frontend_url: linkUrlSchema,
-  frontend_login_path: z.string().max(256).regex(/^(\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*)?$/),
+  frontend_login_path: z
+    .string()
+    .max(256)
+    .regex(/^(\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*)?$/),
   login_path: z.string().max(256),
-  jwt_token_expires_in: z.string().max(16).regex(/^[1-9]\d{0,5}[mhd]$/),
+  jwt_token_expires_in: z
+    .string()
+    .max(16)
+    .regex(/^[1-9]\d{0,5}[mhd]$/),
   user_creation_strategy: z.enum(['email', 'emailUsername', 'manual']),
   from_name: z.string().max(200),
-  from_email: z.string().max(320).refine((value) => value === '' || EMAIL_REGEX.test(value)),
-  response_email: z.string().max(320).refine((value) => value === '' || EMAIL_REGEX.test(value)),
+  from_email: z
+    .string()
+    .max(320)
+    .refine((value) => value === '' || EMAIL_REGEX.test(value)),
+  response_email: z
+    .string()
+    .max(320)
+    .refine((value) => value === '' || EMAIL_REGEX.test(value)),
   object: z.string().max(500),
   message_html: z.string().max(100_000),
   message_text: z.string().max(50_000),

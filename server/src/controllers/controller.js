@@ -47,7 +47,8 @@ const normalizeBooleans = (settings) => {
     if (!(field in settings)) continue;
     const value = settings[field];
     if (typeof value === 'string') settings[field] = value === 'true';
-    else if (value && typeof value === 'object' && value.type === 'boolean') settings[field] = Boolean(value.value);
+    else if (value && typeof value === 'object' && value.type === 'boolean')
+      settings[field] = Boolean(value.value);
     else settings[field] = Boolean(value);
   }
   return settings;
@@ -64,7 +65,10 @@ const toResponseSettings = (stored) => {
   if (settings.store_login_info === undefined) settings.store_login_info = true;
   if (settings.use_email_designer === undefined) settings.use_email_designer = false;
   if (settings.email_designer_template_id === undefined) settings.email_designer_template_id = '';
-  if (settings.login_path === '/passwordless-login' || settings.login_path === '/api/magic-link/login') {
+  if (
+    settings.login_path === '/passwordless-login' ||
+    settings.login_path === '/api/magic-link/login'
+  ) {
     settings.login_path = '/magic-link/login';
   }
   return settings;
@@ -89,7 +93,8 @@ module.exports = {
         if (strapi.plugin('email')) {
           emailProviderConfigured = true;
           const emailConfig = strapi.config.get('plugin::email');
-          emailProviderName = typeof emailConfig?.provider === 'string' ? emailConfig.provider : 'configured';
+          emailProviderName =
+            typeof emailConfig?.provider === 'string' ? emailConfig.provider : 'configured';
         }
       } catch {
         emailProviderConfigured = false;
@@ -125,7 +130,9 @@ module.exports = {
       const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
       const existingSettings = (await pluginStore.get({ key: 'settings' })) || {};
       const processedBody = normalizeBooleans(
-        pickKnownSettings(normalizeMfaSettings({ ...existingSettings, ...settingsPatch }, settingsPatch))
+        pickKnownSettings(
+          normalizeMfaSettings({ ...existingSettings, ...settingsPatch }, settingsPatch)
+        )
       );
       if (processedBody.store_login_info === undefined) processedBody.store_login_info = true;
 
@@ -181,4 +188,3 @@ module.exports = {
     }
   },
 };
-

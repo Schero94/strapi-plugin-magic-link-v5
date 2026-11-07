@@ -52,9 +52,7 @@ export const normalizeIpAddress = (value) => {
 
 const isValidIpv4 = (address) => {
   const parts = address.split('.');
-  return parts.length === 4 && parts.every((part) => (
-    IPV4_PART.test(part) && Number(part) <= 255
-  ));
+  return parts.length === 4 && parts.every((part) => IPV4_PART.test(part) && Number(part) <= 255);
 };
 
 const isValidIpv6 = (address) => {
@@ -64,9 +62,7 @@ const isValidIpv6 = (address) => {
   const isCompressed = compressionIndex !== -1;
   if (isCompressed && address.lastIndexOf('::') !== compressionIndex) return false;
 
-  const [leftText, rightText = ''] = isCompressed
-    ? address.split('::')
-    : [address, ''];
+  const [leftText, rightText = ''] = isCompressed ? address.split('::') : [address, ''];
   const left = leftText ? leftText.split(':') : [];
   const right = rightText ? rightText.split(':') : [];
   const parts = [...left, ...right];

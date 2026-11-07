@@ -325,14 +325,28 @@ export const ToggleCard = ({
  *   onCheckedChange: (checked: boolean) => void, disabled?: boolean,
  *   icon?: import('react').ReactNode}} props
  */
-export const SwitchRow = ({ title, description, checked, onCheckedChange, disabled = false, icon }) => {
+export const SwitchRow = ({
+  title,
+  description,
+  checked,
+  onCheckedChange,
+  disabled = false,
+  icon,
+}) => {
   const id = useId();
   return (
     <Flex gap={4} alignItems="flex-start" justifyContent="space-between">
       <Flex direction="column" gap={1} alignItems="flex-start" style={{ minWidth: 0, flex: 1 }}>
         <Flex gap={2} alignItems="center">
           {icon}
-          <Typography tag="label" htmlFor={`${id}-switch`} id={`${id}-title`} variant="omega" fontWeight="bold" textColor="neutral800">
+          <Typography
+            tag="label"
+            htmlFor={`${id}-switch`}
+            id={`${id}-title`}
+            variant="omega"
+            fontWeight="bold"
+            textColor="neutral800"
+          >
             {title}
           </Typography>
         </Flex>
@@ -465,7 +479,8 @@ export const Tile = styled.button`
   font: inherit;
   cursor: pointer;
   background: ${(p) => (p.$active ? 'rgba(14, 165, 233, 0.08)' : color('neutral0')(p))};
-  border: 2px solid ${(p) => (p.$active ? byScheme('rgba(2, 132, 199, 0.6)', '#38BDF8')(p) : color('neutral200')(p))};
+  border: 2px solid
+    ${(p) => (p.$active ? byScheme('rgba(2, 132, 199, 0.6)', '#38BDF8')(p) : color('neutral200')(p))};
   box-shadow: ${(p) => (p.$active ? '0 8px 20px rgba(2, 132, 199, 0.2)' : theme.shadows.sm)};
   transition:
     border-color ${theme.transitions.fast},
@@ -505,7 +520,8 @@ const StatBox = styled.div`
   border-radius: ${theme.borderRadius.md};
   text-align: center;
   background: ${(p) => (p.$tone === 'neutral' ? color('neutral100')(p) : tint[p.$tone].bg(p))};
-  border: 1px solid ${(p) => (p.$tone === 'neutral' ? color('neutral200')(p) : tint[p.$tone].border(p))};
+  border: 1px solid
+    ${(p) => (p.$tone === 'neutral' ? color('neutral200')(p) : tint[p.$tone].border(p))};
 `;
 
 const StatValue = styled.span`

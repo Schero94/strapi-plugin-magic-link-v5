@@ -84,7 +84,7 @@ export const EMAIL_TEMPLATES = {
   </table>
 </body>
 </html>`,
-    text: `Magic Link Login\n\nClick to login:\n{{LOGIN_URL}}\n\nThis link expires in {{EXPIRY_TEXT}}.\n\nIf you didn't request this, you can safely ignore this email.`
+    text: `Magic Link Login\n\nClick to login:\n{{LOGIN_URL}}\n\nThis link expires in {{EXPIRY_TEXT}}.\n\nIf you didn't request this, you can safely ignore this email.`,
   },
 
   minimal: {
@@ -134,7 +134,7 @@ export const EMAIL_TEMPLATES = {
   </table>
 </body>
 </html>`,
-    text: `Your Magic Link\n\nClick to sign in:\n{{LOGIN_URL}}\n\nLink expires in {{EXPIRY_TEXT}}.`
+    text: `Your Magic Link\n\nClick to sign in:\n{{LOGIN_URL}}\n\nLink expires in {{EXPIRY_TEXT}}.`,
   },
 
   professional: {
@@ -215,7 +215,7 @@ export const EMAIL_TEMPLATES = {
   </table>
 </body>
 </html>`,
-    text: `SECURE ACCESS\n\nHello,\n\nYou have requested secure access to your account.\n\nClick to verify and sign in:\n{{LOGIN_URL}}\n\nSecurity Notice:\nThis link will expire in {{EXPIRY_TEXT}}. Do not share this link.\n\nIf you did not request this, please disregard this email.`
+    text: `SECURE ACCESS\n\nHello,\n\nYou have requested secure access to your account.\n\nClick to verify and sign in:\n{{LOGIN_URL}}\n\nSecurity Notice:\nThis link will expire in {{EXPIRY_TEXT}}. Do not share this link.\n\nIf you did not request this, please disregard this email.`,
   },
 
   dark: {
@@ -293,7 +293,7 @@ export const EMAIL_TEMPLATES = {
   </table>
 </body>
 </html>`,
-    text: `Magic Link\n\nHey there!\n\nClick the link below to access your account:\n{{LOGIN_URL}}\n\nExpires in {{EXPIRY_TEXT}}.\n\nDidn't request this? Just ignore this email.`
+    text: `Magic Link\n\nHey there!\n\nClick the link below to access your account:\n{{LOGIN_URL}}\n\nExpires in {{EXPIRY_TEXT}}.\n\nDidn't request this? Just ignore this email.`,
   },
 
   playful: {
@@ -383,8 +383,8 @@ export const EMAIL_TEMPLATES = {
   </table>
 </body>
 </html>`,
-    text: `Your Magic Link is Ready!\n\nLet's get you signed in!\n\nClick here:\n{{LOGIN_URL}}\n\nPro Tip: Save this email for quick access later!\n\nHurry! Link expires in {{EXPIRY_TEXT}}.\n\nNot you? No worries, just delete this email!`
-  }
+    text: `Your Magic Link is Ready!\n\nLet's get you signed in!\n\nClick here:\n{{LOGIN_URL}}\n\nPro Tip: Save this email for quick access later!\n\nHurry! Link expires in {{EXPIRY_TEXT}}.\n\nNot you? No worries, just delete this email!`,
+  },
 };
 
 /** Legacy lodash placeholders (5.x) mapped to the 6.0 syntax. */

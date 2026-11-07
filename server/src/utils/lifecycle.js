@@ -84,8 +84,20 @@ const runEvery = (strapi, intervalMs, job, onError) =>
  * the Strapi 5 role editor does not render its checkbox.
  */
 const RBAC_ACTIONS = Object.freeze([
-  { section: 'plugins', displayName: 'Read', uid: 'read', subCategory: 'General', pluginName: 'magic-link' },
-  { section: 'plugins', displayName: 'Manage', uid: 'manage', subCategory: 'General', pluginName: 'magic-link' },
+  {
+    section: 'plugins',
+    displayName: 'Read',
+    uid: 'read',
+    subCategory: 'General',
+    pluginName: 'magic-link',
+  },
+  {
+    section: 'plugins',
+    displayName: 'Manage',
+    uid: 'manage',
+    subCategory: 'General',
+    pluginName: 'magic-link',
+  },
   {
     section: 'plugins',
     displayName: 'Issue login links without e-mail (impersonation)',
@@ -93,8 +105,20 @@ const RBAC_ACTIONS = Object.freeze([
     subCategory: 'Tokens',
     pluginName: 'magic-link',
   },
-  { section: 'plugins', displayName: 'Read', uid: 'settings.read', subCategory: 'Settings', pluginName: 'magic-link' },
-  { section: 'plugins', displayName: 'Edit', uid: 'settings.update', subCategory: 'Settings', pluginName: 'magic-link' },
+  {
+    section: 'plugins',
+    displayName: 'Read',
+    uid: 'settings.read',
+    subCategory: 'Settings',
+    pluginName: 'magic-link',
+  },
+  {
+    section: 'plugins',
+    displayName: 'Edit',
+    uid: 'settings.update',
+    subCategory: 'Settings',
+    pluginName: 'magic-link',
+  },
 ]);
 
 const LEGACY_ACCESS_ACTION = 'plugin::magic-link.access';
@@ -122,18 +146,30 @@ const migrateLegacyAccessPermission = async (strapi) => {
   // Owners are admin roles or (admin) API tokens.
   const owners = new Map();
   for (const permission of legacy) {
-    if (permission.role?.id != null) owners.set(`role:${permission.role.id}`, { role: permission.role.id });
-    else if (permission.apiToken?.id != null) owners.set(`token:${permission.apiToken.id}`, { apiToken: permission.apiToken.id });
+    if (permission.role?.id != null)
+      owners.set(`role:${permission.role.id}`, { role: permission.role.id });
+    else if (permission.apiToken?.id != null)
+      owners.set(`token:${permission.apiToken.id}`, { apiToken: permission.apiToken.id });
   }
 
   for (const owner of owners.values()) {
-    const ownerWhere = owner.role != null ? { role: { id: owner.role } } : { apiToken: { id: owner.apiToken } };
-    const existing = await permissionQuery.findMany({ where: { action: { $in: MIGRATED_ACTIONS }, ...ownerWhere } });
+    const ownerWhere =
+      owner.role != null ? { role: { id: owner.role } } : { apiToken: { id: owner.apiToken } };
+    const existing = await permissionQuery.findMany({
+      where: { action: { $in: MIGRATED_ACTIONS }, ...ownerWhere },
+    });
     const have = new Set((existing || []).map((permission) => permission.action));
     for (const action of MIGRATED_ACTIONS) {
       if (!have.has(action)) {
         await permissionQuery.create({
-          data: { action, actionParameters: {}, subject: null, properties: {}, conditions: [], ...owner },
+          data: {
+            action,
+            actionParameters: {},
+            subject: null,
+            properties: {},
+            conditions: [],
+            ...owner,
+          },
         });
       }
     }

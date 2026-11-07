@@ -13,11 +13,11 @@ class I18n {
   loadTranslations() {
     // Try multiple possible paths for i18n files
     const possiblePaths = [
-      path.join(__dirname, '../i18n'),           // Development: server/src/utils -> server/src/i18n
-      path.join(__dirname, 'i18n'),              // Built: dist/server/utils -> dist/server/i18n
-      path.join(__dirname, '../../i18n'),        // Alternative: go up two levels
+      path.join(__dirname, '../i18n'), // Development: server/src/utils -> server/src/i18n
+      path.join(__dirname, 'i18n'), // Built: dist/server/utils -> dist/server/i18n
+      path.join(__dirname, '../../i18n'), // Alternative: go up two levels
     ];
-    
+
     let localesDir = null;
     for (const tryPath of possiblePaths) {
       if (fs.existsSync(tryPath)) {
@@ -25,7 +25,7 @@ class I18n {
         break;
       }
     }
-    
+
     if (!localesDir) {
       console.warn('[WARNING] [Magic-Link i18n] No i18n directory found, using fallback messages');
       // Set default English translations as fallback
@@ -36,15 +36,15 @@ class I18n {
           'wrong.email': 'Invalid email address',
           'wrong.user': 'User not found',
           'blocked.user': 'User account is blocked',
-        }
+        },
       };
       return;
     }
-    
+
     try {
       const files = fs.readdirSync(localesDir);
-      
-      files.forEach(file => {
+
+      files.forEach((file) => {
         if (file.endsWith('.json')) {
           const locale = file.replace('.json', '');
           const filePath = path.join(localesDir, file);
@@ -106,14 +106,20 @@ class I18n {
     const isKnown = (value) =>
       typeof value === 'string' && /^[a-z]{2}$/.test(value) && Boolean(this.translations[value]);
 
-    const queryLocale = typeof ctx?.query?.locale === 'string' ? ctx.query.locale.toLowerCase() : null;
+    const queryLocale =
+      typeof ctx?.query?.locale === 'string' ? ctx.query.locale.toLowerCase() : null;
     if (isKnown(queryLocale)) {
       return queryLocale;
     }
 
     const acceptLanguage = ctx?.request?.header?.['accept-language'];
     if (typeof acceptLanguage === 'string') {
-      const primaryLang = acceptLanguage.split(',')[0].split(';')[0].split('-')[0].trim().toLowerCase();
+      const primaryLang = acceptLanguage
+        .split(',')[0]
+        .split(';')[0]
+        .split('-')[0]
+        .trim()
+        .toLowerCase();
       if (isKnown(primaryLang)) {
         return primaryLang;
       }
@@ -171,10 +177,10 @@ class I18n {
     const locale = this.getLocaleFromContext(ctx);
     const fullKey = successKey.startsWith('success.') ? successKey : `success.${successKey}`;
     const message = this.t(fullKey, locale, params);
-    
+
     ctx.body = {
       ...data,
-      message
+      message,
     };
   }
 }

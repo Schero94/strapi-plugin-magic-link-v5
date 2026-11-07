@@ -78,7 +78,12 @@ const JWTSessions = () => {
   const { formatDateTime } = useFormatters();
   const { get, post } = useFetchClient();
   const { toggleNotification } = useNotification();
-  const { canRead, canManage, isLoading: isLoadingPermissions, error: permissionError } = useMagicLinkRBAC();
+  const {
+    canRead,
+    canManage,
+    isLoading: isLoadingPermissions,
+    error: permissionError,
+  } = useMagicLinkRBAC();
 
   const [sessions, setSessions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -148,7 +153,12 @@ const JWTSessions = () => {
   const stats = useMemo(() => getSessionStats(sessions), [sessions]);
 
   const filteredSessions = useMemo(
-    () => sortSessions(filterSessions(sessions, { query: searchQuery, status: filterStatus }), sortBy, sortOrder),
+    () =>
+      sortSessions(
+        filterSessions(sessions, { query: searchQuery, status: filterStatus }),
+        sortBy,
+        sortOrder
+      ),
     [sessions, searchQuery, filterStatus, sortBy, sortOrder]
   );
 
@@ -287,10 +297,14 @@ const JWTSessions = () => {
       );
     } else {
       notifyError(
-        t('jwt.notifications.bulkRevokePartial', '{succeeded} of {total} sessions revoked. The rest failed.', {
-          succeeded: summary.succeeded,
-          total: summary.total,
-        })
+        t(
+          'jwt.notifications.bulkRevokePartial',
+          '{succeeded} of {total} sessions revoked. The rest failed.',
+          {
+            succeeded: summary.succeeded,
+            total: summary.total,
+          }
+        )
       );
     }
     await fetchSessions();
@@ -305,7 +319,9 @@ const JWTSessions = () => {
   };
 
   const handleSelect = (id, checked) => {
-    setSelectedIds((ids) => (checked === true ? [...ids, id] : ids.filter((value) => value !== id)));
+    setSelectedIds((ids) =>
+      checked === true ? [...ids, id] : ids.filter((value) => value !== id)
+    );
   };
 
   const confirmPending = () => {
@@ -402,9 +418,7 @@ const JWTSessions = () => {
     }
   };
 
-  const heading = (
-    <VisuallyHidden tag="h2">{t('jwt.title', 'JWT sessions')}</VisuallyHidden>
-  );
+  const heading = <VisuallyHidden tag="h2">{t('jwt.title', 'JWT sessions')}</VisuallyHidden>;
 
   if (isLoadingPermissions || (canRead && isLoading)) {
     return (
@@ -421,7 +435,10 @@ const JWTSessions = () => {
         {heading}
         <Alert variant="danger" closeLabel={t('common.close', 'Close')}>
           {permissionError
-            ? t('common.permissions.loadError', 'Your permissions could not be loaded. Reload the page to try again.')
+            ? t(
+                'common.permissions.loadError',
+                'Your permissions could not be loaded. Reload the page to try again.'
+              )
             : t('jwt.permission.denied', 'You do not have permission to view JWT sessions.')}
         </Alert>
       </Box>
@@ -438,10 +455,34 @@ const JWTSessions = () => {
       <StatsRow
         label={t('jwt.stats.label', 'Session statistics')}
         items={[
-          { key: 'total', label: t('jwt.stats.total', 'Total'), value: stats.total, icon: Shield, tone: 'primary' },
-          { key: 'active', label: t('jwt.stats.active', 'Active'), value: stats.active, icon: Check, tone: 'success' },
-          { key: 'expired', label: t('jwt.stats.expired', 'Expired'), value: stats.expired, icon: Clock, tone: 'warning' },
-          { key: 'revoked', label: t('jwt.stats.revoked', 'Revoked'), value: stats.revoked, icon: Lock, tone: 'danger' },
+          {
+            key: 'total',
+            label: t('jwt.stats.total', 'Total'),
+            value: stats.total,
+            icon: Shield,
+            tone: 'primary',
+          },
+          {
+            key: 'active',
+            label: t('jwt.stats.active', 'Active'),
+            value: stats.active,
+            icon: Check,
+            tone: 'success',
+          },
+          {
+            key: 'expired',
+            label: t('jwt.stats.expired', 'Expired'),
+            value: stats.expired,
+            icon: Clock,
+            tone: 'warning',
+          },
+          {
+            key: 'revoked',
+            label: t('jwt.stats.revoked', 'Revoked'),
+            value: stats.revoked,
+            icon: Lock,
+            tone: 'danger',
+          },
         ]}
       />
 
@@ -465,10 +506,18 @@ const JWTSessions = () => {
             value={filterStatus}
             onChange={handleStatusFilter}
           >
-            <SingleSelectOption value="all">{t('jwt.filter.all', 'All statuses')}</SingleSelectOption>
-            <SingleSelectOption value="active">{t('jwt.filter.active', 'Active only')}</SingleSelectOption>
-            <SingleSelectOption value="expired">{t('jwt.filter.expired', 'Expired only')}</SingleSelectOption>
-            <SingleSelectOption value="revoked">{t('jwt.filter.revoked', 'Revoked only')}</SingleSelectOption>
+            <SingleSelectOption value="all">
+              {t('jwt.filter.all', 'All statuses')}
+            </SingleSelectOption>
+            <SingleSelectOption value="active">
+              {t('jwt.filter.active', 'Active only')}
+            </SingleSelectOption>
+            <SingleSelectOption value="expired">
+              {t('jwt.filter.expired', 'Expired only')}
+            </SingleSelectOption>
+            <SingleSelectOption value="revoked">
+              {t('jwt.filter.revoked', 'Revoked only')}
+            </SingleSelectOption>
           </SingleSelect>
         </FilterSelect>
         <FilterSelect>
@@ -500,9 +549,13 @@ const JWTSessions = () => {
       {canManage && selectedSessions.length > 0 ? (
         <ActionBar>
           <Typography fontWeight="semiBold" aria-live="polite">
-            {t('jwt.selection.count', '{count, plural, one {# session selected} other {# sessions selected}}', {
-              count: selectedSessions.length,
-            })}
+            {t(
+              'jwt.selection.count',
+              '{count, plural, one {# session selected} other {# sessions selected}}',
+              {
+                count: selectedSessions.length,
+              }
+            )}
           </Typography>
           <Flex gap={2} wrap="wrap">
             <Button onClick={() => setSelectedIds([])} variant="tertiary" size="L">
@@ -532,7 +585,10 @@ const JWTSessions = () => {
             <EmptyState
               icon={Shield}
               title={t('jwt.empty.noMatches.title', 'No sessions match your filters')}
-              description={t('jwt.empty.noMatches.description', 'Change the search or status filter to see more sessions.')}
+              description={t(
+                'jwt.empty.noMatches.description',
+                'Change the search or status filter to see more sessions.'
+              )}
               actions={
                 <Button onClick={handleResetFilters} variant="secondary" size="L">
                   {t('jwt.empty.resetFilters', 'Reset filters')}
@@ -557,25 +613,52 @@ const JWTSessions = () => {
                   {canManage ? (
                     <Th>
                       <Checkbox
-                        aria-label={t('jwt.table.selectAll', 'Select all active sessions on this page')}
+                        aria-label={t(
+                          'jwt.table.selectAll',
+                          'Select all active sessions on this page'
+                        )}
                         checked={selectAllState}
                         disabled={selectableIds.length === 0}
                         onCheckedChange={handleSelectAll}
                       />
                     </Th>
                   ) : null}
-                  <Th aria-sort={ariaSort('username')} action={sortButton('username', t('common.tableHeaders.sortByUser', 'Sort by user'))}>
+                  <Th
+                    aria-sort={ariaSort('username')}
+                    action={sortButton(
+                      'username',
+                      t('common.tableHeaders.sortByUser', 'Sort by user')
+                    )}
+                  >
                     <SortHeader>{t('common.user', 'User')}</SortHeader>
                   </Th>
                   <Th>{t('common.tableHeaders.ipAddress', 'IP Address')}</Th>
                   <Th>{t('common.userAgent', 'User Agent')}</Th>
-                  <Th aria-sort={ariaSort('status')} action={sortButton('status', t('common.tableHeaders.sortByStatus', 'Sort by status'))}>
+                  <Th
+                    aria-sort={ariaSort('status')}
+                    action={sortButton(
+                      'status',
+                      t('common.tableHeaders.sortByStatus', 'Sort by status')
+                    )}
+                  >
                     <SortHeader>{t('common.status', 'Status')}</SortHeader>
                   </Th>
-                  <Th aria-sort={ariaSort('createdAt')} action={sortButton('createdAt', t('common.tableHeaders.sortByCreated', 'Sort by created date'))}>
+                  <Th
+                    aria-sort={ariaSort('createdAt')}
+                    action={sortButton(
+                      'createdAt',
+                      t('common.tableHeaders.sortByCreated', 'Sort by created date')
+                    )}
+                  >
                     <SortHeader>{t('common.created', 'Created')}</SortHeader>
                   </Th>
-                  <Th aria-sort={ariaSort('expiresAt')} action={sortButton('expiresAt', t('common.tableHeaders.sortByExpiry', 'Sort by expiry date'))}>
+                  <Th
+                    aria-sort={ariaSort('expiresAt')}
+                    action={sortButton(
+                      'expiresAt',
+                      t('common.tableHeaders.sortByExpiry', 'Sort by expiry date')
+                    )}
+                  >
                     <SortHeader>{t('common.expiresAt', 'Expires At')}</SortHeader>
                   </Th>
                   {canManage ? (
@@ -588,13 +671,16 @@ const JWTSessions = () => {
               <Tbody>
                 {pageSessions.map((session) => {
                   const status = getSessionStatus(session);
-                  const name = session.username || session.email || t('jwt.unknownUser', 'Unknown user');
+                  const name =
+                    session.username || session.email || t('jwt.unknownUser', 'Unknown user');
                   return (
                     <Tr key={session.id}>
                       {canManage ? (
                         <Td data-label="">
                           <Checkbox
-                            aria-label={t('jwt.table.select', 'Select session of {user}', { user: name })}
+                            aria-label={t('jwt.table.select', 'Select session of {user}', {
+                              user: name,
+                            })}
                             checked={selectedIds.includes(session.id)}
                             disabled={status !== 'active'}
                             onCheckedChange={(checked) => handleSelect(session.id, checked)}
@@ -625,7 +711,12 @@ const JWTSessions = () => {
                       </Td>
                       <Td data-label={t('common.userAgent', 'User Agent')}>
                         <Flex alignItems="center" gap={1} style={{ minWidth: 0 }}>
-                          <Monitor aria-hidden="true" width="1.4rem" height="1.4rem" fill="neutral500" />
+                          <Monitor
+                            aria-hidden="true"
+                            width="1.4rem"
+                            height="1.4rem"
+                            fill="neutral500"
+                          />
                           <Typography
                             variant="pi"
                             textColor="neutral600"
@@ -642,13 +733,23 @@ const JWTSessions = () => {
                       </Td>
                       <Td data-label={t('common.created', 'Created')}>
                         <Flex alignItems="center" gap={1}>
-                          <Calendar aria-hidden="true" width="1.4rem" height="1.4rem" fill="neutral500" />
+                          <Calendar
+                            aria-hidden="true"
+                            width="1.4rem"
+                            height="1.4rem"
+                            fill="neutral500"
+                          />
                           <Typography variant="pi">{formatDateTime(session.createdAt)}</Typography>
                         </Flex>
                       </Td>
                       <Td data-label={t('common.expiresAt', 'Expires At')}>
                         <Flex alignItems="center" gap={1}>
-                          <Clock aria-hidden="true" width="1.4rem" height="1.4rem" fill="neutral500" />
+                          <Clock
+                            aria-hidden="true"
+                            width="1.4rem"
+                            height="1.4rem"
+                            fill="neutral500"
+                          />
                           <Typography
                             variant="pi"
                             textColor={status === 'expired' ? 'danger600' : 'neutral800'}
@@ -665,8 +766,13 @@ const JWTSessions = () => {
                               <IconButton
                                 label={
                                   session.isExpired
-                                    ? t('jwt.actions.unrevokeExpired', 'Expired sessions cannot be restored')
-                                    : t('jwt.actions.unrevokeFor', 'Restore session of {user}', { user: name })
+                                    ? t(
+                                        'jwt.actions.unrevokeExpired',
+                                        'Expired sessions cannot be restored'
+                                      )
+                                    : t('jwt.actions.unrevokeFor', 'Restore session of {user}', {
+                                        user: name,
+                                      })
                                 }
                                 variant="success-light"
                                 onClick={() => setPendingAction({ type: 'unrevoke', session })}
@@ -676,7 +782,9 @@ const JWTSessions = () => {
                               </IconButton>
                             ) : (
                               <IconButton
-                                label={t('jwt.actions.revokeFor', 'Revoke session of {user}', { user: name })}
+                                label={t('jwt.actions.revokeFor', 'Revoke session of {user}', {
+                                  user: name,
+                                })}
                                 variant="danger-light"
                                 onClick={() => setPendingAction({ type: 'revoke', session })}
                               >

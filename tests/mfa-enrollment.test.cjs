@@ -22,7 +22,14 @@ const { createLoginCoreStrapi, createCtx } = require('./helpers/login-core-strap
 
 const OTP_UID = 'plugin::magic-link.otp-code';
 const TOTP_UID = 'plugin::magic-link.totp-config';
-const USER = { id: 7, documentId: 'user-doc', email: 'person@example.test', username: 'person', confirmed: true, blocked: false };
+const USER = {
+  id: 7,
+  documentId: 'user-doc',
+  email: 'person@example.test',
+  username: 'person',
+  confirmed: true,
+  blocked: false,
+};
 
 /**
  * Login-core double plus the real OTP service on in-memory MFA tables.
@@ -45,7 +52,12 @@ const setup = (options = {}) => {
       service: (key) => {
         if (key === 'otp') return otp;
         if (key === 'rate-limiter') {
-          return { checkRateLimit: async (limiterKey, type) => { limiterKeys.push({ key: limiterKey, type }); return { allowed: true }; } };
+          return {
+            checkRateLimit: async (limiterKey, type) => {
+              limiterKeys.push({ key: limiterKey, type });
+              return { allowed: true };
+            },
+          };
         }
         return base.service(key);
       },
@@ -54,7 +66,8 @@ const setup = (options = {}) => {
   return { ...env, tables, otp, limiterKeys };
 };
 
-const createLink = async (magicLinkService, email) => (await magicLinkService.createToken(email, {}))._plaintextToken;
+const createLink = async (magicLinkService, email) =>
+  (await magicLinkService.createToken(email, {}))._plaintextToken;
 
 const post = (body, extra = {}) => createCtx({ method: 'POST', body, ...extra });
 
@@ -74,15 +87,21 @@ const clock = () => {
   let offset = 0;
   Date.now = () => real() + offset;
   return {
-    advance: (ms = 31_000) => { offset += ms; },
-    restore: () => { Date.now = real; },
+    advance: (ms = 31_000) => {
+      offset += ms;
+    },
+    restore: () => {
+      Date.now = real;
+    },
   };
 };
 
 const codeOf = (secret, params) => totpUtils.generateCode({ secret, totp: params });
 
 test('required MFA: enrolment during login, then backup-code recovery (ADM-M01, FUN-04, DOC-16, E2E-01)', async () => {
-  const { magicLinkService, state, tables } = setup({ settings: { mfa_mode: 'required', totp_issuer: 'Example' } });
+  const { magicLinkService, state, tables } = setup({
+    settings: { mfa_mode: 'required', totp_issuer: 'Example' },
+  });
   const time = clock();
   try {
     const loginToken = await createLink(magicLinkService, USER.email);
@@ -105,7 +124,10 @@ test('required MFA: enrolment during login, then backup-code recovery (ADM-M01, 
     assert.equal(wrong.status, 400);
     assert.equal(state.issued.length, 0);
 
-    const confirm = post({ loginToken, totpCode: await codeOf(secret, { algorithm, digits, period }) });
+    const confirm = post({
+      loginToken,
+      totpCode: await codeOf(secret, { algorithm, digits, period }),
+    });
     await totpController.enrollConfirm(confirm);
     assert.ok(confirm.body.jwt, 'enrolment completes the login');
     assert.equal(confirm.body.mfaVerified, true);
@@ -115,7 +137,10 @@ test('required MFA: enrolment during login, then backup-code recovery (ADM-M01, 
     assert.equal(session.backupCodes, undefined, 'backup codes never reach the session store');
     assert.equal(tables[TOTP_UID].rows[0].principalKey, 'up:7');
 
-    const replay = post({ loginToken, totpCode: await codeOf(secret, { algorithm, digits, period }) });
+    const replay = post({
+      loginToken,
+      totpCode: await codeOf(secret, { algorithm, digits, period }),
+    });
     await totpController.enrollConfirm(replay);
     assert.equal(replay.status, 400);
     assert.equal(state.issued.length, 1);
@@ -204,7 +229,10 @@ test('TOTP-only login: per-pair and per-account limits and equal work for unknow
   const { otp, limiterKeys } = setup({ settings: { totp_as_primary_auth: true } });
   let simulated = 0;
   const original = otp.simulateVerification;
-  otp.simulateVerification = async (code) => { simulated += 1; return original(code); };
+  otp.simulateVerification = async (code) => {
+    simulated += 1;
+    return original(code);
+  };
 
   const fromA = post({ email: 'unknown@example.test', totpCode: '123456' });
   fromA.request.ip = '192.0.2.1';
@@ -217,10 +245,16 @@ test('TOTP-only login: per-pair and per-account limits and equal work for unknow
   assert.equal(fromA.body.error.key, 'credentials.invalid');
   assert.equal(simulated, 2, 'unknown accounts run a dummy verification');
 
-  const pairKeys = limiterKeys.filter(({ key }) => key.startsWith('totp-login:')).map(({ key }) => key);
+  const pairKeys = limiterKeys
+    .filter(({ key }) => key.startsWith('totp-login:'))
+    .map(({ key }) => key);
   assert.equal(new Set(pairKeys).size, 2, 'one client cannot exhaust the budget of other clients');
   const accountKeys = limiterKeys.filter(({ key }) => key.startsWith('totp-login-account:'));
   assert.equal(new Set(accountKeys.map(({ key }) => key)).size, 1);
   assert.equal(accountKeys[0].type, 'login');
-  assert.equal(limiterKeys.some(({ key }) => key.includes('unknown@example.test')), false, 'limiter keys are hashed');
+  assert.equal(
+    limiterKeys.some(({ key }) => key.includes('unknown@example.test')),
+    false,
+    'limiter keys are hashed'
+  );
 });

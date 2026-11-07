@@ -38,8 +38,13 @@ const TokensProfessional = () => {
   const navigate = useNavigate();
   const { post } = useFetchClient();
   const { toggleNotification } = useNotification();
-  const { canRead, canManage, canReadSettings, isLoading: permissionsLoading, error: permissionsError } =
-    useMagicLinkRBAC();
+  const {
+    canRead,
+    canManage,
+    canReadSettings,
+    isLoading: permissionsLoading,
+    error: permissionsError,
+  } = useMagicLinkRBAC();
 
   const [activeTab, setActiveTab] = useState(TAB_IDS[0]);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -186,7 +191,10 @@ const TokensProfessional = () => {
                 {t('tokens.page.title', 'Token Management')}
               </Title>
               <Subtitle tag="p">
-                {t('tokens.page.subtitle', 'Manage Magic Link tokens, OTP codes, JWT sessions and IP bans')}
+                {t(
+                  'tokens.page.subtitle',
+                  'Manage Magic Link tokens, OTP codes, JWT sessions and IP bans'
+                )}
               </Subtitle>
             </Box>
             <HeaderActions alignItems="center">

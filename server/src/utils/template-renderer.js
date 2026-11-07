@@ -74,7 +74,9 @@ const escapeHtml = (value) => String(value ?? '').replace(/[&<>"'`]/g, (ch) => H
  * @returns {string|null} Canonical variable name or null when unknown.
  */
 const resolveVariableName = (name) => {
-  const upper = String(name || '').trim().toUpperCase();
+  const upper = String(name || '')
+    .trim()
+    .toUpperCase();
   if (TEMPLATE_VARIABLES.includes(upper)) return upper;
   return VARIABLE_ALIASES[upper] || null;
 };
@@ -127,16 +129,20 @@ const renderTemplate = (template, variables = {}, { html = false } = {}) => {
   if (typeof template !== 'string' || template.length === 0) return '';
   const source = migrateLegacyTemplate(template);
 
-  return source.replace(PLACEHOLDER_PATTERN, (match, curly, legacy, single) => {
-    const canonical = resolveVariableName(curly || legacy || single);
-    if (!canonical) {
-      // Unknown `{{x}}` / `<%= x %>`: drop it rather than leak template syntax.
-      return '';
-    }
-    const raw = Object.prototype.hasOwnProperty.call(variables, canonical) ? variables[canonical] : '';
-    const value = raw === null || raw === undefined ? '' : String(raw);
-    return html ? escapeHtml(value) : value;
-  }).replace(/<%[\s\S]*?%>/g, (block) => (html ? escapeHtml(block) : block));
+  return source
+    .replace(PLACEHOLDER_PATTERN, (match, curly, legacy, single) => {
+      const canonical = resolveVariableName(curly || legacy || single);
+      if (!canonical) {
+        // Unknown `{{x}}` / `<%= x %>`: drop it rather than leak template syntax.
+        return '';
+      }
+      const raw = Object.prototype.hasOwnProperty.call(variables, canonical)
+        ? variables[canonical]
+        : '';
+      const value = raw === null || raw === undefined ? '' : String(raw);
+      return html ? escapeHtml(value) : value;
+    })
+    .replace(/<%[\s\S]*?%>/g, (block) => (html ? escapeHtml(block) : block));
 };
 
 /**
@@ -172,7 +178,15 @@ const formatExpiryText = (minutes) => {
  * @param {number} [params.expirePeriodSeconds] - Configured lifetime used for EXPIRY_TEXT.
  * @returns {Record<string, string>} Variables keyed by canonical name.
  */
-const buildTemplateVariables = ({ loginUrl, baseUrl, code, email, username, expiresAt, expirePeriodSeconds }) => {
+const buildTemplateVariables = ({
+  loginUrl,
+  baseUrl,
+  code,
+  email,
+  username,
+  expiresAt,
+  expirePeriodSeconds,
+}) => {
   const expiresDate = expiresAt ? new Date(expiresAt) : null;
   const validExpiry = expiresDate && !Number.isNaN(expiresDate.getTime()) ? expiresDate : null;
   let minutes;

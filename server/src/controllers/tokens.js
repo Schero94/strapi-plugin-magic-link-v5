@@ -92,7 +92,9 @@ const toAdminToken = (token) => ({
  */
 const findTokenByParam = async (ctx) => {
   const id = parseBody(tokenIdSchema, ctx.params?.id);
-  const where = /^\d+$/.test(id) ? { $or: [{ documentId: id }, { id: Number(id) }] } : { documentId: id };
+  const where = /^\d+$/.test(id)
+    ? { $or: [{ documentId: id }, { id: Number(id) }] }
+    : { documentId: id };
   return strapi.db.query(TOKEN_UID).findOne({ where });
 };
 
@@ -134,7 +136,12 @@ module.exports = {
       return {
         data: (rows || []).map(toAdminToken),
         meta: {
-          pagination: { page, pageSize, total, pageCount: Math.max(1, Math.ceil(total / pageSize)) },
+          pagination: {
+            page,
+            pageSize,
+            total,
+            pageCount: Math.max(1, Math.ceil(total / pageSize)),
+          },
         },
       };
     } catch {
@@ -163,18 +170,24 @@ module.exports = {
     const sendEmail = body.send_email !== false;
 
     if (!sendEmail && !can(ctx, ISSUE_ACTION)) {
-      throw new errors.ForbiddenError('Returning a login link without e-mail requires the "Issue login links" permission', {
-        key: 'tokens.issue.forbidden',
-      });
+      throw new errors.ForbiddenError(
+        'Returning a login link without e-mail requires the "Issue login links" permission',
+        {
+          key: 'tokens.issue.forbidden',
+        }
+      );
     }
 
     const limiter = strapi.plugin('magic-link').service('rate-limiter');
     const check = await limiter.checkRateLimit(`admin:${actorId(ctx)}`, 'admin');
     if (!check.allowed) {
       ctx.set?.('Retry-After', String(check.retryAfter));
-      throw new errors.RateLimitError(`Too many token requests. Try again in ${check.retryAfter} seconds.`, {
-        retryAfter: check.retryAfter,
-      });
+      throw new errors.RateLimitError(
+        `Too many token requests. Try again in ${check.retryAfter} seconds.`,
+        {
+          retryAfter: check.retryAfter,
+        }
+      );
     }
 
     const magicLink = magicLinkService();
@@ -191,9 +204,13 @@ module.exports = {
         user = await magicLink.createUser({ email });
       } catch {
         strapi.log.error('[magic-link] Admin token: user could not be created');
-        return ctx.badRequest('The user could not be created (check the users-permissions default role)');
+        return ctx.badRequest(
+          'The user could not be created (check the users-permissions default role)'
+        );
       }
-      strapi.log.info(`[magic-link] Admin ${actorId(ctx)} created users-permissions user ${user.id} for a login link`);
+      strapi.log.info(
+        `[magic-link] Admin ${actorId(ctx)} created users-permissions user ${user.id} for a login link`
+      );
     }
     if (user.blocked) {
       return ctx.badRequest('This user is blocked');
@@ -204,7 +221,9 @@ module.exports = {
       token = await magicLink.createToken(user.email, body.context || {});
       if (body.ttl) {
         const expiresAt = new Date(Date.now() + body.ttl * 3600 * 1000);
-        await strapi.db.query(TOKEN_UID).update({ where: { id: token.id }, data: { expires_at: expiresAt } });
+        await strapi.db
+          .query(TOKEN_UID)
+          .update({ where: { id: token.id }, data: { expires_at: expiresAt } });
         token.expires_at = expiresAt;
       }
     } catch {
@@ -227,18 +246,24 @@ module.exports = {
       try {
         await magicLink.sendLoginLink(token, { username: user.username });
       } catch {
-        await strapi.db.query(TOKEN_UID).update({ where: { id: token.id }, data: { is_active: false } });
+        await strapi.db
+          .query(TOKEN_UID)
+          .update({ where: { id: token.id }, data: { is_active: false } });
         strapi.log.error('[magic-link] Admin token e-mail could not be sent; token deactivated');
         return ctx.throw(503, 'The login e-mail could not be sent');
       }
       response.sent = true;
-      strapi.log.info(`[magic-link] Admin ${actorId(ctx)} issued login token ${token.documentId} (delivery: email)`);
+      strapi.log.info(
+        `[magic-link] Admin ${actorId(ctx)} issued login token ${token.documentId} (delivery: email)`
+      );
       return response;
     }
 
     response.token = token._plaintextToken;
     response.loginUrl = buildLoginUrl(settings, token._plaintextToken, strapi).loginUrl;
-    strapi.log.warn(`[magic-link] Admin ${actorId(ctx)} issued login token ${token.documentId} (delivery: direct)`);
+    strapi.log.warn(
+      `[magic-link] Admin ${actorId(ctx)} issued login token ${token.documentId} (delivery: direct)`
+    );
     ctx.set?.('Cache-Control', 'no-store');
     return response;
   },
@@ -251,7 +276,9 @@ module.exports = {
     const token = await findTokenByParam(ctx);
     if (!token) return ctx.notFound('Token not found');
 
-    const updated = await strapi.db.query(TOKEN_UID).update({ where: { id: token.id }, data: { is_active: false } });
+    const updated = await strapi.db
+      .query(TOKEN_UID)
+      .update({ where: { id: token.id }, data: { is_active: false } });
     strapi.log.info(`[magic-link] Admin ${actorId(ctx)} blocked token ${token.documentId}`);
     return ctx.send({ data: { ...toAdminToken(updated), message: 'Token successfully blocked' } });
   },
@@ -295,9 +322,13 @@ module.exports = {
       if (banned) return ctx.badRequest('This link was used from a banned IP address');
     }
 
-    const updated = await strapi.db.query(TOKEN_UID).update({ where: { id: token.id }, data: { is_active: true } });
+    const updated = await strapi.db
+      .query(TOKEN_UID)
+      .update({ where: { id: token.id }, data: { is_active: true } });
     strapi.log.info(`[magic-link] Admin ${actorId(ctx)} activated token ${token.documentId}`);
-    return ctx.send({ data: { ...toAdminToken(updated), message: 'Token successfully activated' } });
+    return ctx.send({
+      data: { ...toAdminToken(updated), message: 'Token successfully activated' },
+    });
   },
 
   /**
@@ -322,7 +353,9 @@ module.exports = {
       where: { id: token.id },
       data: { expires_at: newExpiryDate },
     });
-    strapi.log.info(`[magic-link] Admin ${actorId(ctx)} extended token ${token.documentId} by ${days} day(s)`);
+    strapi.log.info(
+      `[magic-link] Admin ${actorId(ctx)} extended token ${token.documentId} by ${days} day(s)`
+    );
     return ctx.send({
       data: {
         ...toAdminToken(updated),

@@ -95,7 +95,11 @@ export const getPageItems = (activePage, pageCount, siblings = 1) => {
   }
   if (!showRightDots) {
     const start = last - (2 + siblings * 2);
-    return [1, 'dots-start', ...Array.from({ length: last - start + 1 }, (_, index) => start + index)];
+    return [
+      1,
+      'dots-start',
+      ...Array.from({ length: last - start + 1 }, (_, index) => start + index),
+    ];
   }
   return [
     1,
@@ -145,7 +149,9 @@ export const getSessionStats = (sessions, now = Date.now()) => {
  * @param {{query?: string, status?: 'all'|'active'|'expired'|'revoked', now?: number}} options
  */
 export const filterSessions = (sessions, { query = '', status = 'all', now = Date.now() } = {}) => {
-  const needle = String(query || '').trim().toLowerCase();
+  const needle = String(query || '')
+    .trim()
+    .toLowerCase();
   return (sessions || []).filter((session) => {
     if (status !== 'all' && getSessionStatus(session, now) !== status) return false;
     if (!needle) return true;
@@ -294,10 +300,16 @@ export const normalizeOtpListResponse = (
   data,
   { page, pageSize, status = 'all', filtersActive = false, now = Date.now() }
 ) => {
-  const rawCodes = Array.isArray(data?.codes) ? data.codes : Array.isArray(data?.data) ? data.data : [];
+  const rawCodes = Array.isArray(data?.codes)
+    ? data.codes
+    : Array.isArray(data?.data)
+      ? data.data
+      : [];
   const allRows = rawCodes.map(normalizeOtpCode);
   const codes =
-    status && status !== 'all' ? allRows.filter((code) => getOtpStatus(code, now) === status) : allRows;
+    status && status !== 'all'
+      ? allRows.filter((code) => getOtpStatus(code, now) === status)
+      : allRows;
 
   const meta = data?.pagination || data?.meta?.pagination || {};
   const effectivePageSize = Math.min(
@@ -342,7 +354,9 @@ export const normalizeOtpListResponse = (
  * @param {string} query
  */
 export const filterIps = (ips, query = '') => {
-  const needle = String(query || '').trim().toLowerCase();
+  const needle = String(query || '')
+    .trim()
+    .toLowerCase();
   const list = (ips || []).filter((ip) => typeof ip === 'string' && ip);
   return needle ? list.filter((ip) => ip.toLowerCase().includes(needle)) : list;
 };
@@ -378,7 +392,13 @@ export const summarizeSettled = (ids, results) => {
     const ok = result.status === 'fulfilled' && result.value?.data?.success !== false;
     (ok ? succeededIds : failedIds).push(ids[index]);
   });
-  return { total: ids.length, succeeded: succeededIds.length, failed: failedIds.length, succeededIds, failedIds };
+  return {
+    total: ids.length,
+    succeeded: succeededIds.length,
+    failed: failedIds.length,
+    succeededIds,
+    failedIds,
+  };
 };
 
 /**

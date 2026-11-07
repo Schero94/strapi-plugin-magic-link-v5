@@ -119,7 +119,10 @@ module.exports = ({ strapi }) => {
         });
         const data = await response.json();
         if (data?.success) {
-          return { valid: Boolean(data.data && data.data.isActive && !data.data.isExpired), data: data.data || null };
+          return {
+            valid: Boolean(data.data && data.data.isActive && !data.data.isExpired),
+            data: data.data || null,
+          };
         }
         return { valid: false, data: null };
       } catch {
@@ -147,7 +150,9 @@ module.exports = ({ strapi }) => {
           `${LICENSE_SERVER_URL}/api/licenses/key/${encodeURIComponent(licenseKey)}`
         );
         const data = await response.json();
-        value = data?.success ? { status: 'ok', license: data.data || null } : { status: 'not-found', license: null };
+        value = data?.success
+          ? { status: 'ok', license: data.data || null }
+          : { status: 'not-found', license: null };
       } catch {
         strapi.log.warn('[magic-link] License lookup failed');
         // Failures are not cached, so a retry can succeed immediately.

@@ -139,13 +139,21 @@ export const TokenDetailsModal = ({
                         <MetaIcon aria-hidden="true">
                           <Earth focusable="false" />
                         </MetaIcon>
-                        <Typography variant="pi" textColor="neutral800" style={{ fontFamily: 'monospace' }}>
+                        <Typography
+                          variant="pi"
+                          textColor="neutral800"
+                          style={{ fontFamily: 'monospace' }}
+                        >
                           {token.ip_address}
                         </Typography>
                       </Flex>
                     ) : null}
                     {token.user_agent ? (
-                      <Typography variant="pi" textColor="neutral600" style={{ wordBreak: 'break-all' }}>
+                      <Typography
+                        variant="pi"
+                        textColor="neutral600"
+                        style={{ wordBreak: 'break-all' }}
+                      >
                         {token.user_agent}
                       </Typography>
                     ) : null}
@@ -176,21 +184,41 @@ export const TokenDetailsModal = ({
                     </Button>
                   ) : null}
                   {canExtend ? (
-                    <Button variant="secondary" size="M" startIcon={<Clock />} onClick={() => onExtend(token)}>
+                    <Button
+                      variant="secondary"
+                      size="M"
+                      startIcon={<Clock />}
+                      onClick={() => onExtend(token)}
+                    >
                       {t('tokens.actions.extend', 'Extend')}
                     </Button>
                   ) : null}
                   {canBlock ? (
-                    <Button variant="danger-light" size="M" startIcon={<Lock />} onClick={() => onBlock(token)}>
+                    <Button
+                      variant="danger-light"
+                      size="M"
+                      startIcon={<Lock />}
+                      onClick={() => onBlock(token)}
+                    >
                       {t('tokens.actions.block', 'Block')}
                     </Button>
                   ) : null}
                   {canActivate ? (
-                    <Button variant="success-light" size="M" startIcon={<Check />} onClick={() => onActivate(token)}>
+                    <Button
+                      variant="success-light"
+                      size="M"
+                      startIcon={<Check />}
+                      onClick={() => onActivate(token)}
+                    >
                       {t('tokens.actions.activate', 'Activate')}
                     </Button>
                   ) : null}
-                  <Button variant="danger-light" size="M" startIcon={<Trash />} onClick={() => onDelete(token)}>
+                  <Button
+                    variant="danger-light"
+                    size="M"
+                    startIcon={<Trash />}
+                    onClick={() => onDelete(token)}
+                  >
                     {t('tokens.actions.delete', 'Delete')}
                   </Button>
                 </Flex>

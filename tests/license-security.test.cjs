@@ -8,10 +8,13 @@ const test = require('node:test');
 const createLicenseGuard = require('../server/src/services/license-guard');
 const licenseController = require('../server/src/controllers/license');
 
-const createLogger = (logs) => Object.fromEntries(['debug', 'info', 'warn', 'error'].map((level) => [
-  level,
-  (...parts) => logs.push(parts.map(String).join(' ')),
-]));
+const createLogger = (logs) =>
+  Object.fromEntries(
+    ['debug', 'info', 'warn', 'error'].map((level) => [
+      level,
+      (...parts) => logs.push(parts.map(String).join(' ')),
+    ])
+  );
 
 test('license service sends only the encoded key, never host or admin data, and never logs the key', async () => {
   const logs = [];
@@ -57,7 +60,10 @@ test('license lookups are cached, never sent for malformed keys and can be switc
   let calls = 0;
   const originalFetch = global.fetch;
   try {
-    global.fetch = async () => { calls += 1; return { json: async () => ({ success: true, data: { isActive: true } }) }; };
+    global.fetch = async () => {
+      calls += 1;
+      return { json: async () => ({ success: true, data: { isActive: true } }) };
+    };
     assert.equal((await guard.lookupLicense('SYNTHETIC-KEY-1234')).status, 'ok');
     assert.equal((await guard.lookupLicense('SYNTHETIC-KEY-1234')).status, 'ok');
     assert.equal(calls, 1, 'second lookup is served from the cache');
@@ -85,9 +91,18 @@ test('license status masks the key for settings readers and shows it only to set
     log: createLogger([]),
   };
   const makeCtx = (canUpdate) => ({
-    state: { userAbility: { can: (action) => canUpdate && action === 'plugin::magic-link.settings.update' } },
-    send(payload) { this.response = payload; return payload; },
-    throw(status) { throw new Error(String(status)); },
+    state: {
+      userAbility: {
+        can: (action) => canUpdate && action === 'plugin::magic-link.settings.update',
+      },
+    },
+    send(payload) {
+      this.response = payload;
+      return payload;
+    },
+    throw(status) {
+      throw new Error(String(status));
+    },
   });
 
   const reader = makeCtx(false);
@@ -96,7 +111,11 @@ test('license status masks the key for settings readers and shows it only to set
   assert.equal(reader.response.data.licenseKeyMasked.endsWith('9876'), true);
   assert.equal(JSON.stringify(reader.response).includes(key), false);
   assert.equal(reader.response.lookup, 'unavailable');
-  assert.equal(reader.response.valid, true, 'an unreachable license server never invalidates the plugin');
+  assert.equal(
+    reader.response.valid,
+    true,
+    'an unreachable license server never invalidates the plugin'
+  );
 
   const editor = makeCtx(true);
   await licenseController.getStatus(editor);
@@ -117,8 +136,14 @@ test('license-key fallback responses never log the key or its prefix', async () 
   const key = 'TEST-ONLY-ANOTHER-LICENSE-KEY';
   const ctx = {
     request: { body: { licenseKey: key, email: 'local@example.test' } },
-    send(payload) { this.response = payload; return payload; },
-    badRequest(message) { this.response = { error: message }; return this.response; },
+    send(payload) {
+      this.response = payload;
+      return payload;
+    },
+    badRequest(message) {
+      this.response = { error: message };
+      return this.response;
+    },
   };
 
   await licenseController.storeKey(ctx);
@@ -129,8 +154,14 @@ test('license-key fallback responses never log the key or its prefix', async () 
 });
 
 test('no-key license screen does not advertise registration controls that are absent', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../admin/src/pages/License/index.jsx'), 'utf8');
+  const source = fs.readFileSync(
+    path.join(__dirname, '../admin/src/pages/License/index.jsx'),
+    'utf8'
+  );
 
   assert.match(source, /All Magic Link features are available without activation\./);
-  assert.ok(!/use the form below|Auto-Activate/.test(source), 'the no-key alert does not point to missing registration controls');
+  assert.ok(
+    !/use the form below|Auto-Activate/.test(source),
+    'the no-key alert does not point to missing registration controls'
+  );
 });

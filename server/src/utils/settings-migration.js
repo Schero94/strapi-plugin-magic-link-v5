@@ -61,8 +61,15 @@ const migrateSettings = (settings, { serverUrl, clampTokenLength }) => {
     }
   }
 
-  const normalize = (value) => String(value || '').trim().replace(/\/+$/, '');
-  if (serverUrl && typeof next.confirmationUrl === 'string' && normalize(next.confirmationUrl) === normalize(serverUrl)) {
+  const normalize = (value) =>
+    String(value || '')
+      .trim()
+      .replace(/\/+$/, '');
+  if (
+    serverUrl &&
+    typeof next.confirmationUrl === 'string' &&
+    normalize(next.confirmationUrl) === normalize(serverUrl)
+  ) {
     next.confirmationUrl = '';
     changed = true;
   }

@@ -19,25 +19,49 @@ test('Magic Link ships no WhatsApp delivery code, routes or dependencies', () =>
   const services = require('../server/src/services');
   const adminRoutes = require('../server/src/routes/admin').routes;
   const contentRoutes = require('../server/src/routes/content-api').routes;
-  const authSource = readFileSync(path.join(__dirname, '../server/src/controllers/auth.js'), 'utf8');
+  const authSource = readFileSync(
+    path.join(__dirname, '../server/src/controllers/auth.js'),
+    'utf8'
+  );
   const packageJson = require('../package.json');
   const packageLock = require('../package-lock.json');
 
-  assert.equal(existsSync(path.join(__dirname, '../server/src/services/magic-whatsapp-provider.js')), false);
+  assert.equal(
+    existsSync(path.join(__dirname, '../server/src/services/magic-whatsapp-provider.js')),
+    false
+  );
   assert.equal(server.services.whatsapp, undefined);
   assert.equal(controllers.whatsapp, undefined);
   assert.equal(services.whatsapp, undefined);
-  assert.equal([...adminRoutes, ...contentRoutes].some((route) => /whatsapp|sms/i.test(route.path)), false);
-  assert.equal(/whatsapp|phoneNumber/i.test(authSource.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '')), false);
+  assert.equal(
+    [...adminRoutes, ...contentRoutes].some((route) => /whatsapp|sms/i.test(route.path)),
+    false
+  );
+  assert.equal(
+    /whatsapp|phoneNumber/i.test(authSource.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '')),
+    false
+  );
   assert.equal(existsSync(path.join(__dirname, '../admin/src/pages/WhatsApp/index.jsx')), false);
   assert.equal('@whiskeysockets/baileys' in packageJson.dependencies, false);
-  assert.equal(packageJson.keywords.some((keyword) => /whatsapp|sms/i.test(keyword)), false);
-  assert.equal(Object.keys(packageLock.packages).some((key) => /baileys|libsignal/i.test(key)), false);
+  assert.equal(
+    packageJson.keywords.some((keyword) => /whatsapp|sms/i.test(keyword)),
+    false
+  );
+  assert.equal(
+    Object.keys(packageLock.packages).some((key) => /baileys|libsignal/i.test(key)),
+    false
+  );
 });
 
 test('send-link accepts e-mail delivery only', () => {
-  assert.equal(sendLinkSchema.safeParse({ email: 'Person@Example.Test' }).data.email, 'person@example.test');
-  assert.equal(sendLinkSchema.safeParse({ email: 'person@example.test', delivery: 'email' }).success, true);
+  assert.equal(
+    sendLinkSchema.safeParse({ email: 'Person@Example.Test' }).data.email,
+    'person@example.test'
+  );
+  assert.equal(
+    sendLinkSchema.safeParse({ email: 'person@example.test', delivery: 'email' }).success,
+    true
+  );
   for (const body of [
     { phoneNumber: '+490000000' },
     { phone: '+490000000', email: 'person@example.test' },

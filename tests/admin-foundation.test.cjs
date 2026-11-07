@@ -14,7 +14,12 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const { createIntl, IntlProvider, useIntl } = require('react-intl');
 const IntlMessageFormat = require('intl-messageformat').default;
-const { loadAdminModule, loadAdminModuleAsync, contrastRatio, ROOT } = require('./helpers/load-admin-module.cjs');
+const {
+  loadAdminModule,
+  loadAdminModuleAsync,
+  contrastRatio,
+  ROOT,
+} = require('./helpers/load-admin-module.cjs');
 
 const LOCALES = ['en', 'de', 'fr', 'es', 'pt'];
 const translationsDir = path.join(ROOT, 'admin', 'src', 'translations');
@@ -228,7 +233,10 @@ test('LanguageProvider follows the admin locale and keeps Strapi messages availa
     );
 
   assert.equal(render('de'), `<p>de|${readLocale('de')['magic-link.common.cancel']}|admin-de</p>`);
-  assert.equal(render('pt-BR'), `<p>pt-BR|${readLocale('pt')['magic-link.common.cancel']}|admin-pt-BR</p>`);
+  assert.equal(
+    render('pt-BR'),
+    `<p>pt-BR|${readLocale('pt')['magic-link.common.cancel']}|admin-pt-BR</p>`
+  );
   // Unsupported admin locale: English plugin messages, admin messages kept.
   assert.equal(render('ja'), '<p>en|Cancel|admin-ja</p>');
 });
@@ -268,7 +276,8 @@ test('every message is valid ICU and formats without throwing', () => {
 });
 
 test('German uses the formal Sie register and no template uses lodash syntax', () => {
-  const informal = /\b(du|dein|deine|deinen|deinem|deiner|dich|dir)\b|\b(Wähle|Gib|Klicke|Kopiere|Konfiguriere|Verwalte|Erstelle|Nutze|Verwende|Gestalte|Aktiviere|Teste|Stelle|Lade)\b/i;
+  const informal =
+    /\b(du|dein|deine|deinen|deinem|deiner|dich|dir)\b|\b(Wähle|Gib|Klicke|Kopiere|Konfiguriere|Verwalte|Erstelle|Nutze|Verwende|Gestalte|Aktiviere|Teste|Stelle|Lade)\b/i;
   for (const [key, value] of Object.entries(readLocale('de'))) {
     assert.ok(!informal.test(value), `informal German in ${key}: ${value}`);
   }
@@ -324,7 +333,10 @@ test('copyToClipboard reports real success, falls back on rejection and never th
   const { copyToClipboard } = loadAdminModule('admin/src/components/shared/clipboard.js');
   const written = [];
   const okNav = { clipboard: { writeText: async (text) => written.push(text) } };
-  assert.equal(await copyToClipboard('abc', { navigator: okNav, window: { isSecureContext: true } }), true);
+  assert.equal(
+    await copyToClipboard('abc', { navigator: okNav, window: { isSecureContext: true } }),
+    true
+  );
   assert.deepEqual(written, ['abc']);
 
   const fakeDoc = (result) => {
@@ -366,10 +378,28 @@ test('unsaved-changes guard blocks only dirty navigations and registers beforeun
     { stubs: { 'react-router-dom': { useBlocker: () => ({ state: 'unblocked' }) } } }
   );
   const from = { pathname: '/a', search: '' };
-  assert.equal(shouldBlockNavigation(false, { currentLocation: from, nextLocation: { pathname: '/b' } }), false);
-  assert.equal(shouldBlockNavigation(true, { currentLocation: from, nextLocation: { pathname: '/b' } }), true);
-  assert.equal(shouldBlockNavigation(true, { currentLocation: from, nextLocation: { pathname: '/a', search: '' } }), false);
-  assert.equal(shouldBlockNavigation(true, { currentLocation: from, nextLocation: { pathname: '/a', search: '?x' } }), true);
+  assert.equal(
+    shouldBlockNavigation(false, { currentLocation: from, nextLocation: { pathname: '/b' } }),
+    false
+  );
+  assert.equal(
+    shouldBlockNavigation(true, { currentLocation: from, nextLocation: { pathname: '/b' } }),
+    true
+  );
+  assert.equal(
+    shouldBlockNavigation(true, {
+      currentLocation: from,
+      nextLocation: { pathname: '/a', search: '' },
+    }),
+    false
+  );
+  assert.equal(
+    shouldBlockNavigation(true, {
+      currentLocation: from,
+      nextLocation: { pathname: '/a', search: '?x' },
+    }),
+    true
+  );
 
   const listeners = new Map();
   const win = {
@@ -409,7 +439,9 @@ test('gallery templates use only safe {{VARIABLE}} placeholders and no emoji', (
   assert.equal(getTemplateList().length, Object.keys(EMAIL_TEMPLATES).length);
   assert.equal(getTemplate('__proto__'), EMAIL_TEMPLATES.modern);
   assert.equal(
-    toPlaceholderSyntax('<a href="<%= URL %>?loginToken=<%= CODE %>">x</a> <%= EXPIRY_TEXT %> <%=code%>'),
+    toPlaceholderSyntax(
+      '<a href="<%= URL %>?loginToken=<%= CODE %>">x</a> <%= EXPIRY_TEXT %> <%=code%>'
+    ),
     '<a href="{{LOGIN_URL}}">x</a> {{EXPIRY_TEXT}} {{CODE}}'
   );
   assert.equal(toPlaceholderSyntax(undefined), '');
@@ -420,10 +452,13 @@ test('gallery templates use only safe {{VARIABLE}} placeholders and no emoji', (
 // ---------------------------------------------------------------------------
 
 test('ConfirmDialog renders a DS alert dialog with translated default labels', () => {
-  const el = (tag) => ({ children, ...props }) =>
-    React.createElement(tag, { 'data-ds': props['data-ds'] }, children);
+  const el =
+    (tag) =>
+    ({ children, ...props }) =>
+      React.createElement(tag, { 'data-ds': props['data-ds'] }, children);
   const Dialog = {
-    Root: ({ open, children }) => (open ? React.createElement('div', { role: 'alertdialog' }, children) : null),
+    Root: ({ open, children }) =>
+      open ? React.createElement('div', { role: 'alertdialog' }, children) : null,
     Content: el('section'),
     Header: el('h2'),
     Body: el('div'),
@@ -431,7 +466,8 @@ test('ConfirmDialog renders a DS alert dialog with translated default labels', (
     Footer: el('footer'),
     Cancel: el('span'),
   };
-  const Button = ({ children, variant }) => React.createElement('button', { 'data-variant': variant }, children);
+  const Button = ({ children, variant }) =>
+    React.createElement('button', { 'data-variant': variant }, children);
   const stubs = {
     '@strapi/design-system': {
       Dialog,
@@ -444,7 +480,9 @@ test('ConfirmDialog renders a DS alert dialog with translated default labels', (
   // Layout effects never run during server rendering; use the passive hook so
   // React does not warn about them.
   stubs.react = { ...React, useLayoutEffect: React.useEffect };
-  const { ConfirmDialog } = loadAdminModule('admin/src/components/shared/ConfirmDialog.jsx', { stubs });
+  const { ConfirmDialog } = loadAdminModule('admin/src/components/shared/ConfirmDialog.jsx', {
+    stubs,
+  });
   const render = (props) =>
     renderToStaticMarkup(
       React.createElement(

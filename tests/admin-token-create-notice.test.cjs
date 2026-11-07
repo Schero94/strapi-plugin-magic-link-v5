@@ -9,7 +9,8 @@ const locales = ['de', 'en', 'es', 'fr', 'pt'];
 const translationsDirectory = path.join(__dirname, '..', 'admin', 'src', 'translations');
 
 test('token creation notice distinguishes delivered links from tokens created without email', async () => {
-  const { getTokenCreationNotice } = await import('../admin/src/pages/Tokens/tokenCreateNotice.mjs');
+  const { getTokenCreationNotice } =
+    await import('../admin/src/pages/Tokens/tokenCreateNotice.mjs');
 
   assert.deepEqual(getTokenCreationNotice({ sendEmail: true, email: 'audit@example.invalid' }), {
     messageId: 'tokens.notifications.created',
@@ -23,8 +24,17 @@ test('token creation notice distinguishes delivered links from tokens created wi
 
 test('every supported locale has a truthful no-email token creation message', () => {
   for (const locale of locales) {
-    const translations = JSON.parse(fs.readFileSync(path.join(translationsDirectory, `${locale}.json`), 'utf8'));
-    assert.equal(typeof translations['magic-link.tokens.notifications.createdWithoutEmail'], 'string', locale);
-    assert.ok(translations['magic-link.tokens.notifications.createdWithoutEmail'].trim().length > 0, locale);
+    const translations = JSON.parse(
+      fs.readFileSync(path.join(translationsDirectory, `${locale}.json`), 'utf8')
+    );
+    assert.equal(
+      typeof translations['magic-link.tokens.notifications.createdWithoutEmail'],
+      'string',
+      locale
+    );
+    assert.ok(
+      translations['magic-link.tokens.notifications.createdWithoutEmail'].trim().length > 0,
+      locale
+    );
   }
 });
