@@ -157,14 +157,19 @@ test('settings write and rate-limit controls are hidden or disabled without upda
 });
 
 test('individual and bulk token deletion both require an explicit confirmation', () => {
-  const tokenPage = source('admin/src/pages/Tokens/TokensProfessional.jsx');
-  const individual = tokenPage.slice(tokenPage.indexOf('const handleDelete ='), tokenPage.indexOf('const handleBulkDelete ='));
-  const bulk = tokenPage.slice(tokenPage.indexOf('const handleBulkDelete ='), tokenPage.indexOf('const handleCreateToken ='));
+  const panel = source('admin/src/pages/Tokens/MagicLinksPanel.jsx');
+  const table = source('admin/src/pages/Tokens/components/TokensTable.jsx');
+  const details = source('admin/src/pages/Tokens/components/TokenDetailsModal.jsx');
 
-  assert.ok(individual.indexOf('window.confirm(') >= 0);
-  assert.ok(individual.indexOf('window.confirm(') < individual.indexOf('del('));
-  assert.ok(bulk.indexOf('window.confirm(') >= 0);
-  assert.ok(bulk.indexOf('window.confirm(') < bulk.indexOf('del('));
+  // Row, details and bulk buttons only queue a confirmation; the request runs from ConfirmDialog.
+  assert.ok(table.includes('onClick={() => onDelete(token)}'));
+  assert.ok(details.includes('onClick={() => onDelete(token)}'));
+  assert.ok(panel.includes("onDelete={(token) => setPending({ type: 'delete', token })}"));
+  assert.ok(panel.includes("setPending({ type: 'bulkDelete', keys: [...selectedKeys] })"));
+  assert.ok(panel.includes('onConfirm: () => deleteToken(pending.token)'));
+  assert.ok(panel.includes('onConfirm: () => bulkDelete(pending.keys)'));
+  assert.ok(panel.includes('isOpen={canManage && confirmConfig !== null}'));
+  assert.equal(/window\.confirm\(|\bconfirm\(/.test(panel), false);
 });
 
 test('JWT revoke, unrevoke and cleanup run only from the manage-gated ConfirmDialog', () => {
