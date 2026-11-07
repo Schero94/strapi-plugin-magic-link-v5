@@ -42,7 +42,6 @@ Please fill out this template to help us review your PR.
 - [ ] Template Customization
 - [ ] Admin UI
 - [ ] API / Backend
-- [ ] License System
 - [ ] Documentation
 
 ## Testing

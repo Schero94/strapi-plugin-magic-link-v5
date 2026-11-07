@@ -1,3 +1,32 @@
+## [Unreleased]
+
+Next release: **7.0.0** (major). The optional registration key of 6.x is gone, together with its admin page, its two admin routes, its service and every call to the old key server. Magic links, e-mail OTP, TOTP and backup codes, sessions, `context` and delivery status work as before.
+
+### Breaking changes
+
+- The admin routes `GET /magic-link/license/status` and `POST /magic-link/license/store-key` are removed: Strapi answers `404` and `405` (measured on a 5.61 host with a Super Admin token). Only the plugin's own admin page used them.
+- The server service `license-guard` (alias `licenseGuard`) is removed. Its methods (`hasFeature`, `getMaxTokens`, `getLicenseTierInfo`, ...) only ever answered "allowed", so custom code can drop the calls.
+- The plugin config key `license.remoteLookup` and the environment variables `MAGIC_LINK_LICENSE_LOOKUP` and `MAGIC_LICENSE_TIMEOUT_MS` are no longer read. Leftover values are ignored.
+
+### Removed
+
+- The admin page **Settings > Magic Link > License**, its settings link, the pass-through `LicenseGuard` wrapper and 47 admin translation keys per language (en, de, fr, es, pt), plus the six unused `license.*` server error messages.
+- Every outbound call to `magicapi.fitlex.me`. The plugin has no telemetry and no update or registration check. The only outbound request left is the opt-in SES bounce webhook, which fetches the SNS signing certificate from `sns.<region>.amazonaws.com`.
+
+### Changed
+
+- On startup the plugin deletes the stored key and its timestamp (plugin-store keys `licenseKey` and `lastValidated`) once, under a cluster-wide lock. Nothing is logged except the number of removed keys.
+- `package.json`: `@strapi/utils` moved from `peerDependencies` to `dependencies` (the server imports it), and `@strapi/design-system`, `@strapi/icons` and `react-intl` are marked optional in `peerDependenciesMeta`. Every Strapi 5 admin ships them already. Installing into a fresh Strapi 5.61 app with yarn 1 no longer prints four unmet-peer warnings for the plugin; npm 11 and pnpm printed none before and print none now.
+- `package.json`: plain description, keywords, `homepage` points at the project site, `repository.url` uses the normalised `git+https` form.
+- README and project site: new one-minute install, compatibility table, privacy and outbound-connection notes, performance notes, FAQ and the 6.x to 7.0.0 upgrade guide. The site now carries the multi-instance guide (Railway replicas, pm2 cluster), the permission table and the full configuration and environment tables, plus Open Graph and canonical metadata. The README still described concurrent admin writes in a cluster as a known limitation; 6.2.0 fixed that, and the text now says so.
+- Issue templates link to this repository (they pointed at an old organisation) and no longer offer a "License System" area.
+
+### Migration
+
+1. Update the package and restart Strapi. The first start deletes the stored key; nothing else changes in the database.
+2. Remove `license: { remoteLookup: false }` from `config/plugins.js` and `MAGIC_LINK_LICENSE_LOOKUP` / `MAGIC_LICENSE_TIMEOUT_MS` from the environment (optional, they are ignored).
+3. Drop calls to `strapi.plugin('magic-link').service('license-guard')` from custom code, and to the two removed admin routes from scripts.
+
 ## [6.2.1](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v6.2.0...v6.2.1) (2026-11-07)
 
 
@@ -11,9 +40,9 @@
 * **sessions:** store one JWT session row per login instead of a locked list ([6147105](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/6147105e168915d1621be3f81be73384cd424e10))
 * **sessions:** store one JWT session row per login instead of a locked list ([#24](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/24)) ([27b8361](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/27b836193f3a23eaa3456fa7a5def5b8e249ccda))
 
-## [Unreleased]
+## 6.2.1 details (written before the release)
 
-Next release: **6.2.1** (patch). No breaking changes; the admin JWT Sessions view and its API keep their shape.
+No breaking changes; the admin JWT Sessions view and its API keep their shape.
 
 ### Performance
 
