@@ -7,6 +7,7 @@
  * `stubs` replaces selected package imports (e.g. '@strapi/strapi/admin').
  */
 const path = require('node:path');
+const vm = require('node:vm');
 const Module = require('node:module');
 const esbuild = require('esbuild');
 
@@ -68,13 +69,11 @@ function evaluateBundle(code, entry, stubs) {
     Object.hasOwn(stubs, request) ? stubs[request] : baseRequire(request);
 
   const mod = { exports: {} };
-  new Function('require', 'module', 'exports', '__filename', '__dirname', code)(
-    stubbedRequire,
-    mod,
-    mod.exports,
-    entry,
-    path.dirname(entry)
-  );
+  // vm.compileFunction wraps the test bundle like a CommonJS module and
+  // keeps the file name in stack traces (no eval / Function constructor).
+  vm.compileFunction(code, ['require', 'module', 'exports', '__filename', '__dirname'], {
+    filename: entry,
+  })(stubbedRequire, mod, mod.exports, entry, path.dirname(entry));
   return mod.exports;
 }
 

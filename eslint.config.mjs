@@ -40,6 +40,11 @@ export default defineConfig([
     rules: {
       'no-unused-vars': unusedVars,
       'no-empty': ['error', { allowEmptyCatch: true }],
+      // No dynamic code execution anywhere (e-mail templates used to run
+      // through lodash _.template).
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'no-new-func': 'error',
     },
   },
 
