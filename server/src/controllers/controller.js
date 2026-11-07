@@ -9,6 +9,7 @@ const {
 const { errors } = require('@strapi/utils');
 const { normalizeMfaSettings, resolveMfaMode } = require('../utils/mfa-mode');
 const { createDefaultSettings } = require('../utils/default-settings');
+const { updateStoreKey, withClusterLock } = require('../utils/cluster');
 
 const SECURITY_ACTION = 'plugin::magic-link.settings.security';
 
@@ -322,24 +323,44 @@ module.exports = {
   async updateSettings(ctx) {
     const settingsPatch = parseBody(settingsUpdateSchema, ctx.request.body);
     const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-    const existingSettings = (await pluginStore.get({ key: 'settings' })) || {};
-    assertSettingsChangeAllowed(ctx, existingSettings, settingsPatch);
-    await assertMfaRequirementSafe(
-      existingSettings,
-      settingsPatch,
-      isNoEnrolmentAcknowledged(ctx.request.body)
-    );
+
+    // The patch is merged into the settings read under the cluster-wide
+    // settings lock (utils/cluster.js), so two admins saving different fields
+    // on different processes, or a replica's startup migration, never undo
+    // each other's change. Permission and MFA checks see the same settings
+    // that are written.
+    let writeFailed = false;
+    let processedBody;
+    try {
+      processedBody = await withClusterLock(strapi, 'store:settings', async () => {
+        const existingSettings = (await pluginStore.get({ key: 'settings' })) || {};
+        assertSettingsChangeAllowed(ctx, existingSettings, settingsPatch);
+        await assertMfaRequirementSafe(
+          existingSettings,
+          settingsPatch,
+          isNoEnrolmentAcknowledged(ctx.request.body)
+        );
+        const next = normalizeBooleans(
+          pickKnownSettings(
+            normalizeMfaSettings({ ...existingSettings, ...settingsPatch }, settingsPatch)
+          )
+        );
+        if (next.store_login_info === undefined) next.store_login_info = true;
+        try {
+          await pluginStore.set({ key: 'settings', value: next });
+        } catch (error) {
+          writeFailed = true;
+          throw error;
+        }
+        return next;
+      });
+    } catch (error) {
+      if (!writeFailed) throw error;
+      strapi.log.error('[magic-link] Settings could not be saved');
+      return ctx.throw(500, 'Failed to save settings');
+    }
 
     try {
-      const processedBody = normalizeBooleans(
-        pickKnownSettings(
-          normalizeMfaSettings({ ...existingSettings, ...settingsPatch }, settingsPatch)
-        )
-      );
-      if (processedBody.store_login_info === undefined) processedBody.store_login_info = true;
-
-      await pluginStore.set({ key: 'settings', value: processedBody });
-
       const rateLimiter = strapi.plugin('magic-link')?.service?.('rate-limiter');
       if (typeof rateLimiter?.reloadSettings === 'function') {
         await rateLimiter.reloadSettings();
@@ -377,20 +398,20 @@ module.exports = {
       );
     }
     try {
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const defaults = createDefaultSettings();
       const kept = new Set(resetSecurity ? [] : MFA_SETTING_KEYS);
-      if (kept.size > 0) {
-        const current = (await pluginStore.get({ key: 'settings' })) || {};
+      await updateStoreKey(strapi, 'settings', (current) => {
+        const defaults = createDefaultSettings();
         for (const key of kept) {
-          if (current[key] !== undefined) defaults[key] = current[key];
+          if (current?.[key] !== undefined) defaults[key] = current[key];
         }
-      }
-      await pluginStore.set({ key: 'settings', value: defaults });
+        return { value: defaults };
+      });
 
       const deleted = await strapi.db.query('plugin::magic-link.token').deleteMany({ where: {} });
-      await pluginStore.delete({ key: 'jwt_sessions' });
-      await pluginStore.set({ key: 'banned_ips', value: { ips: [] } });
+      await withClusterLock(strapi, 'store:jwt_sessions', () =>
+        strapi.store({ type: 'plugin', name: 'magic-link' }).delete({ key: 'jwt_sessions' })
+      );
+      await updateStoreKey(strapi, 'banned_ips', () => ({ value: { ips: [] } }));
 
       const rateLimiter = strapi.plugin('magic-link')?.service?.('rate-limiter');
       if (typeof rateLimiter?.reloadSettings === 'function') {

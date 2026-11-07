@@ -49,6 +49,12 @@ const UP_USER_UID = 'plugin::users-permissions.user';
 const PRINCIPAL_PREFIX = { 'users-permissions': 'up', admin: 'admin' };
 const PENDING_TTL_MS = 15 * 60 * 1000;
 const PENDING_ORIGINS = ['login', 'account', 'admin'];
+// Database-backed second-factor guessing limit per enrolment, shared by all
+// processes and independent of the rate-limiter backend: the 10th attempt
+// without a success locks TOTP and backup codes for 15 minutes.
+const MAX_FACTOR_ATTEMPTS = 10;
+const FACTOR_LOCK_MS = 15 * 60 * 1000;
+const RESERVE_RETRIES = 20;
 
 /**
  * Normalises a principal reference. A bare id means a users-permissions
@@ -124,6 +130,49 @@ module.exports = ({ strapi }) => {
     return result?.count === 1;
   };
 
+  /**
+   * Reserves one second-factor attempt before any code is compared. The
+   * counter is increased with a compare-and-set update (retried on
+   * contention), so parallel guesses on several processes are all counted.
+   * Reaching MAX_FACTOR_ATTEMPTS locks the enrolment for FACTOR_LOCK_MS.
+   *
+   * @param {object} row - Enrolment row as read.
+   * @returns {Promise<boolean>} Whether the attempt may proceed.
+   */
+  const reserveFactorAttempt = async (row) => {
+    let current = row;
+    for (let attempt = 0; attempt < RESERVE_RETRIES && current; attempt += 1) {
+      const lockedUntil = current.lockedUntil ? new Date(current.lockedUntil).getTime() : 0;
+      if (Number.isFinite(lockedUntil) && lockedUntil > Date.now()) return false;
+      const failed = Number(current.failedAttempts) || 0;
+      const next = failed + 1;
+      const data =
+        next >= MAX_FACTOR_ATTEMPTS
+          ? { failedAttempts: 0, lockedUntil: new Date(Date.now() + FACTOR_LOCK_MS) }
+          : { failedAttempts: next };
+      const result = await totpQuery().updateMany({
+        where: { id: current.id, failedAttempts: current.failedAttempts ?? null },
+        data,
+      });
+      if (result?.count === 1) return true;
+      current = await totpQuery().findOne({ where: { id: current.id } });
+    }
+    return false;
+  };
+
+  /**
+   * Clears the attempt counter after a correct code.
+   *
+   * @param {object} row - Enrolment row.
+   * @returns {Promise<void>}
+   */
+  const resetFactorAttempts = async (row) => {
+    await totpQuery().updateMany({
+      where: { id: row.id },
+      data: { failedAttempts: 0, lockedUntil: null },
+    });
+  };
+
   const pendingIsUsable = (pending, now = Date.now()) =>
     Boolean(
       pending &&
@@ -165,8 +214,9 @@ module.exports = ({ strapi }) => {
     },
 
     /**
-     * Creates and stores a code. All earlier unused codes of the same
-     * (e-mail, type) are invalidated first, so exactly one code is valid.
+     * Creates and stores a code. All other unused codes of the same
+     * (e-mail, type) are invalidated before and after the insert, so exactly
+     * one code is valid even when two processes create codes at once.
      *
      * @param {string} email - Recipient.
      * @param {'email'|'totp-setup'} [type] - Purpose.
@@ -197,6 +247,14 @@ module.exports = ({ strapi }) => {
             userAgent: options.userAgent ? String(options.userAgent).slice(0, 255) : null,
           },
         },
+      });
+
+      // A parallel createOTP (another process) may have inserted a code
+      // between our invalidation and our insert. Invalidating every older
+      // unused code afterwards keeps exactly one valid code: the newest.
+      await otpQuery().updateMany({
+        where: { email: normalizedEmail, type, used: false, id: { $lt: entry.id } },
+        data: { used: true },
       });
 
       log.debug(`[magic-link] OTP code created (type: ${type}, expires in ${expirySeconds}s)`);
@@ -519,15 +577,20 @@ module.exports = ({ strapi }) => {
             revision: 0,
           },
         });
-        // A concurrent request may have created a row as well: keep the
-        // oldest and remove the rest.
+        // A concurrent request (possibly on another process) may have
+        // created a row as well: keep the oldest and remove the rest. The
+        // surviving row must carry this request's nonce, also when the other
+        // request already removed our row (then only one row is left), or
+        // the returned secret would never have been stored.
         const rows = await totpQuery().findMany({
           where: { principalKey: principal.key },
           orderBy: { id: 'asc' },
         });
         if (Array.isArray(rows) && rows.length > 1) {
           await totpQuery().deleteMany({ where: { id: { $in: rows.slice(1).map((r) => r.id) } } });
-          if (rows[0].pending?.nonce !== nonce) throw new Error('Concurrent TOTP update');
+        }
+        if (!Array.isArray(rows) || rows.length === 0 || rows[0].pending?.nonce !== nonce) {
+          throw new Error('Concurrent TOTP update');
         }
       }
 
@@ -632,6 +695,11 @@ module.exports = ({ strapi }) => {
           return invalid('totp_not_setup', 'TOTP is not set up for this user');
         }
 
+        if (!(await reserveFactorAttempt(row))) {
+          log.warn('[magic-link] TOTP attempts exhausted, authenticator temporarily locked');
+          return invalid('invalid_token', 'Invalid TOTP code');
+        }
+
         const params = await paramsOf(row);
         const check = await totpUtils.verifyCode({
           secret: cryptoUtils.decrypt(row.secret),
@@ -662,6 +730,7 @@ module.exports = ({ strapi }) => {
         if (result?.count !== 1)
           return invalid('totp_replayed', 'This TOTP code has already been used');
 
+        await resetFactorAttempts(row);
         return { valid: true, enabled: true };
       } catch {
         log.error('[magic-link] TOTP verification failed');
@@ -690,6 +759,10 @@ module.exports = ({ strapi }) => {
         ) {
           return invalid('invalid_backup_code', 'Invalid backup code');
         }
+        if (!(await reserveFactorAttempt(row))) {
+          log.warn('[magic-link] Backup code attempts exhausted, authenticator temporarily locked');
+          return invalid('invalid_backup_code', 'Invalid backup code');
+        }
         const index = totpUtils.findHashIndex(row.backupCodes, candidate);
         if (index === -1) return invalid('invalid_backup_code', 'Invalid backup code');
 
@@ -698,6 +771,7 @@ module.exports = ({ strapi }) => {
           return invalid('invalid_backup_code', 'Invalid backup code');
         }
 
+        await resetFactorAttempts(row);
         log.info('[magic-link] Backup code redeemed');
         return { valid: true, remaining: remaining.length };
       } catch {
@@ -905,3 +979,7 @@ module.exports = ({ strapi }) => {
 };
 
 module.exports.toPrincipal = toPrincipal;
+module.exports.FACTOR_ATTEMPT_LIMIT = Object.freeze({
+  attempts: MAX_FACTOR_ATTEMPTS,
+  lockMs: FACTOR_LOCK_MS,
+});

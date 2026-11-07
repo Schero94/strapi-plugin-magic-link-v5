@@ -54,6 +54,9 @@ const matchesWhere = (row, where = {}) =>
       if ('$lt' in condition) return new Date(value).getTime() < new Date(condition.$lt).getTime();
       if ('$null' in condition) return (value === null || value === undefined) === condition.$null;
     }
+    // SQL semantics of the query engine: `field: null` matches NULL (a
+    // missing column value in this double).
+    if (condition === null) return value === null || value === undefined;
     return value === condition;
   });
 

@@ -45,6 +45,7 @@ const {
   getJwtManagementMode,
 } = require('../utils/login-session');
 const { readJwtSessions, updateJwtSessions } = require('../utils/jwt-session-store');
+const { updateStoreKey, withClusterLock } = require('../utils/cluster');
 const i18n = require('../utils/i18n');
 
 const TOKEN_UID = 'plugin::magic-link.token';
@@ -88,6 +89,24 @@ const clampTokenLength = (value) => {
 };
 
 /**
+ * Live blocklist entries of a stored blocklist value: drops malformed and
+ * expired entries. `permanent` entries never expire.
+ *
+ * @param {unknown} stored - Stored `blocked_jwt_tokens` value.
+ * @param {number} [now] - Current time in ms.
+ * @returns {Array<object>} Live entries.
+ */
+const liveBlocklistEntries = (stored, now = Date.now()) => {
+  const tokens = Array.isArray(stored?.tokens) ? stored.tokens : [];
+  return tokens.filter((entry) => {
+    if (!entry?.tokenHash && !entry?.upUserId) return false;
+    if (entry.permanent === true) return true;
+    const exp = new Date(entry.expiresAt).getTime();
+    return !Number.isFinite(exp) || exp > now;
+  });
+};
+
+/**
  * Normalises a username candidate to the characters users-permissions
  * usernames commonly allow.
  *
@@ -101,13 +120,8 @@ const toUsernameBase = (value) =>
     .slice(0, 48);
 
 module.exports = ({ strapi }) => {
-  // In-process serialisation of read-modify-write updates on store blobs.
-  let storeQueue = Promise.resolve();
-  const serialize = (task) => {
-    const run = storeQueue.then(task, task);
-    storeQueue = run.catch(() => {});
-    return run;
-  };
+  // Blocklist cache of this process. Other processes see a revocation after
+  // at most BLOCKLIST_CACHE_TTL_MS (README, "Running several instances").
   let blocklistCache = null;
 
   const pluginStore = () => strapi.store({ type: 'plugin', name: 'magic-link' });
@@ -213,16 +227,47 @@ module.exports = ({ strapi }) => {
       const normalizedEmail = normalizeEmail(email);
       if (!normalizedEmail) return null;
 
-      const users = await strapi.documents(USER_UID).findMany({
-        filters: { email: normalizedEmail },
-        limit: 1,
-      });
-      const existing = users && users.length > 0 ? users[0] : null;
+      const existing = await this.findUserByEmail(normalizedEmail);
       if (existing) return existing;
 
       const settings = (await this.settings()) || {};
       if (!(await this.canAutoRegister(settings))) return null;
-      return this.createUser({ email: normalizedEmail, username });
+      const { user } = await this.findOrCreateUser(normalizedEmail, username);
+      return user;
+    },
+
+    /**
+     * Oldest users-permissions user with a normalised e-mail.
+     *
+     * @param {string} normalizedEmail - Normalised e-mail.
+     * @returns {Promise<object|null>} User or null.
+     */
+    async findUserByEmail(normalizedEmail) {
+      const users = await strapi.documents(USER_UID).findMany({
+        filters: { email: normalizedEmail },
+        sort: [{ id: 'asc' }],
+        limit: 1,
+      });
+      return (users && users[0]) || null;
+    },
+
+    /**
+     * Looks the user up again and creates it only when it still does not
+     * exist, under a cluster-wide lock. users-permissions has no unique
+     * index on e-mail or username, so without the lock two processes
+     * handling the same new address could both create an account (and two
+     * different addresses could both pick the same free username).
+     *
+     * @param {string} normalizedEmail - Normalised e-mail.
+     * @param {string} [username] - Requested username.
+     * @returns {Promise<{user: object, created: boolean}>} The user.
+     */
+    async findOrCreateUser(normalizedEmail, username) {
+      return withClusterLock(strapi, 'users-permissions:create-user', async () => {
+        const existing = await this.findUserByEmail(normalizedEmail);
+        if (existing) return { user: existing, created: false };
+        return { user: await this.createUser({ email: normalizedEmail, username }), created: true };
+      });
     },
 
     /**
@@ -239,16 +284,15 @@ module.exports = ({ strapi }) => {
       if (!normalizedEmail) return 'invalid_email';
       const settings = (await this.settings()) || {};
 
-      const lookup = await strapi.documents(USER_UID).findMany({
-        filters: { email: normalizedEmail },
-        limit: 1,
-      });
-      const existingUser = (lookup && lookup[0]) || null;
+      let existingUser = await this.findUserByEmail(normalizedEmail);
 
       let user = existingUser;
       if (!user) {
         if (!(await this.canAutoRegister(settings))) return 'unknown_user';
-        user = await this.createUser({ email: normalizedEmail, username });
+        const outcome = await this.findOrCreateUser(normalizedEmail, username);
+        user = outcome.user;
+        // Another process created the account first: treat it as existing.
+        if (!outcome.created) existingUser = user;
       }
 
       if (!user || normalizeEmail(user.email) !== normalizedEmail) return 'user_mismatch';
@@ -421,14 +465,25 @@ module.exports = ({ strapi }) => {
      *
      * @param {object} token - Token record.
      * @param {object} challenge - { type: 'otp'|'totp'|'totp-setup', userId, userDocumentId, otpSentAt? }.
-     * @returns {Promise<boolean>} Whether the token was still usable.
+     * @returns {Promise<boolean>} Whether this request started it (false when the
+     *   token is no longer usable or a parallel request changed the challenge first).
      */
     async startChallenge(token, challenge) {
       if (!token?.id || !CHALLENGE_TYPES.includes(challenge?.type)) return false;
       const now = new Date();
+      // Compare-and-set on challenge_revision: when the same link is opened
+      // on several processes at once (mail scanner and user), only one start
+      // or restart wins, so only one e-mail code is created and sent.
+      const revision = Number(token.challenge_revision) || 0;
       const result = await strapi.db.query(TOKEN_UID).updateMany({
-        where: { id: token.id, is_active: true, expires_at: { $gt: now } },
+        where: {
+          id: token.id,
+          is_active: true,
+          expires_at: { $gt: now },
+          challenge_revision: token.challenge_revision ?? null,
+        },
         data: {
+          challenge_revision: revision + 1,
           challenge: {
             type: challenge.type,
             userId: challenge.userId,
@@ -829,30 +884,23 @@ module.exports = ({ strapi }) => {
      * @returns {Promise<{tokens: Array}>} Live blocklist.
      */
     async readBlocklist() {
-      const stored = (await pluginStore().get({ key: BLOCKLIST_KEY })) || { tokens: [] };
-      const tokens = Array.isArray(stored.tokens) ? stored.tokens : [];
-      const now = Date.now();
-      return {
-        tokens: tokens.filter((entry) => {
-          if (!entry?.tokenHash && !entry?.upUserId) return false;
-          if (entry.permanent === true) return true;
-          const exp = new Date(entry.expiresAt).getTime();
-          return !Number.isFinite(exp) || exp > now;
-        }),
-      };
+      const stored = await pluginStore().get({ key: BLOCKLIST_KEY });
+      return { tokens: liveBlocklistEntries(stored) };
     },
 
     /**
-     * Adds blocklist entries in one serialised write. An entry for a hash
-     * that is already blocked is merged (a permanent block stays permanent,
-     * the later expiry wins).
+     * Adds blocklist entries in one write under a cluster-wide lock
+     * (utils/cluster.js), so revocations on different processes never
+     * overwrite each other. An entry for a hash that is already blocked is
+     * merged (a permanent block stays permanent, the later expiry wins).
+     * Expired entries are pruned in the same write.
      *
      * @param {Array<object>} entries - New entries.
      * @returns {Promise<void>}
      */
     async addBlocklistEntries(entries) {
-      await serialize(async () => {
-        const blocklist = await this.readBlocklist();
+      await updateStoreKey(strapi, BLOCKLIST_KEY, (stored) => {
+        const blocklist = { tokens: liveBlocklistEntries(stored) };
         for (const entry of entries) {
           const existing = entry.tokenHash
             ? blocklist.tokens.find((candidate) => candidate.tokenHash === entry.tokenHash)
@@ -867,9 +915,9 @@ module.exports = ({ strapi }) => {
           }
           if (entry.upUserId) existing.upUserId = entry.upUserId;
         }
-        await pluginStore().set({ key: BLOCKLIST_KEY, value: blocklist });
-        blocklistCache = null;
+        return { value: blocklist };
       });
+      blocklistCache = null;
     },
 
     /**
@@ -1097,18 +1145,18 @@ module.exports = ({ strapi }) => {
      */
     async unblockJwtTokenByHash(tokenHash, userId) {
       try {
-        await serialize(async () => {
-          const blocklist = await this.readBlocklist();
-          blocklist.tokens = blocklist.tokens.filter(
-            (entry) =>
-              !(
-                entry.tokenHash === tokenHash &&
-                (!userId || String(entry.userId) === String(userId))
-              )
-          );
-          await pluginStore().set({ key: BLOCKLIST_KEY, value: blocklist });
-          blocklistCache = null;
-        });
+        await updateStoreKey(strapi, BLOCKLIST_KEY, (stored) => ({
+          value: {
+            tokens: liveBlocklistEntries(stored).filter(
+              (entry) =>
+                !(
+                  entry.tokenHash === tokenHash &&
+                  (!userId || String(entry.userId) === String(userId))
+                )
+            ),
+          },
+        }));
+        blocklistCache = null;
         return { success: true };
       } catch {
         blocklistCache = null;
@@ -1172,21 +1220,34 @@ module.exports = ({ strapi }) => {
     },
 
     /**
-     * Returns all live blocklist entries and persists the pruned list.
+     * Returns all live blocklist entries. Read-only: expired entries are
+     * pruned by every write (addBlocklistEntries, unblockJwtTokenByHash) and
+     * by `pruneBlocklist`, never by rewriting the list from a stale read.
      *
      * @returns {Promise<Array>} Blocked token entries.
      */
     async getBlockedJwtTokens() {
       try {
-        return await serialize(async () => {
-          const blocklist = await this.readBlocklist();
-          await pluginStore().set({ key: BLOCKLIST_KEY, value: blocklist });
-          return blocklist.tokens;
-        });
+        return (await this.readBlocklist()).tokens;
       } catch {
         strapi.log.error('[magic-link] Error reading blocked JWT tokens');
         return [];
       }
+    },
+
+    /**
+     * Removes expired blocklist entries under the cluster lock. Writes only
+     * when something expired, so running it in several processes is safe.
+     *
+     * @returns {Promise<number>} Number of removed entries.
+     */
+    async pruneBlocklist() {
+      return updateStoreKey(strapi, BLOCKLIST_KEY, (stored) => {
+        const all = Array.isArray(stored?.tokens) ? stored.tokens : [];
+        const live = liveBlocklistEntries(stored);
+        const removed = all.length - live.length;
+        return removed > 0 ? { value: { tokens: live }, result: removed } : { result: 0 };
+      });
     },
 
     /**

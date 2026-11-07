@@ -62,6 +62,11 @@
       "private": true,
       "description": "Server-only second-factor state (type, user, timestamps). Never written from client input."
     },
+    "challenge_revision": {
+      "type": "integer",
+      "private": true,
+      "description": "Compare-and-set counter for challenge (re)starts, so only one of several parallel opens sends an e-mail code"
+    },
     "user_agent": {
       "type": "text",
       "description": "User agent of the browser used during login"

@@ -76,6 +76,15 @@
     "lastUsedStep": {
       "type": "integer",
       "private": true
+    },
+    "failedAttempts": {
+      "type": "integer",
+      "default": 0,
+      "private": true
+    },
+    "lockedUntil": {
+      "type": "datetime",
+      "private": true
     }
   }
 }

@@ -20,6 +20,8 @@
  * Outbound HTTP uses `fetch` with an AbortController timeout and one retry.
  */
 
+const { updateStoreKey } = require('../utils/cluster');
+
 const LICENSE_SERVER_URL = 'https://magicapi.fitlex.me';
 const LICENSE_KEY_PATTERN = /^[A-Za-z0-9-]{8,128}$/;
 const LOOKUP_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -182,9 +184,10 @@ module.exports = ({ strapi }) => {
     async storeLicenseKey(licenseKey) {
       if (!isValidLicenseKey(licenseKey)) return false;
       try {
-        const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-        await pluginStore.set({ key: 'licenseKey', value: licenseKey });
-        await pluginStore.set({ key: 'lastValidated', value: new Date().toISOString() });
+        // Locked writes: a first write of a key from two processes at once
+        // must not create duplicate core-store rows (utils/cluster.js).
+        await updateStoreKey(strapi, 'licenseKey', () => ({ value: licenseKey }));
+        await updateStoreKey(strapi, 'lastValidated', () => ({ value: new Date().toISOString() }));
         lookupCache.clear();
         strapi.log.info('[magic-link] License key stored');
         return true;

@@ -2,15 +2,17 @@
 
 const cryptoUtils = require('./crypto');
 const createId = require('./id');
+const { updateStoreKey } = require('./cluster');
 
 /**
  * JWT session store helper for the magic-link plugin.
  *
  * Persists a small audit record per issued JWT (hash + metadata) in the
  * plugin store key `jwt_sessions`. Every write goes through
- * `updateJwtSessions`, which serialises read-modify-write cycles per Strapi
- * instance so concurrent logins and admin revocations cannot overwrite each
- * other's changes in one process. Each write also:
+ * `updateJwtSessions`, which runs the read-modify-write under a cluster-wide
+ * database lock (utils/cluster.js), so concurrent logins and admin
+ * revocations cannot overwrite each other's changes, neither in one process
+ * nor across several Strapi processes sharing the database. Each write also:
  *  - drops records whose token expired more than `RETENTION_MS` ago,
  *  - caps the list at `MAX_SESSIONS` (oldest first),
  *  - replaces plaintext `jwtToken` fields left by older releases with their
@@ -24,25 +26,6 @@ const STORE_KEY = 'jwt_sessions';
 const MAX_SESSIONS = 1000;
 // Keep expired records for a week so admins can still see recent history.
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-
-const queues = new WeakMap();
-
-/**
- * Runs `task` after every earlier task for the same Strapi instance.
- *
- * @param {object} strapi - Strapi instance (lock scope).
- * @param {() => Promise<any>} task - Work to serialise.
- * @returns {Promise<any>} Result of the task.
- */
-const serialize = (strapi, task) => {
-  const previous = queues.get(strapi) || Promise.resolve();
-  const run = previous.then(task, task);
-  queues.set(
-    strapi,
-    run.catch(() => {})
-  );
-  return run;
-};
 
 /**
  * Removes a legacy plaintext JWT from a record, keeping only its hash.
@@ -88,7 +71,7 @@ const readJwtSessions = async (strapi) => {
 };
 
 /**
- * Serialised read-modify-write of the session list. `mutator` receives a
+ * Cluster-safe read-modify-write of the session list. `mutator` receives a
  * cleaned copy and returns the new list, or `{ sessions, result }`.
  *
  * @param {object} strapi - Strapi instance.
@@ -96,13 +79,14 @@ const readJwtSessions = async (strapi) => {
  * @returns {Promise<any>} The mutator's `result` (undefined for a plain list).
  */
 const updateJwtSessions = (strapi, mutator) =>
-  serialize(strapi, async () => {
-    const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-    const current = cleanSessions(await readJwtSessions(strapi));
+  updateStoreKey(strapi, STORE_KEY, async (stored) => {
+    const current = cleanSessions(Array.isArray(stored?.sessions) ? stored.sessions : []);
     const outcome = await mutator(current.map((session) => ({ ...session })));
     const next = Array.isArray(outcome) ? outcome : outcome?.sessions || current;
-    await pluginStore.set({ key: STORE_KEY, value: { sessions: cleanSessions(next) } });
-    return Array.isArray(outcome) ? undefined : outcome?.result;
+    return {
+      value: { sessions: cleanSessions(next) },
+      result: Array.isArray(outcome) ? undefined : outcome?.result,
+    };
   });
 
 /**
