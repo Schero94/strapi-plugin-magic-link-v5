@@ -73,6 +73,31 @@
     "last_used_at": {
       "type": "datetime",
       "description": "Timestamp of last login using this token"
+    },
+    "delivery_status": {
+      "type": "enumeration",
+      "enum": ["sent", "rejected", "failed", "bounced", "complained"],
+      "description": "Login e-mail outcome: sent (provider accepted), rejected (refused before acceptance), failed, then bounced or complained when provider feedback arrives. Empty for tokens created without e-mail or before 6.x delivery tracking."
+    },
+    "delivery_channel": {
+      "type": "enumeration",
+      "enum": ["magic-mail", "email-designer", "email"],
+      "description": "Send path that produced delivery_status"
+    },
+    "delivery_reason": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "Sanitised reason code (e.g. SMTP_550, HTTP_400, ECONNECTION); never a provider message"
+    },
+    "delivery_message_id": {
+      "type": "string",
+      "maxLength": 255,
+      "private": true,
+      "description": "Provider message id, kept server-side to match bounce webhooks"
+    },
+    "delivery_updated_at": {
+      "type": "datetime",
+      "description": "When delivery_status was last written"
     }
   }
 }

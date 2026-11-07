@@ -42,6 +42,47 @@ export const TokenStatusBadge = ({ state }) => {
   );
 };
 
+const DELIVERY_TONE = Object.freeze({
+  sent: 'success',
+  rejected: 'warning',
+  failed: 'danger',
+  bounced: 'danger',
+  complained: 'danger',
+  unknown: 'neutral',
+});
+
+/**
+ * Translated label for a login e-mail delivery state.
+ * @param {(key: string, message: string) => string} t
+ * @param {'sent'|'rejected'|'failed'|'bounced'|'complained'|'unknown'} state
+ */
+export const getDeliveryLabel = (t, state) => {
+  switch (state) {
+    case 'sent':
+      return t('tokens.delivery.sent', 'Sent');
+    case 'rejected':
+      return t('tokens.delivery.rejected', 'Rejected');
+    case 'failed':
+      return t('tokens.delivery.failed', 'Failed');
+    case 'bounced':
+      return t('tokens.delivery.bounced', 'Bounced');
+    case 'complained':
+      return t('tokens.delivery.complained', 'Spam complaint');
+    default:
+      return t('tokens.delivery.unknown', 'Unknown');
+  }
+};
+
+/** @param {{state: 'sent'|'rejected'|'failed'|'bounced'|'complained'|'unknown'}} props */
+export const DeliveryStatusBadge = ({ state }) => {
+  const { t } = useMagicLinkIntl();
+  return (
+    <StatusBadge $tone={DELIVERY_TONE[state] ?? 'neutral'}>
+      {getDeliveryLabel(t, state)}
+    </StatusBadge>
+  );
+};
+
 const usedTint = byScheme('#F3E8FF', 'rgba(147, 51, 234, 0.16)');
 
 /** @param {{stats: {total: number, active: number, expired: number, used: number, blocked: number}}} props */

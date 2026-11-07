@@ -521,6 +521,26 @@ test('provider errors during OTP e-mail delivery never log the code or the addre
   };
   const service = createOtpService({ strapi });
 
+  await assert.rejects(service.sendOTPEmail(EMAIL, code, { expiryMinutes: 0.5 }));
+  assert.equal(mails.length, 0, 'an unknown provider outcome never sends the code twice');
+  assert.equal(logs.join('\n').includes(code), false);
+  assert.equal(logs.join('\n').includes(EMAIL), false);
+
+  // A pre-send failure (no Magic Mail account) falls back to the e-mail plugin.
+  strapi.plugin = (name) => {
+    if (name === 'magic-mail') {
+      return {
+        service: () => ({
+          send: async () => {
+            throw Object.assign(new Error(`no account for ${EMAIL}`), {
+              code: 'MAGIC_MAIL_NO_ACCOUNT',
+            });
+          },
+        }),
+      };
+    }
+    return basePlugin(name);
+  };
   await service.sendOTPEmail(EMAIL, code, { expiryMinutes: 0.5 });
 
   assert.equal(mails.length, 1, 'falls back to the Strapi e-mail plugin');

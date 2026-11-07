@@ -142,5 +142,16 @@ module.exports = {
       handler: 'totp.backupCodes',
       config: { policies: ['plugin::magic-link.ip-ban-check'] },
     },
+    // Delivery feedback (bounces/complaints) without Magic Mail. Public but
+    // authenticated per provider; off until the provider secret is configured.
+    {
+      method: 'POST',
+      path: '/delivery-webhooks/:provider',
+      handler: 'deliveryWebhooks.receive',
+      config: {
+        auth: false,
+        policies: ['plugin::magic-link.ip-ban-check'],
+      },
+    },
   ],
 };

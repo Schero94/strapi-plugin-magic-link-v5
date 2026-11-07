@@ -202,6 +202,7 @@ export const ACCENT_VALUES = Object.freeze({
   success: ['#15803D', '#86EFAC'],
   warning: ['#B45309', '#FCD34D'],
   danger: ['#B91C1C', '#FCA5A5'],
+  neutral: ['#4A4A6A', '#C0C0CF'],
 });
 
 /**
@@ -223,6 +224,7 @@ const TINT_VALUES = Object.freeze({
   success: { bg: ['#F0FDF4', 'rgba(34, 197, 94, 0.12)'], border: ['#BBF7D0', '#14532D'] },
   warning: { bg: ['#FFFBEB', 'rgba(245, 158, 11, 0.12)'], border: ['#FDE68A', '#78350F'] },
   danger: { bg: ['#FEF2F2', 'rgba(239, 68, 68, 0.12)'], border: ['#FECACA', '#7F1D1D'] },
+  neutral: { bg: ['#F6F6F9', 'rgba(142, 142, 169, 0.12)'], border: ['#DCDCE4', '#4A4A6A'] },
 });
 
 export const tint = Object.freeze(

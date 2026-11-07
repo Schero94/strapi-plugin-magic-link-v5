@@ -1,11 +1,11 @@
 import { Box, Searchbar, SingleSelect, SingleSelectOption } from '@strapi/design-system';
 import { useMagicLinkIntl } from '../../../hooks/useMagicLinkIntl';
-import { PAGE_SIZES, STATUS_FILTERS } from '../tokenModel';
-import { getStatusLabel } from './TokenStatus';
+import { DELIVERY_FILTERS, PAGE_SIZES, STATUS_FILTERS } from '../tokenModel';
+import { getDeliveryLabel, getStatusLabel } from './TokenStatus';
 import { FilterBar } from './tokenStyles';
 
 /**
- * Search, status filter and page size. All controls are size S (32px) so the
+ * Search, status filter, delivery filter and page size. All controls are size S (32px) so the
  * row has one height; the bar wraps below 768px with the search on its own row.
  *
  * @param {object} props
@@ -13,6 +13,8 @@ import { FilterBar } from './tokenStyles';
  * @param {(value: string) => void} props.onSearchChange
  * @param {string} props.status
  * @param {(value: string) => void} props.onStatusChange
+ * @param {string} props.delivery
+ * @param {(value: string) => void} props.onDeliveryChange
  * @param {number} props.pageSize
  * @param {(value: number) => void} props.onPageSizeChange
  */
@@ -21,6 +23,8 @@ export const TokensFilterBar = ({
   onSearchChange,
   status,
   onStatusChange,
+  delivery,
+  onDeliveryChange,
   pageSize,
   onPageSizeChange,
 }) => {
@@ -51,6 +55,22 @@ export const TokensFilterBar = ({
           {STATUS_FILTERS.map((value) => (
             <SingleSelectOption key={value} value={value}>
               {value === 'all' ? t('tokens.filter.all', 'All statuses') : getStatusLabel(t, value)}
+            </SingleSelectOption>
+          ))}
+        </SingleSelect>
+      </Box>
+      <Box className="filter-select">
+        <SingleSelect
+          size="S"
+          aria-label={t('tokens.filter.delivery', 'Filter by delivery')}
+          value={delivery}
+          onChange={(value) => onDeliveryChange(String(value))}
+        >
+          {DELIVERY_FILTERS.map((value) => (
+            <SingleSelectOption key={value} value={value}>
+              {value === 'all'
+                ? t('tokens.filter.allDeliveries', 'All deliveries')
+                : getDeliveryLabel(t, value)}
             </SingleSelectOption>
           ))}
         </SingleSelect>

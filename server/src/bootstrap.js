@@ -33,6 +33,7 @@ const {
   migrateLegacyAccessPermission,
   runEvery,
   runLater,
+  trackCleanup,
   warnOnUnsafeProxyConfig,
 } = require('./utils/lifecycle');
 
@@ -126,6 +127,17 @@ module.exports = async ({ strapi }) => {
   // /api/passwordless/* compatibility rewrite. Registered here (not in
   // register()) so it runs after Strapi's errors/security/CORS middlewares.
   strapi.server.use(passwordlessCompat({}, { strapi }));
+
+  // Bounce/complaint feedback from Magic Mail's signed provider webhooks
+  // (no-op without Magic Mail; the own delivery-webhooks route covers that).
+  try {
+    trackCleanup(
+      strapi,
+      strapi.plugin('magic-link').service('delivery-feedback').subscribeToMagicMail()
+    );
+  } catch {
+    strapi.log.warn('[magic-link] Magic Mail delivery feedback could not be subscribed');
+  }
 
   // Background jobs. Every timer is tracked and cleared in destroy(), and a
   // failing job is logged instead of becoming an unhandled rejection.

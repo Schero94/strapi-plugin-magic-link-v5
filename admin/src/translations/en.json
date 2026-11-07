@@ -666,5 +666,20 @@
   "magic-link.settings.save.securityForbidden": "Changing link targets, templates, sender, account, MFA, code or rate-limit rules needs the \"Settings: Security\" permission.",
   "magic-link.settings.save.linkOriginNotAllowed": "Login link URLs must use an origin allowed in the server configuration.",
   "magic-link.settings.validation.mfaNoEnrolled": "No user has an authenticator app yet, so \"Every user\" cannot be saved.",
-  "magic-link.settings.save.mfaNoEnrolled": "No user has an authenticator app yet. Choose \"Users who set up an app\" first so users can set one up, then require it for every user."
+  "magic-link.settings.save.mfaNoEnrolled": "No user has an authenticator app yet. Choose \"Users who set up an app\" first so users can set one up, then require it for every user.",
+  "magic-link.tokens.delivery.channel.email": "Strapi e-mail plugin",
+  "magic-link.tokens.delivery.channel.emailDesigner": "Email Designer",
+  "magic-link.tokens.delivery.channel.magicMail": "Magic Mail",
+  "magic-link.tokens.delivery.failed": "Failed",
+  "magic-link.tokens.delivery.reason": "Reason: {reason}",
+  "magic-link.tokens.delivery.rejected": "Rejected",
+  "magic-link.tokens.delivery.sent": "Sent",
+  "magic-link.tokens.delivery.unknown": "Unknown",
+  "magic-link.tokens.delivery.unknownHint": "Issued without e-mail or before delivery tracking.",
+  "magic-link.tokens.details.delivery": "Delivery",
+  "magic-link.tokens.filter.allDeliveries": "All deliveries",
+  "magic-link.tokens.filter.delivery": "Filter by delivery",
+  "magic-link.tokens.table.delivery": "Delivery",
+  "magic-link.tokens.delivery.bounced": "Bounced",
+  "magic-link.tokens.delivery.complained": "Spam complaint"
 }

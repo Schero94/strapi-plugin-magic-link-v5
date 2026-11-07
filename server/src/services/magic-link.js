@@ -25,6 +25,16 @@ const { normalizeIpAddress, ipBanKey } = require('../utils/ip-address');
 const { filterContext } = require('../utils/context-policy');
 const { buildLoginUrl } = require('../utils/login-url');
 const {
+  getMagicMailRouter,
+  isMagicMailPreSendFailure,
+  describeMagicMailError,
+} = require('../utils/magic-mail-delivery');
+const {
+  classifyDeliveryError,
+  messageIdOf,
+  toDeliveryAttributes,
+} = require('../utils/delivery-status');
+const {
   buildTemplateVariables,
   escapeHtml,
   renderTemplate,
@@ -536,14 +546,62 @@ module.exports = ({ strapi }) => {
     },
 
     /**
+     * Stores the delivery outcome of a login e-mail on the token row. A
+     * failure to write it is logged and never changes the send result.
+     *
+     * @param {object} token - Token record (needs `documentId`).
+     * @param {{status: string, channel: string, reason?: string|null, messageId?: string|null}} outcome
+     * @returns {Promise<void>}
+     */
+    async recordDelivery(token, outcome) {
+      if (!token?.documentId) return;
+      const data = toDeliveryAttributes(outcome);
+      try {
+        await strapi.documents(TOKEN_UID).update({ documentId: token.documentId, data });
+        Object.assign(token, data);
+      } catch {
+        strapi.log.warn('[magic-link] Delivery status could not be stored');
+      }
+    },
+
+    /**
      * Sends the login e-mail through Magic Mail, Email Designer 5 or the
-     * Strapi e-mail plugin (in that order of preference).
+     * Strapi e-mail plugin (in that order of preference) and records the
+     * outcome on the token (sent, rejected or failed, see
+     * utils/delivery-status.js). Errors are re-thrown after recording.
      *
      * @param {object} token - Token record with `_plaintextToken`.
      * @param {{username?: string}} [options] - Recipient details.
      * @returns {Promise<object>} The token.
      */
     async sendLoginLink(token, { username } = {}) {
+      const attempt = { channel: 'email' };
+      let result;
+      try {
+        result = await this.dispatchLoginEmail(token, { username }, attempt);
+      } catch (error) {
+        const { status, reason } = classifyDeliveryError(error);
+        await this.recordDelivery(token, { status, reason, channel: attempt.channel });
+        throw error;
+      }
+      await this.recordDelivery(token, {
+        status: 'sent',
+        channel: attempt.channel,
+        messageId: messageIdOf(result),
+      });
+      return token;
+    },
+
+    /**
+     * Renders and hands the login e-mail to the first available provider.
+     * `attempt.channel` always names the path that was tried last.
+     *
+     * @param {object} token - Token record with `_plaintextToken`.
+     * @param {{username?: string}} options - Recipient details.
+     * @param {{channel: string}} attempt - Mutable send-path marker.
+     * @returns {Promise<*>} The provider result (used for the message id).
+     */
+    async dispatchLoginEmail(token, { username } = {}, attempt = { channel: 'email' }) {
       const settings = (await this.settings()) || {};
       const code = token._plaintextToken;
       if (!code) {
@@ -574,7 +632,10 @@ module.exports = ({ strapi }) => {
       });
       if (!validation.valid) {
         strapi.log.error('[magic-link] Login e-mail configuration is invalid');
-        throw new Error('Invalid email configuration');
+        const invalidRecipient = validation.errors.includes('Invalid recipient email address');
+        throw Object.assign(new Error('Invalid email configuration'), {
+          code: invalidRecipient ? 'INVALID_RECIPIENT' : 'INVALID_CONFIGURATION',
+        });
       }
 
       // Variables for third-party template engines (Magic Mail, Email Designer).
@@ -592,7 +653,14 @@ module.exports = ({ strapi }) => {
         user: { email: token.email, username: username || undefined },
       };
 
-      if (settings.use_magic_mail && strapi.plugin('magic-mail')) {
+      const magicMailRouter = settings.use_magic_mail ? getMagicMailRouter(strapi) : null;
+      if (settings.use_magic_mail && !magicMailRouter) {
+        strapi.log.warn(
+          '[magic-link] Magic Mail is enabled but not installed; using the next provider'
+        );
+      }
+      if (magicMailRouter) {
+        attempt.channel = 'magic-mail';
         try {
           let templateReferenceId = settings.magic_mail_template_reference_id || undefined;
           const numericTemplateId = settings.magic_mail_template_id
@@ -610,33 +678,39 @@ module.exports = ({ strapi }) => {
             }
           }
 
-          await strapi
-            .plugin('magic-mail')
-            .service('email-router')
-            .send({
-              to: token.email,
-              from,
-              replyTo,
-              subject,
-              text,
-              html,
-              headers,
-              // Authentication mail: transactional routing, and neither an
-              // open-tracking pixel nor rewritten (tracked) login links.
-              type: 'transactional',
-              enableTracking: false,
-              skipLinkTracking: true,
-              links: [{ original: loginUrl, label: 'Magic Link Login', track: false }],
-              templateId: templateReferenceId || numericTemplateId,
-              templateReferenceId,
-              templateData: templatePayload,
-              data: templatePayload,
-            });
+          const sent = await magicMailRouter.send({
+            to: token.email,
+            from,
+            replyTo,
+            subject,
+            text,
+            html,
+            headers,
+            // Authentication mail: transactional routing, and neither an
+            // open-tracking pixel nor rewritten (tracked) login links.
+            type: 'transactional',
+            enableTracking: false,
+            skipLinkTracking: true,
+            links: [{ original: loginUrl, label: 'Magic Link Login', track: false }],
+            templateId: templateReferenceId || numericTemplateId,
+            templateReferenceId,
+            templateData: templatePayload,
+            data: templatePayload,
+          });
           strapi.log.debug('[magic-link] Login e-mail sent via Magic Mail');
-          return token;
-        } catch {
-          strapi.log.error(
-            '[magic-link] Magic Mail send failed, falling back to the next provider'
+          return sent;
+        } catch (error) {
+          const reason = describeMagicMailError(error);
+          if (!isMagicMailPreSendFailure(error)) {
+            // The provider may already have accepted the message: another
+            // provider could deliver a second, still valid login link.
+            strapi.log.error(
+              `[magic-link] Magic Mail delivery failed with an unknown outcome (${reason}); not retrying with another provider`
+            );
+            throw error;
+          }
+          strapi.log.warn(
+            `[magic-link] Magic Mail could not send the login e-mail (${reason}); using the next provider`
           );
         }
       }
@@ -645,8 +719,9 @@ module.exports = ({ strapi }) => {
       if (wantsEmailDesigner && strapi.plugin('email-designer-5')) {
         const templateId = parseInt(settings.email_designer_template_id, 10);
         if (!Number.isNaN(templateId) && templateId > 0) {
+          attempt.channel = 'email-designer';
           try {
-            await strapi
+            const sent = await strapi
               .plugin('email-designer-5')
               .service('email')
               .sendTemplatedEmail(
@@ -655,7 +730,7 @@ module.exports = ({ strapi }) => {
                 templatePayload
               );
             strapi.log.debug('[magic-link] Login e-mail sent via Email Designer 5');
-            return token;
+            return sent;
           } catch {
             strapi.log.error(
               '[magic-link] Email Designer 5 send failed, falling back to the e-mail plugin'
@@ -668,7 +743,8 @@ module.exports = ({ strapi }) => {
         }
       }
 
-      await strapi
+      attempt.channel = 'email';
+      const sent = await strapi
         .plugin('email')
         .service('email')
         .send({
@@ -681,7 +757,7 @@ module.exports = ({ strapi }) => {
           headers,
         });
       strapi.log.debug('[magic-link] Login e-mail sent');
-      return token;
+      return sent;
     },
 
     /**

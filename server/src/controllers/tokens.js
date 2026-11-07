@@ -62,8 +62,8 @@ const can = (ctx, action) => {
 
 /**
  * Token fields that are safe to show in the admin. The hash, salt, lookup
- * prefix (8 characters of the plaintext link) and challenge state never leave
- * the server.
+ * prefix (8 characters of the plaintext link), challenge state and provider
+ * message id never leave the server.
  *
  * @param {object} token - Stored token row.
  * @returns {object} Display token.
@@ -80,6 +80,12 @@ const toAdminToken = (token) => ({
   ip_address: token.ip_address || null,
   user_agent: token.user_agent || null,
   context: token.context && typeof token.context === 'object' ? token.context : {},
+  // Login e-mail outcome (utils/delivery-status.js). The provider message id
+  // stays on the server; it is only used to match bounce notifications.
+  delivery_status: token.delivery_status || null,
+  delivery_channel: token.delivery_channel || null,
+  delivery_reason: token.delivery_reason || null,
+  delivery_updated_at: token.delivery_updated_at || null,
   createdAt: token.createdAt,
   updatedAt: token.updatedAt,
 });

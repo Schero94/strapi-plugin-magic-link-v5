@@ -438,6 +438,17 @@ short version is the upgrade guide.
 
 ### Security and fixes (login core)
 
+* **No second login e-mail after a Magic Mail error.** With Magic Mail
+  enabled, any Magic Mail error used to fall back to Email Designer or the
+  Strapi e-mail plugin. Magic Mail 4.0 also routes the Strapi e-mail plugin,
+  so a timeout could deliver two valid login links or OTP codes. Magic Link
+  now falls back only when Magic Mail proves it sent nothing (no account,
+  quota used up, account unavailable or misconfigured, template rendering
+  failed, or a provider status that guarantees non-acceptance). Any other
+  error is logged with its code only and returned to the caller. OTP mails
+  through Magic Mail are now explicitly untracked as well. When Magic Mail
+  is enabled but not installed, a warning says so and the next provider
+  sends.
 * **Revocation could be bypassed with an upper-case path.** Strapi 5.61
   mounts its routers with @koa/router defaults (`sensitive: false`), so
   `GET /API/users/me` reaches the same route as `/api/users/me`. The
@@ -594,6 +605,52 @@ short version is the upgrade guide.
 * Deleting an OTP code from the admin works with the numeric id and answers
   404 when nothing was deleted; the new `GET /magic-link/totp/enrollment-summary`
   (Settings read) returns the number of enrolled end users.
+
+### Delivery status for login e-mails
+
+* Every login link sent by e-mail now records whether the provider accepted
+  it. The status is stored on the token: **sent** (accepted by the provider),
+  **rejected** (the address or message was refused before acceptance, such
+  as an SMTP 5xx reply, an HTTP 400/422 or an invalid recipient) or
+  **failed** (connection, credentials, timeout or another provider error).
+  It works with every send path, with or without Magic Mail: Magic Mail,
+  Email Designer 5 and the Strapi e-mail plugin.
+* Only a short reason code is stored, such as `SMTP_550`, `HTTP_400` or
+  `ECONNECTION`, plus the send path and the time. Error messages, addresses,
+  links and provider responses are never stored. The provider message id is
+  kept server-side (private attribute) for bounce matching in a later
+  release.
+* The admin token list (`GET /magic-link/tokens`) returns `delivery_status`,
+  `delivery_channel`, `delivery_reason` and `delivery_updated_at`. The token
+  content type has five new optional attributes; existing rows show
+  "Unknown". No migration is needed.
+* Tokens view: a delivery badge under the reference, a "Delivery" filter and
+  the reason and send path in the token details.
+* "Sent" means the provider accepted the message, not that it reached the
+  inbox. Login e-mails still carry no open or click tracking.
+
+### Bounces and spam complaints for login e-mails
+
+* Tokens move from **sent** to **bounced** or **complained** when the
+  provider reports a hard bounce or a spam complaint. Two new values in
+  `delivery_status`; existing rows are unchanged.
+* With Magic Mail (4.2+): Magic Link listens to Magic Mail's signed
+  provider webhooks (`magic-mail.delivery.bounced|complained` on
+  `strapi.eventHub`). Nothing to configure in Magic Link.
+* Without Magic Mail: new public route
+  `POST /api/magic-link/delivery-webhooks/:provider` for SendGrid (Signed
+  Event Webhook, ECDSA), Mailgun (HMAC signing key), Amazon SES through SNS
+  (certificate from an SNS host over HTTPS, allowed topic ARNs, automatic
+  SubscriptionConfirmation) and Postmark (HTTP Basic auth). Each provider is
+  off until its secret is set in `config/plugins.js` (`deliveryWebhooks`) or
+  the matching `MAGIC_LINK_WEBHOOK_*` environment variable; secrets are never
+  stored in the admin settings.
+* Requests are checked against a one-hour timestamp window, replays are
+  ignored, the route is rate limited (600 per minute and IP) and covered by
+  the IP-ban policy, bodies above 512 KB are refused and every failure
+  returns the same 401 without detail. Feedback is matched only by the
+  provider message id; addresses are never looked up or stored.
+* Tokens view: red "Bounced" and "Spam complaint" badges and filter options.
 
 ### Admin panel
 

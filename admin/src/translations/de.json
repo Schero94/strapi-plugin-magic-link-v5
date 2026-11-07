@@ -666,5 +666,20 @@
   "magic-link.settings.save.securityForbidden": "Für Änderungen an Link-Zielen, Vorlagen, Absender-, Konto-, MFA-, Code- oder Rate-Limit-Regeln ist die Berechtigung „Einstellungen: Sicherheit“ erforderlich.",
   "magic-link.settings.save.linkOriginNotAllowed": "Anmeldelinks müssen einen in der Serverkonfiguration erlaubten Origin verwenden.",
   "magic-link.settings.validation.mfaNoEnrolled": "Noch kein Benutzer hat eine Authenticator-App eingerichtet, daher kann „Alle Benutzer“ nicht gespeichert werden.",
-  "magic-link.settings.save.mfaNoEnrolled": "Noch kein Benutzer hat eine Authenticator-App eingerichtet. Wählen Sie zuerst „Benutzer mit eingerichteter App“, damit Benutzer eine App einrichten können, und verlangen Sie sie danach von allen."
+  "magic-link.settings.save.mfaNoEnrolled": "Noch kein Benutzer hat eine Authenticator-App eingerichtet. Wählen Sie zuerst „Benutzer mit eingerichteter App“, damit Benutzer eine App einrichten können, und verlangen Sie sie danach von allen.",
+  "magic-link.tokens.delivery.channel.email": "Strapi-E-Mail-Plugin",
+  "magic-link.tokens.delivery.channel.emailDesigner": "Email Designer",
+  "magic-link.tokens.delivery.channel.magicMail": "Magic Mail",
+  "magic-link.tokens.delivery.failed": "Fehlgeschlagen",
+  "magic-link.tokens.delivery.reason": "Grund: {reason}",
+  "magic-link.tokens.delivery.rejected": "Abgelehnt",
+  "magic-link.tokens.delivery.sent": "Gesendet",
+  "magic-link.tokens.delivery.unknown": "Unbekannt",
+  "magic-link.tokens.delivery.unknownHint": "Ohne E-Mail ausgestellt oder vor der Zustellungserfassung erstellt.",
+  "magic-link.tokens.details.delivery": "Zustellung",
+  "magic-link.tokens.filter.allDeliveries": "Alle Zustellungen",
+  "magic-link.tokens.filter.delivery": "Nach Zustellung filtern",
+  "magic-link.tokens.table.delivery": "Zustellung",
+  "magic-link.tokens.delivery.bounced": "Unzustellbar",
+  "magic-link.tokens.delivery.complained": "Spam-Beschwerde"
 }

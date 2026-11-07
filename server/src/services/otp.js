@@ -35,6 +35,11 @@ const cryptoUtils = require('../utils/crypto');
 const totpUtils = require('../utils/totp');
 const i18n = require('../utils/i18n');
 const { escapeHtml } = require('../utils/template-renderer');
+const {
+  getMagicMailRouter,
+  isMagicMailPreSendFailure,
+  describeMagicMailError,
+} = require('../utils/magic-mail-delivery');
 
 const OTP_UID = 'plugin::magic-link.otp-code';
 const TOTP_UID = 'plugin::magic-link.totp-config';
@@ -358,15 +363,29 @@ module.exports = ({ strapi }) => {
         headers,
       };
 
-      if (settings.use_magic_mail && strapi.plugin('magic-mail')) {
+      const magicMailRouter = settings.use_magic_mail ? getMagicMailRouter(strapi) : null;
+      if (magicMailRouter) {
         try {
-          await strapi
-            .plugin('magic-mail')
-            .service('email-router')
-            .send({ ...message, type: 'transactional' });
+          // Codes are never tracked: no pixel, no rewritten links.
+          await magicMailRouter.send({
+            ...message,
+            type: 'transactional',
+            enableTracking: false,
+            skipLinkTracking: true,
+          });
           return true;
-        } catch {
-          log.error('[magic-link] MagicMail OTP delivery failed; using the Strapi e-mail plugin');
+        } catch (error) {
+          const reason = describeMagicMailError(error);
+          if (!isMagicMailPreSendFailure(error)) {
+            // A second provider could deliver the same code twice.
+            log.error(
+              `[magic-link] Magic Mail OTP delivery failed with an unknown outcome (${reason}); not retrying with another provider`
+            );
+            throw error;
+          }
+          log.warn(
+            `[magic-link] Magic Mail could not send the OTP e-mail (${reason}); using the Strapi e-mail plugin`
+          );
         }
       }
 

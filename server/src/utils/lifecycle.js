@@ -6,6 +6,41 @@
  */
 
 const timers = new WeakMap();
+/** @type {WeakMap<object, Set<() => void>>} */
+const cleanups = new WeakMap();
+
+/**
+ * Remembers a cleanup function (e.g. an eventHub unsubscribe) for destroy().
+ *
+ * @param {object} strapi - Strapi instance.
+ * @param {(() => void)|null|undefined} cleanup
+ */
+const trackCleanup = (strapi, cleanup) => {
+  if (typeof cleanup !== 'function') return;
+  if (!cleanups.has(strapi)) cleanups.set(strapi, new Set());
+  cleanups.get(strapi).add(cleanup);
+};
+
+/**
+ * Runs and forgets every tracked cleanup of a Strapi instance.
+ *
+ * @param {object} strapi - Strapi instance.
+ * @returns {number} Number of cleanups run.
+ */
+const runTrackedCleanups = (strapi) => {
+  const set = cleanups.get(strapi);
+  if (!set) return 0;
+  for (const cleanup of set) {
+    try {
+      cleanup();
+    } catch {
+      // A failing cleanup must not stop the others.
+    }
+  }
+  const count = set.size;
+  set.clear();
+  return count;
+};
 
 /**
  * Remembers a timer for a Strapi instance so destroy() can clear it.
@@ -207,6 +242,8 @@ const warnOnUnsafeProxyConfig = (strapi) => {
 };
 
 module.exports = {
+  trackCleanup,
+  runTrackedCleanups,
   RBAC_ACTIONS,
   LEGACY_ACCESS_ACTION,
   clearTrackedTimers,

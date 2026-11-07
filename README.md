@@ -25,6 +25,7 @@ Passwordless login for Strapi 5. Your users type their e-mail address, click the
 - [Permissions](#permissions)
 - [Configuration reference](#configuration-reference)
 - [E-mail templates](#e-mail-templates)
+- [Delivery status](#delivery-status)
 - [Security model](#security-model)
 - [Running behind a proxy or in a cluster](#running-behind-a-proxy-or-in-a-cluster)
 - [Migrating from strapi-plugin-passwordless](#migrating-from-strapi-plugin-passwordless)
@@ -698,7 +699,58 @@ Subject, HTML and text bodies use `{{PLACEHOLDER}}` syntax. Values are HTML-esca
 
 Templates from 5.x that use `<%= URL %>?loginToken=<%= CODE %>` are converted to `{{LOGIN_URL}}` at startup. Any other `<% ... %>` block is printed as plain text.
 
-**Magic Mail and Email Designer 5** receive these variables: `magicLink`, `loginUrl`, `url`, `code`, `token`, `email`, `expiryText`, `expiresAt`, `user.email`, `user.username`. Choose the template in **Settings > E-mail**. Magic Mail sends login mails as `transactional` without open or link tracking. If the provider fails, the plugin falls back to the Strapi e-mail plugin.
+**Magic Mail and Email Designer 5** receive these variables: `magicLink`, `loginUrl`, `url`, `code`, `token`, `email`, `expiryText`, `expiresAt`, `user.email`, `user.username`. Choose the template in **Settings > E-mail**. Magic Mail sends login mails as `transactional` without open or link tracking. When Magic Mail proves it sent nothing (no account, quota used up, account misconfigured), the plugin falls back to the Strapi e-mail plugin; after any other Magic Mail error it does not retry, so no second valid link goes out.
+
+## Delivery status
+
+Each token sent by e-mail shows whether the provider took the message. You see it as a badge under the reference in **Tokens**, can filter by it, and find the details in the token dialog.
+
+| Status         | Meaning                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------- |
+| Sent           | The provider accepted the message. This is not proof that it reached the inbox.             |
+| Rejected       | The address or message was refused before acceptance (SMTP 5xx, HTTP 400/422, bad address). |
+| Failed         | Connection, credentials, timeout or another provider error. Nothing was accepted.           |
+| Bounced        | Accepted, then reported as a hard bounce by the provider (needs bounce feedback, below).    |
+| Spam complaint | Accepted, then the recipient marked it as spam (needs bounce feedback, below).              |
+| Unknown        | Issued without e-mail, or created before delivery tracking.                                 |
+
+It works with or without Magic Mail. Only a reason code such as `SMTP_550` or `ECONNECTION` is stored, never the provider's error text. The admin token API returns `delivery_status`, `delivery_channel`, `delivery_reason` and `delivery_updated_at`. Login e-mails have no open or click tracking.
+
+### Bounce and complaint feedback
+
+**With Magic Mail.** Set up the bounce webhook on your SendGrid or Mailgun account in Magic Mail (see its README, "Bounces and complaints"). Magic Link picks up the events automatically.
+
+**Without Magic Mail.** Point your provider at `https://<your-strapi>/api/magic-link/delivery-webhooks/<provider>` and set the secret in `config/plugins.js` or the environment. Every provider is off until its secret is set.
+
+```js
+// config/plugins.js
+module.exports = ({ env }) => ({
+  'magic-link': {
+    config: {
+      deliveryWebhooks: {
+        sendgrid: { publicKey: env('MAGIC_LINK_WEBHOOK_SENDGRID_PUBLIC_KEY') },
+        mailgun: { signingKey: env('MAGIC_LINK_WEBHOOK_MAILGUN_SIGNING_KEY') },
+        ses: { topicArns: ['arn:aws:sns:eu-west-1:123456789012:ses-feedback'] },
+        postmark: { username: 'postmark', password: env('MAGIC_LINK_WEBHOOK_POSTMARK_PASSWORD') },
+      },
+    },
+  },
+});
+```
+
+| Provider (`:provider`) | Provider setting                                                                                         | Secret                                                                                       | Events used                        |
+| ---------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `sendgrid`             | Settings → Mail Settings → Event Webhook, enable **Signed Event Webhook**                                | verification key (`MAGIC_LINK_WEBHOOK_SENDGRID_PUBLIC_KEY`)                                  | Bounced, Dropped, Spam Reports     |
+| `mailgun`              | Sending → Webhooks; key under Settings → API Security                                                    | HTTP webhook signing key (`MAGIC_LINK_WEBHOOK_MAILGUN_SIGNING_KEY`)                          | Permanent Failure, Spam Complaints |
+| `ses`                  | SES identity → Notifications → SNS topic for bounces and complaints; HTTPS subscription to the URL above | allowed topic ARNs (`MAGIC_LINK_WEBHOOK_SES_TOPIC_ARNS`, comma-separated)                    | Permanent bounces, complaints      |
+| `postmark`             | Servers → Webhooks, URL with Basic auth credentials                                                      | username and password, 12+ characters (`MAGIC_LINK_WEBHOOK_POSTMARK_USERNAME` / `_PASSWORD`) | Bounce (hard), Spam Complaint      |
+
+- SendGrid and Mailgun requests must be signed and less than one hour old; replays are ignored.
+- SES: the signing certificate is only fetched over HTTPS from an `sns.<region>.amazonaws.com` host, the topic must be in your list, and the SNS subscription is confirmed automatically. This is the only case where Magic Link calls out (to AWS).
+- Postmark does not sign webhooks, so the URL is protected with Basic auth: `https://postmark:<password>@<your-strapi>/api/magic-link/delivery-webhooks/postmark`.
+- Temporary failures are ignored; the provider keeps retrying. Only tokens that were accepted (**Sent**) change, a complaint never replaces a bounce, and only a reason code such as `MAILGUN_BOUNCE_550` is stored.
+- The route answers 200 or 401 with no detail, is limited to 600 requests per minute and IP and honours IP bans. Behind a proxy, enable `server.proxy` (see below).
+- The URL uses the default REST prefix `/api`. SMTP and sendmail have no bounce webhooks; their status stays at stage 1 (sent, rejected, failed).
 
 ## Security model
 

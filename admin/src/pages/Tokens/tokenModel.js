@@ -17,6 +17,24 @@ export const TOKEN_STATES = Object.freeze(['active', 'expired', 'used', 'blocked
 export const STATUS_FILTERS = Object.freeze(['all', ...TOKEN_STATES]);
 export const PAGE_SIZES = Object.freeze([10, 25, 50, 100]);
 
+/**
+ * Login e-mail outcome per token (server/src/utils/delivery-status.js).
+ * `bounced` and `complained` arrive later from provider feedback
+ * (server/src/services/delivery-feedback.js). `unknown` covers tokens issued
+ * without e-mail and rows from before 6.x delivery tracking (delivery_status
+ * is empty).
+ */
+export const DELIVERY_STATES = Object.freeze([
+  'sent',
+  'rejected',
+  'failed',
+  'bounced',
+  'complained',
+  'unknown',
+]);
+const KNOWN_DELIVERY = new Set(DELIVERY_STATES.filter((state) => state !== 'unknown'));
+export const DELIVERY_FILTERS = Object.freeze(['all', ...DELIVERY_STATES]);
+
 /** Admin-chosen link lifetime in hours (create form). The server applies the same bound. */
 export const TTL_LIMITS = Object.freeze({ min: 1, max: 720 });
 /** Extension in days (extend form). The server applies the same bound. */
@@ -78,7 +96,17 @@ export const normalizeToken = (token = {}) => {
     expires_at: iso(token.expires_at),
     used_at: iso(token.used_at),
     last_used_at: iso(token.last_used_at),
+    delivery_updated_at: iso(token.delivery_updated_at),
   };
+};
+
+/**
+ * @param {object} token
+ * @returns {'sent'|'rejected'|'failed'|'bounced'|'complained'|'unknown'}
+ */
+export const getDeliveryState = (token) => {
+  const status = token?.delivery_status;
+  return KNOWN_DELIVERY.has(status) ? status : 'unknown';
 };
 
 /**
@@ -157,16 +185,24 @@ const sortValue = (token, field, now) => {
 /**
  * Filters and sorts without mutating the input array.
  * @param {object[]} tokens
- * @param {{search?: string, status?: string, sortBy?: string, sortOrder?: 'asc'|'desc', now?: number}} options
+ * @param {{search?: string, status?: string, delivery?: string, sortBy?: string, sortOrder?: 'asc'|'desc', now?: number}} options
  */
 export const filterAndSortTokens = (
   tokens = [],
-  { search = '', status = 'all', sortBy = 'createdAt', sortOrder = 'desc', now = Date.now() } = {}
+  {
+    search = '',
+    status = 'all',
+    delivery = 'all',
+    sortBy = 'createdAt',
+    sortOrder = 'desc',
+    now = Date.now(),
+  } = {}
 ) => {
   const direction = sortOrder === 'asc' ? 1 : -1;
   return tokens
     .filter((token) => matchesSearch(token, search))
     .filter((token) => status === 'all' || getTokenState(token, now) === status)
+    .filter((token) => delivery === 'all' || getDeliveryState(token) === delivery)
     .map((token, index) => ({ token, index, value: sortValue(token, sortBy, now) }))
     .sort((a, b) => {
       if (a.value === b.value) return a.index - b.index;

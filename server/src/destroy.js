@@ -1,6 +1,6 @@
 'use strict';
 
-const { clearTrackedTimers } = require('./utils/lifecycle');
+const { clearTrackedTimers, runTrackedCleanups } = require('./utils/lifecycle');
 
 /**
  * Destroy phase: stops every background job started in bootstrap() and
@@ -11,6 +11,7 @@ const { clearTrackedTimers } = require('./utils/lifecycle');
  */
 module.exports = ({ strapi }) => {
   clearTrackedTimers(strapi);
+  runTrackedCleanups(strapi);
   try {
     strapi.plugin('magic-link')?.service('license-guard')?.cleanup?.();
   } catch {
