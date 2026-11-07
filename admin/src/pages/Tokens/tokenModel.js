@@ -19,10 +19,20 @@ export const PAGE_SIZES = Object.freeze([10, 25, 50, 100]);
 
 /**
  * Login e-mail outcome per token (server/src/utils/delivery-status.js).
- * `unknown` covers tokens issued without e-mail and rows from before 6.x
- * delivery tracking (delivery_status is empty).
+ * `bounced` and `complained` arrive later from provider feedback
+ * (server/src/services/delivery-feedback.js). `unknown` covers tokens issued
+ * without e-mail and rows from before 6.x delivery tracking (delivery_status
+ * is empty).
  */
-export const DELIVERY_STATES = Object.freeze(['sent', 'rejected', 'failed', 'unknown']);
+export const DELIVERY_STATES = Object.freeze([
+  'sent',
+  'rejected',
+  'failed',
+  'bounced',
+  'complained',
+  'unknown',
+]);
+const KNOWN_DELIVERY = new Set(DELIVERY_STATES.filter((state) => state !== 'unknown'));
 export const DELIVERY_FILTERS = Object.freeze(['all', ...DELIVERY_STATES]);
 
 /** Admin-chosen link lifetime in hours (create form). The server applies the same bound. */
@@ -92,11 +102,11 @@ export const normalizeToken = (token = {}) => {
 
 /**
  * @param {object} token
- * @returns {'sent'|'rejected'|'failed'|'unknown'}
+ * @returns {'sent'|'rejected'|'failed'|'bounced'|'complained'|'unknown'}
  */
 export const getDeliveryState = (token) => {
   const status = token?.delivery_status;
-  return status === 'sent' || status === 'rejected' || status === 'failed' ? status : 'unknown';
+  return KNOWN_DELIVERY.has(status) ? status : 'unknown';
 };
 
 /**

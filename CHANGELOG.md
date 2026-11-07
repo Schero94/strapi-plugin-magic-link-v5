@@ -489,6 +489,29 @@ short version is the upgrade guide.
 * "Sent" means the provider accepted the message, not that it reached the
   inbox. Login e-mails still carry no open or click tracking.
 
+### Bounces and spam complaints for login e-mails
+
+* Tokens move from **sent** to **bounced** or **complained** when the
+  provider reports a hard bounce or a spam complaint. Two new values in
+  `delivery_status`; existing rows are unchanged.
+* With Magic Mail (4.2+): Magic Link listens to Magic Mail's signed
+  provider webhooks (`magic-mail.delivery.bounced|complained` on
+  `strapi.eventHub`). Nothing to configure in Magic Link.
+* Without Magic Mail: new public route
+  `POST /api/magic-link/delivery-webhooks/:provider` for SendGrid (Signed
+  Event Webhook, ECDSA), Mailgun (HMAC signing key), Amazon SES through SNS
+  (certificate from an SNS host over HTTPS, allowed topic ARNs, automatic
+  SubscriptionConfirmation) and Postmark (HTTP Basic auth). Each provider is
+  off until its secret is set in `config/plugins.js` (`deliveryWebhooks`) or
+  the matching `MAGIC_LINK_WEBHOOK_*` environment variable; secrets are never
+  stored in the admin settings.
+* Requests are checked against a one-hour timestamp window, replays are
+  ignored, the route is rate limited (600 per minute and IP) and covered by
+  the IP-ban policy, bodies above 512 KB are refused and every failure
+  returns the same 401 without detail. Feedback is matched only by the
+  provider message id; addresses are never looked up or stored.
+* Tokens view: red "Bounced" and "Spam complaint" badges and filter options.
+
 ### Admin panel
 
 * The Tokens, OTP codes, JWT sessions, IP bans, Settings and License pages

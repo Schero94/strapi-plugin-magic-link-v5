@@ -11,6 +11,7 @@ const license = require('./license');
 const rateLimit = require('./rate-limit');
 const otp = require('./otp');
 const totp = require('./totp');
+const deliveryWebhooks = require('./delivery-webhooks');
 
 module.exports = {
   controller,
@@ -21,4 +22,5 @@ module.exports = {
   rateLimit,
   otp,
   totp,
+  deliveryWebhooks,
 };

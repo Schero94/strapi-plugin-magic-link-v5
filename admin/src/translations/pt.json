@@ -679,5 +679,7 @@
   "magic-link.tokens.details.delivery": "Entrega",
   "magic-link.tokens.filter.allDeliveries": "Todas as entregas",
   "magic-link.tokens.filter.delivery": "Filtrar por entrega",
-  "magic-link.tokens.table.delivery": "Entrega"
+  "magic-link.tokens.table.delivery": "Entrega",
+  "magic-link.tokens.delivery.bounced": "Devolvido",
+  "magic-link.tokens.delivery.complained": "Reclamação de spam"
 }

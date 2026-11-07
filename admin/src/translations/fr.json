@@ -679,5 +679,7 @@
   "magic-link.tokens.details.delivery": "Envoi",
   "magic-link.tokens.filter.allDeliveries": "Tous les envois",
   "magic-link.tokens.filter.delivery": "Filtrer par envoi",
-  "magic-link.tokens.table.delivery": "Envoi"
+  "magic-link.tokens.table.delivery": "Envoi",
+  "magic-link.tokens.delivery.bounced": "Rejeté par le destinataire",
+  "magic-link.tokens.delivery.complained": "Plainte pour spam"
 }

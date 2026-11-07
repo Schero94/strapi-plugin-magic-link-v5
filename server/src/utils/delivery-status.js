@@ -25,6 +25,8 @@
  */
 
 const DELIVERY_STATUSES = Object.freeze(['sent', 'rejected', 'failed']);
+/** Set later by provider feedback (stage 2, services/delivery-feedback.js). */
+const FEEDBACK_STATUSES = Object.freeze(['bounced', 'complained']);
 const DELIVERY_CHANNELS = Object.freeze(['magic-mail', 'email-designer', 'email']);
 const MAX_REASON_LENGTH = 64;
 const MAX_MESSAGE_ID_LENGTH = 255;
@@ -113,6 +115,20 @@ const sanitizeMessageId = (value) => {
 };
 
 /**
+ * Normalises a provider message id for comparison: trims it and strips one
+ * pair of angle brackets (`<id@host>` from SMTP and Mailgun).
+ *
+ * @param {unknown} value
+ * @returns {string|null}
+ */
+const normalizeMessageId = (value) => {
+  if (typeof value !== 'string') return null;
+  let id = value.trim();
+  if (id.startsWith('<') && id.endsWith('>')) id = id.slice(1, -1).trim();
+  return sanitizeMessageId(id);
+};
+
+/**
  * Reads the message id from a provider result: nodemailer `info.messageId`,
  * Magic Mail `{messageId}`, or an array of results (SendGrid client).
  *
@@ -141,7 +157,9 @@ const toDeliveryAttributes = ({ status, channel, reason = null, messageId = null
 
 module.exports = {
   DELIVERY_STATUSES,
+  FEEDBACK_STATUSES,
   DELIVERY_CHANNELS,
+  normalizeMessageId,
   classifyDeliveryError,
   sanitizeMessageId,
   messageIdOf,

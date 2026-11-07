@@ -190,7 +190,13 @@ test('a failure to store the status never changes the send result', async () => 
 test('schema: delivery attributes are optional and the message id is private', () => {
   const schema = JSON.parse(read('server/src/content-types/token/schema.json'));
   const { attributes } = schema;
-  assert.deepEqual(attributes.delivery_status.enum, ['sent', 'rejected', 'failed']);
+  assert.deepEqual(attributes.delivery_status.enum, [
+    'sent',
+    'rejected',
+    'failed',
+    'bounced',
+    'complained',
+  ]);
   assert.deepEqual(attributes.delivery_channel.enum, ['magic-mail', 'email-designer', 'email']);
   for (const key of [
     'delivery_status',
@@ -224,7 +230,12 @@ test('admin serializer exposes the status but never the provider message id', ()
 
 test('tokens view: delivery state, filter, column and details', () => {
   const model = loadAdminModule('admin/src/pages/Tokens/tokenModel.js');
-  assert.deepEqual([...model.DELIVERY_FILTERS], ['all', 'sent', 'rejected', 'failed', 'unknown']);
+  assert.deepEqual(
+    [...model.DELIVERY_FILTERS],
+    ['all', 'sent', 'rejected', 'failed', 'bounced', 'complained', 'unknown']
+  );
+  assert.equal(model.getDeliveryState({ delivery_status: 'bounced' }), 'bounced');
+  assert.equal(model.getDeliveryState({ delivery_status: 'complained' }), 'complained');
   assert.equal(model.getDeliveryState({ delivery_status: 'sent' }), 'sent');
   assert.equal(model.getDeliveryState({ delivery_status: null }), 'unknown');
   assert.equal(model.getDeliveryState({}), 'unknown');
