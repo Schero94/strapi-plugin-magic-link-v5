@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+Next release: **6.2.0** (minor). No breaking changes: routes, responses and settings keep their contract; the new table and columns are created on start.
+
 ### Fixed
 
 - Several Strapi processes on one database (Railway replicas, pm2 cluster mode) no longer lose or duplicate shared state (AUTH-14):
@@ -175,7 +177,7 @@ every role that had "Access the Magic Link plugin"; see CHANGELOG.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
-## [Unreleased]
+## 6.0.0 release notes (written before the release)
 
 Next release: **6.0.0** (major). Magic Link becomes e-mail only and is
 hardened throughout. Every breaking change below has migration steps; the

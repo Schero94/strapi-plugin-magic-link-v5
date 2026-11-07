@@ -868,17 +868,17 @@ Do not set `rateLimit: { store: 'memory' }` with several processes: each process
 
 **What is shared, and how**
 
-| State                                                    | Mechanism                                                                                                                                                                      |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Login links, e-mail OTP codes, TOTP replay, backup codes | Conditional database updates: a link or code is accepted exactly once across all processes.                                                                                    |
-| JWT blocklist, session list, IP bans, settings           | Plugin-store keys written under a cluster-wide lock: PostgreSQL `pg_advisory_xact_lock`, MySQL `GET_LOCK`, SQLite's write lock. No revocation, ban or settings change is lost. |
-| Rate limits, including the always-on second-factor limit | Database table `magic_link_rate_limits` (rate-limiter-flexible), or Redis with the database as fallback.                                                                       |
-| TOTP and backup-code guesses                             | Additionally counted on the enrolment row: 10 attempts without a success lock the factor for 15 minutes, whatever limiter backend is used.                                     |
-| New accounts from magic-link requests                    | Created under a lock, so one address never gets two accounts.                                                                                                                  |
-| Second-factor challenge start                            | Compare-and-set on the token, so parallel opens of one link send one e-mail code.                                                                                              |
-| Account claim (unconfirmed account)                      | Per-account lock; only the first login ends earlier sessions.                                                                                                                  |
-| Delivery webhooks                                        | Status changes are conditional updates; replay markers and the per-caller limit use the shared limiter store.                                                                  |
-| Cleanup jobs and startup migrations                      | Run by one process at a time (a lease in the plugin store, or the cluster lock).                                                                                               |
+| State                                                        | Mechanism                                                                                                                                                                      |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Login links, e-mail OTP codes, TOTP replay, backup codes     | Conditional database updates: a link or code is accepted exactly once across all processes.                                                                                    |
+| JWT blocklist, session list, IP bans, settings               | Plugin-store keys written under a cluster-wide lock: PostgreSQL `pg_advisory_xact_lock`, MySQL `GET_LOCK`, SQLite's write lock. No revocation, ban or settings change is lost. |
+| Rate limits, including the always-on second-factor limit     | Database table `magic_link_rate_limits` (rate-limiter-flexible), or Redis with the database as fallback.                                                                       |
+| TOTP and backup-code guesses                                 | Additionally counted on the enrolment row: 10 attempts without a success lock the factor for 15 minutes, whatever limiter backend is used.                                     |
+| New accounts from magic-link requests and admin-issued links | Created under a lock, so one address never gets two accounts.                                                                                                                  |
+| Second-factor challenge start                                | Compare-and-set on the token, so parallel opens of one link send one e-mail code.                                                                                              |
+| Account claim (unconfirmed account)                          | Per-account lock; only the first login ends earlier sessions.                                                                                                                  |
+| Delivery webhooks                                            | Status changes are conditional updates; replay markers and the per-caller limit use the shared limiter store.                                                                  |
+| Cleanup jobs and startup migrations                          | Run by one process at a time (a lease in the plugin store, or the cluster lock).                                                                                               |
 
 **Short, documented windows**
 
