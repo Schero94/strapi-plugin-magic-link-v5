@@ -10,6 +10,7 @@ const { errors } = require('@strapi/utils');
 const { normalizeMfaSettings, resolveMfaMode } = require('../utils/mfa-mode');
 const { createDefaultSettings } = require('../utils/default-settings');
 const { updateStoreKey, withClusterLock } = require('../utils/cluster');
+const { deleteAllSessions } = require('../utils/jwt-session-store');
 
 const SECURITY_ACTION = 'plugin::magic-link.settings.security';
 
@@ -378,7 +379,7 @@ module.exports = {
 
   /**
    * Resets settings to the install defaults and deletes login tokens, the
-   * session audit list and IP bans. Requires `{ confirm: 'RESET' }` and the
+   * JWT session records and IP bans. Requires `{ confirm: 'RESET' }` and the
    * `settings.security` action: the reset removes IP bans and resets link
    * targets, templates, sender and code rules, so a role with only
    * `settings.update` may not run it. Active JWT revocations are kept, so a
@@ -408,6 +409,8 @@ module.exports = {
       });
 
       const deleted = await strapi.db.query('plugin::magic-link.token').deleteMany({ where: {} });
+      await deleteAllSessions(strapi);
+      // A list left by a release before 6.2 that was not migrated yet.
       await withClusterLock(strapi, 'store:jwt_sessions', () =>
         strapi.store({ type: 'plugin', name: 'magic-link' }).delete({ key: 'jwt_sessions' })
       );

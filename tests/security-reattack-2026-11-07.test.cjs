@@ -20,6 +20,7 @@ const Koa = require('koa');
 const Router = require('@koa/router');
 
 const { useTestSecrets } = require('./helpers/mfa-strapi.cjs');
+const { createSessionTable } = require('./helpers/session-table.cjs');
 
 useTestSecrets();
 
@@ -314,12 +315,11 @@ test('a session ended by an account claim cannot be restored', async () => {
       revokeReason: CLAIM_REASON,
     },
   ];
+  const table = createSessionTable();
+  table.seed(sessions);
   let unblocked = 0;
   global.strapi = {
-    store: () => ({
-      get: async () => ({ sessions }),
-      set: async () => {},
-    }),
+    db: { query: () => table.query },
     plugin: () => ({
       service: () => ({
         unblockJwtTokenByHash: async () => {

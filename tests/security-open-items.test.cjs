@@ -158,7 +158,7 @@ test('refresh mode: revocation ends every rotated token of the family but no oth
   const rotatedTwice = await manager.rotateRefreshToken(rotated.token);
   assert.ok(rotatedTwice.token);
 
-  await revokeRecord(state.stores['magic-link'].jwt_sessions.sessions[0].id);
+  await revokeRecord(state.sessionTable.records()[0].id);
 
   assert.ok('error' in (await manager.generateAccessToken(rotatedTwice.token)));
   assert.ok('error' in (await manager.rotateRefreshToken(rotatedTwice.token)));
@@ -180,7 +180,7 @@ test('refresh mode: access tokens minted from rotated children are rejected afte
   // Before revocation the child access token passes.
   assert.equal((await runMiddleware(strapi, childAccess)).reachedNext, true);
 
-  await revokeRecord(state.stores['magic-link'].jwt_sessions.sessions[0].id);
+  await revokeRecord(state.sessionTable.records()[0].id);
 
   const { ctx, reachedNext } = await runMiddleware(strapi, childAccess);
   assert.equal(reachedNext, false, 'child access token of a revoked family is accepted');
@@ -203,7 +203,7 @@ test('refresh mode: an unknown session state fails closed on the Content API onl
   const { manager, state, strapi } = env;
   const first = await refreshLogin(env);
   const second = await refreshLogin(env, { deviceId: 'device-b' });
-  await revokeRecord(state.stores['magic-link'].jwt_sessions.sessions[0].id);
+  await revokeRecord(state.sessionTable.records()[0].id);
 
   manager.isSessionActive = async () => {
     throw new Error('session table unavailable');
@@ -238,7 +238,7 @@ test('legacy mode: revoking a JWT without exp claim never lapses', async () => {
   const ctx = createCtx({ method: 'POST', body: { loginToken: token._plaintextToken } });
   await auth.login(ctx);
   assert.equal(ctx.body.jwt, nonExpiring);
-  const record = env.state.stores['magic-link'].jwt_sessions.sessions[0];
+  const record = env.state.sessionTable.records()[0];
   await revokeRecord(record.id);
 
   const realNow = Date.now;
@@ -281,19 +281,17 @@ test('pre-account hijacking: claiming an unconfirmed account clears the foreign 
       if (mode === 'refresh') env.strapi.sessionManager = () => manager;
       // A plugin session issued before the claim (legacy audit record).
       const oldJwt = fakeJwt({ id: USER.id }, '2h');
-      env.state.stores['magic-link'].jwt_sessions = {
-        sessions: [
-          {
-            id: 'session_old',
-            userId: USER.id,
-            jwtTokenHash: cryptoUtils.hashJwt(oldJwt),
-            jwtManagement: 'legacy-support',
-            createdAt: new Date().toISOString(),
-            expiresAt: new Date(Date.now() + 7200000).toISOString(),
-            isRevoked: false,
-          },
-        ],
-      };
+      env.state.sessionTable.seed([
+        {
+          id: 'session_old',
+          userId: USER.id,
+          jwtTokenHash: cryptoUtils.hashJwt(oldJwt),
+          jwtManagement: 'legacy-support',
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 7200000).toISOString(),
+          isRevoked: false,
+        },
+      ]);
 
       const token = await env.magicLinkService.createToken(USER.email);
       const ctx = createCtx({ method: 'POST', body: { loginToken: token._plaintextToken } });
@@ -317,9 +315,9 @@ test('pre-account hijacking: claiming an unconfirmed account clears the foreign 
           false
         );
       }
-      const current = env.state.stores['magic-link'].jwt_sessions.sessions.find(
-        (record) => record.jwtTokenHash === cryptoUtils.hashJwt(ctx.body.jwt)
-      );
+      const current = env.state.sessionTable
+        .records()
+        .find((record) => record.jwtTokenHash === cryptoUtils.hashJwt(ctx.body.jwt));
       assert.ok(current && !current.isRevoked, 'the new session stays valid');
       assert.equal(await env.magicLinkService.isJwtTokenBlocked(ctx.body.jwt), false);
     });

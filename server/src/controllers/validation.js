@@ -318,6 +318,20 @@ const ipBanSchema = z
   })
   .strict();
 
+/**
+ * GET /jwt-sessions (admin). All parameters are optional: without them the
+ * newest records are returned as before. The body stays an array; the total
+ * is sent in the `X-Total-Count` header.
+ */
+const jwtSessionsQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).max(100_000).optional(),
+    pageSize: z.coerce.number().int().min(1).max(1_000).optional(),
+    status: z.enum(['all', 'active', 'revoked', 'expired']).optional(),
+    userId: z.string().trim().min(1).max(64).optional(),
+  })
+  .strict();
+
 /** POST /revoke-jwt (admin): exactly one of sessionId / token. */
 const jwtRevokeSchema = z
   .object({
@@ -559,6 +573,7 @@ module.exports = {
   tokenIdSchema,
   ipBanSchema,
   jwtRevokeSchema,
+  jwtSessionsQuerySchema,
   jwtUnrevokeSchema,
   licenseStoreKeySchema,
   adminResetSchema,

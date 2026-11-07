@@ -133,7 +133,7 @@ test('required MFA: enrolment during login, then backup-code recovery (ADM-M01, 
     assert.equal(confirm.body.mfaVerified, true);
     assert.equal(confirm.body.backupCodes.length, 10);
     assert.equal(state.tokens[0].is_active, false, 'the link is consumed');
-    const session = state.stores['magic-link'].jwt_sessions.sessions[0];
+    const session = state.sessionTable.records()[0];
     assert.equal(session.backupCodes, undefined, 'backup codes never reach the session store');
     assert.equal(tables[TOTP_UID].rows[0].principalKey, 'up:7');
 

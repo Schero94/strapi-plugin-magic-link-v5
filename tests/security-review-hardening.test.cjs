@@ -67,7 +67,7 @@ test('refresh mode: the session record lives as long as the refresh family', asy
   await auth.login(ctx);
   assert.ok(ctx.body.jwt);
 
-  const record = state.stores['magic-link'].jwt_sessions.sessions[0];
+  const record = state.sessionTable.records()[0];
   const family = state.upSessions[0];
   assert.equal(record.deviceId, 'device-a', 'device id is kept for family revocation');
   assert.equal(record.upSessionId, family.sessionId);
@@ -83,7 +83,7 @@ test('refresh mode: the session record lives as long as the refresh family', asy
   const cleanupCtx = createCtx({ method: 'POST' });
   await jwtController.cleanupSessions(cleanupCtx);
   assert.equal(cleanupCtx.body.count, 0);
-  assert.equal(state.stores['magic-link'].jwt_sessions.sessions[0].isRevoked, false);
+  assert.equal(state.sessionTable.records()[0].isRevoked, false);
 });
 
 test('legacy mode: a random device id is not recorded and expiry equals the JWT', async () => {
@@ -94,7 +94,7 @@ test('legacy mode: a random device id is not recorded and expiry equals the JWT'
   const token = await magicLinkService.createToken(USER.email);
   const ctx = createCtx({ query: { loginToken: token._plaintextToken } });
   await auth.login(ctx);
-  const record = state.stores['magic-link'].jwt_sessions.sessions[0];
+  const record = state.sessionTable.records()[0];
   assert.equal(record.deviceId, undefined);
   assert.equal(record.expiresAt, record.accessTokenExpiresAt);
   assert.equal(record.expiresAt, ctx.body.expires_at);

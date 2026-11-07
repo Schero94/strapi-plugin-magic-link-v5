@@ -5,6 +5,7 @@ const test = require('node:test');
 
 const cryptoUtils = require('../server/src/utils/crypto');
 const jwtController = require('../server/src/controllers/jwt');
+const { createSessionTable } = require('./helpers/session-table.cjs');
 
 test('unrevoke does not report success or clear session state when blocklist removal fails', async () => {
   const originalStrapi = global.strapi;
@@ -18,19 +19,14 @@ test('unrevoke does not report success or clear session state when blocklist rem
     revokedAt: new Date().toISOString(),
     revokeReason: 'synthetic audit',
   };
-  const storedSessions = { sessions: [session] };
-  const writes = [];
+  const table = createSessionTable();
+  table.seed([session]);
+  const before = structuredClone(table.rows);
   const logs = [];
   let response;
 
   global.strapi = {
-    store: () => ({
-      get: async ({ key }) =>
-        key === 'jwt_sessions' ? structuredClone(storedSessions) : undefined,
-      set: async ({ key }) => {
-        writes.push(key);
-      },
-    }),
+    db: { query: () => table.query },
     plugin: () => ({
       service: () => ({
         unblockJwtTokenByHash: async () => {
@@ -68,8 +64,8 @@ test('unrevoke does not report success or clear session state when blocklist rem
       (error) => error.status === 500 && error.message === 'Failed to update JWT revocation status'
     );
     assert.equal(response, undefined);
-    assert.deepEqual(storedSessions.sessions[0], session);
-    assert.deepEqual(writes, []);
+    assert.deepEqual(table.rows, before, 'the row is unchanged');
+    assert.equal(table.calls.includes('updateMany'), false);
     assert.ok(logs.every((entry) => !entry.includes('synthetic blocklist storage failure')));
   } finally {
     if (originalStrapi === undefined) delete global.strapi;
@@ -80,31 +76,23 @@ test('unrevoke does not report success or clear session state when blocklist rem
 test('unrevoke clears the stored session only after the blocklist service succeeds', async () => {
   const originalStrapi = global.strapi;
   const tokenHash = cryptoUtils.hashJwt('synthetic.audit.jwt.success');
-  const storedSessions = {
-    sessions: [
-      {
-        id: 'synthetic-session',
-        userId: 'synthetic-user',
-        jwtTokenHash: tokenHash,
-        expiresAt: new Date(Date.now() + 60_000).toISOString(),
-        isRevoked: true,
-        revokedAt: new Date().toISOString(),
-        revokeReason: 'synthetic audit',
-      },
-    ],
-  };
+  const table = createSessionTable();
+  table.seed([
+    {
+      id: 'synthetic-session',
+      userId: 'synthetic-user',
+      jwtTokenHash: tokenHash,
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      isRevoked: true,
+      revokedAt: new Date().toISOString(),
+      revokeReason: 'synthetic audit',
+    },
+  ]);
   let unblockArgs;
-  let persisted;
   let response;
 
   global.strapi = {
-    store: () => ({
-      get: async ({ key }) =>
-        key === 'jwt_sessions' ? structuredClone(storedSessions) : undefined,
-      set: async ({ key, value }) => {
-        if (key === 'jwt_sessions') persisted = value;
-      },
-    }),
+    db: { query: () => table.query },
     plugin: () => ({
       service: () => ({
         unblockJwtTokenByHash: async (...args) => {
@@ -134,9 +122,10 @@ test('unrevoke clears the stored session only after the blocklist service succee
     await jwtController.unrevokeToken(ctx);
 
     assert.deepEqual(unblockArgs, [tokenHash, 'synthetic-user']);
-    assert.equal(persisted.sessions[0].isRevoked, false);
-    assert.equal(persisted.sessions[0].revokedAt, null);
-    assert.equal(persisted.sessions[0].revokeReason, null);
+    const [persisted] = table.records();
+    assert.equal(persisted.isRevoked, false);
+    assert.equal(persisted.revokedAt, null);
+    assert.equal(persisted.revokeReason, null);
     assert.equal(response.success, true);
   } finally {
     if (originalStrapi === undefined) delete global.strapi;
@@ -149,20 +138,15 @@ test('the session list tells the admin UI which revoked sessions can be restored
   const { CLAIM_REASON } = require('../server/src/utils/account-claim');
   const future = new Date(Date.now() + 60_000).toISOString();
   const base = { userId: 'synthetic-user', userEmail: 'user@example.test', isRevoked: true };
-  const storedSessions = {
-    sessions: [
-      { ...base, id: 'legacy', expiresAt: future },
-      { ...base, id: 'expired', expiresAt: new Date(Date.now() - 60_000).toISOString() },
-      { ...base, id: 'refresh', expiresAt: future, upSessionId: 'up-1', jwtManagement: 'refresh' },
-      { ...base, id: 'claim', expiresAt: future, revokeReason: CLAIM_REASON },
-    ],
-  };
+  const table = createSessionTable();
+  table.seed([
+    { ...base, id: 'legacy', expiresAt: future },
+    { ...base, id: 'expired', expiresAt: new Date(Date.now() - 60_000).toISOString() },
+    { ...base, id: 'refresh', expiresAt: future, upSessionId: 'up-1', jwtManagement: 'refresh' },
+    { ...base, id: 'claim', expiresAt: future, revokeReason: CLAIM_REASON },
+  ]);
   global.strapi = {
-    store: () => ({
-      get: async ({ key }) =>
-        key === 'jwt_sessions' ? structuredClone(storedSessions) : undefined,
-      set: async () => {},
-    }),
+    db: { query: () => table.query },
     log: { info() {}, warn() {}, error() {} },
   };
   try {
