@@ -611,7 +611,10 @@ module.exports = ({ strapi }) => {
               text,
               html,
               headers,
-              // Login links must never be rewritten into tracking URLs.
+              // Authentication mail: transactional routing, and neither an
+              // open-tracking pixel nor rewritten (tracked) login links.
+              type: 'transactional',
+              enableTracking: false,
               skipLinkTracking: true,
               links: [{ original: loginUrl, label: 'Magic Link Login', track: false }],
               templateId: templateReferenceId || numericTemplateId,

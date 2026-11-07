@@ -515,7 +515,7 @@ Subject, HTML and text bodies use `{{PLACEHOLDER}}` syntax. Values are HTML-esca
 
 Templates from 5.x that use `<%= URL %>?loginToken=<%= CODE %>` are converted to `{{LOGIN_URL}}` at startup. Any other `<% ... %>` block is printed as plain text.
 
-**Magic Mail and Email Designer 5** receive these variables: `magicLink`, `loginUrl`, `url`, `code`, `token`, `email`, `expiryText`, `expiresAt`, `user.email`, `user.username`. Choose the template in **Settings > E-mail**. If the provider fails, the plugin falls back to the Strapi e-mail plugin.
+**Magic Mail and Email Designer 5** receive these variables: `magicLink`, `loginUrl`, `url`, `code`, `token`, `email`, `expiryText`, `expiresAt`, `user.email`, `user.username`. Choose the template in **Settings > E-mail**. Magic Mail sends login mails as `transactional` without open or link tracking. If the provider fails, the plugin falls back to the Strapi e-mail plugin.
 
 ## Security model
 

@@ -649,3 +649,35 @@ test('passwordless compatibility rewrites only when enabled and honours the REST
   await middleware(other, async () => {});
   assert.equal(other.path, '/v2/passwordless/unknown');
 });
+
+test('Magic Mail delivery is transactional and never tracked (FUN-26, DOC-12)', async () => {
+  const { strapi, magicLinkService, state } = createLoginCoreStrapi({
+    settings: { use_magic_mail: true, magic_mail_template_reference_id: 'login-ref' },
+  });
+  const routed = [];
+  const basePlugin = strapi.plugin.bind(strapi);
+  strapi.plugin = (name) =>
+    name === 'magic-mail'
+      ? {
+          service: (key) =>
+            key === 'email-router'
+              ? {
+                  send: async (mail) => {
+                    routed.push(mail);
+                  },
+                }
+              : undefined,
+        }
+      : basePlugin(name);
+
+  const token = await magicLinkService.createToken('person@example.test', {});
+  await magicLinkService.sendLoginLink(token, { username: 'person' });
+
+  assert.equal(routed.length, 1);
+  assert.equal(state.mails.length, 0, 'no second mail through the e-mail plugin');
+  assert.equal(routed[0].type, 'transactional');
+  assert.equal(routed[0].enableTracking, false);
+  assert.equal(routed[0].skipLinkTracking, true);
+  assert.equal(routed[0].templateReferenceId, 'login-ref');
+  assert.ok(routed[0].templateData.loginUrl.includes('loginToken='));
+});

@@ -234,6 +234,8 @@ short version is the upgrade guide.
   administrators out.
 * Plugin logs no longer contain e-mail addresses, URLs with tokens or
   provider errors from the login core.
+* Login mails sent through Magic Mail are `transactional` and carry no
+  open-tracking pixel and no tracked links (`enableTracking: false`).
 * Sender falls back to the e-mail plugin `defaultFrom` instead of
   `noreply@example.com`; the default expiry text reads "1 hour".
 * Server error messages are translated (de, en, es, fr, pt); unknown
