@@ -1,3 +1,11 @@
+# Publishes a release with semantic-release when main changes.
+# Hardening:
+# - every action is pinned to a full commit SHA (Dependabot keeps them current);
+# - the workflow token is read-only by default; only the release job may write
+#   contents (tag, GitHub release, CHANGELOG commit) and request an OIDC token;
+# - npm publishes through trusted publishing (OIDC), so no npm token exists and
+#   provenance is attached automatically;
+# - dependencies install without lifecycle scripts and without a cache.
 name: Release
 
 on:
@@ -6,35 +14,51 @@ on:
       - main
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # tag, GitHub release and the CHANGELOG commit
+      id-token: write # npm trusted publishing and provenance
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: '22'
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
       - name: Install OIDC-capable npm CLI
-        run: npm install --global npm@12.2.0 --no-audit --no-fund
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
-      - name: Run tests
+        run: npm install --global npm@12.2.0 --ignore-scripts --no-audit --no-fund
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --legacy-peer-deps --ignore-scripts
+      - name: Lint
+        run: npm run lint
+      - name: Format check
+        run: npm run format:check
+      - name: Tests
         run: npm test
-      - name: Build plugin
+      - name: Build
         run: npm run build
-      - name: Verify plugin
-        run: npm run verify
+      - name: Verify package
+        run: |
+          npm run verify
+          npm run verify:runtime
+      - name: Production audit (critical)
+        run: npm audit --omit=dev --audit-level=critical
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
+          NPM_CONFIG_PROVENANCE: 'true'
+        run: npx --no-install semantic-release

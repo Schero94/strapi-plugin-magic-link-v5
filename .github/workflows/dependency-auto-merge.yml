@@ -35,6 +35,8 @@ jobs:
         run: npm ci --legacy-peer-deps --ignore-scripts
       - name: Lint
         run: npm run --if-present lint
+      - name: Format check
+        run: npm run --if-present format:check
       - name: Tests
         run: npm test
       - name: Type checks
