@@ -227,8 +227,11 @@ short version is the upgrade guide.
 * send-link answers before any lookup or delivery, so neither status nor
   timing reveals whether an account exists; delivery errors are only logged.
 * The JWT revocation check parses `Authorization` like users-permissions
-  (any case, any whitespace), skips admin-panel requests and fails closed
-  with 503 only for API requests.
+  (any case, any whitespace) and runs only for Content API requests (REST
+  under `api.rest.prefix` and the GraphQL endpoint), where it fails closed
+  with 503. Admin API requests, including plugin admin routes such as
+  `/content-manager/...`, are never checked, so a store problem cannot lock
+  administrators out.
 * Plugin logs no longer contain e-mail addresses, URLs with tokens or
   provider errors from the login core.
 * Sender falls back to the e-mail plugin `defaultFrom` instead of

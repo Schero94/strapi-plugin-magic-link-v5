@@ -9,10 +9,15 @@
  * parts), so `bearer <jwt>` or `Bearer  <jwt>` cannot skip the check while
  * users-permissions still accepts the token.
  *
- * Admin panel requests (`/admin/...`) carry admin JWTs, which this plugin
- * never issues or revokes; they are skipped so a store problem can never lock
- * administrators out. Every other request (REST, GraphQL, custom routes) is
- * checked and fails closed with 503 when the revocation state is unknown.
+ * Only Content API requests are checked: REST under `api.rest.prefix`
+ * (default `/api`) and the GraphQL endpoint (`plugin::graphql.endpoint`,
+ * default `/graphql`), which is where users-permissions JWTs are accepted.
+ * Admin API requests (`/admin/...` and plugin admin routes such as
+ * `/content-manager/...` or `/magic-link/...`, which Strapi 5 mounts without
+ * a prefix) carry admin JWTs that this plugin never issues or revokes; they
+ * are skipped, so a store problem can never lock administrators out and the
+ * admin panel never pays for a blocklist lookup. Checked requests fail
+ * closed with 503 when the revocation state is unknown.
  */
 
 /**
@@ -37,6 +42,44 @@ const parseBearerToken = (header) => {
 const isAdminPath = (path) => path === '/admin' || String(path || '').startsWith('/admin/');
 
 /**
+ * Normalises a configured path prefix ('/api/' -> '/api', 'api' -> '/api').
+ *
+ * @param {unknown} value - Configured prefix.
+ * @param {string} fallback - Default prefix.
+ * @returns {string} Prefix with a leading and without a trailing slash.
+ */
+const toPrefix = (value, fallback) => {
+  const raw = typeof value === 'string' && value.trim() ? value.trim() : fallback;
+  const withSlash = raw.startsWith('/') ? raw : `/${raw}`;
+  return withSlash.replace(/\/+$/, '') || fallback;
+};
+
+/**
+ * Returns true when a path belongs to the Content API (REST or GraphQL),
+ * the only place where users-permissions JWTs are accepted.
+ *
+ * @param {object} strapi - Strapi instance.
+ * @param {string} path - Request path.
+ * @returns {boolean} Whether the request must pass the revocation check.
+ */
+const isContentApiPath = (strapi, path) => {
+  const value = String(path || '');
+  if (isAdminPath(value)) return false;
+  const get = (key, fallback) => {
+    try {
+      return strapi?.config?.get?.(key, fallback) ?? fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  const prefixes = [
+    toPrefix(get('api.rest.prefix', '/api'), '/api'),
+    toPrefix(get('plugin::graphql.endpoint', '/graphql'), '/graphql'),
+  ];
+  return prefixes.some((prefix) => value === prefix || value.startsWith(`${prefix}/`));
+};
+
+/**
  * Creates the revocation middleware.
  *
  * @param {{ strapi: object }} deps - Strapi instance.
@@ -46,7 +89,7 @@ const createJwtRevocationMiddleware =
   ({ strapi }) =>
   async (ctx, next) => {
     const jwtToken = parseBearerToken(ctx.request?.header?.authorization);
-    if (!jwtToken || isAdminPath(ctx.path)) {
+    if (!jwtToken || !isContentApiPath(strapi, ctx.path)) {
       return next();
     }
 
@@ -91,4 +134,9 @@ const createJwtRevocationMiddleware =
     return next();
   };
 
-module.exports = { createJwtRevocationMiddleware, isAdminPath, parseBearerToken };
+module.exports = {
+  createJwtRevocationMiddleware,
+  isAdminPath,
+  isContentApiPath,
+  parseBearerToken,
+};

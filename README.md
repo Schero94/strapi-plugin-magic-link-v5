@@ -538,7 +538,7 @@ Templates from 5.x that use `<%= URL %>?loginToken=<%= CODE %>` are converted to
 - **Sessions**
   - The JWT lifetime is honoured, and a revoked token stays blocked until it would have expired.
   - In refresh mode, revocation also deletes the users-permissions session.
-  - The `Authorization` header is parsed like users-permissions does it, and the revocation check fails closed (503) for API requests.
+  - The `Authorization` header is parsed like users-permissions does it. The revocation check runs on Content API requests (REST and GraphQL) only and fails closed (503) there; admin routes are never affected.
 - **Transport and logs**
   - Login responses send `Cache-Control: no-store` and `Referrer-Policy: no-referrer`.
   - Plugin logs contain no e-mail addresses, tokens or URLs with tokens.

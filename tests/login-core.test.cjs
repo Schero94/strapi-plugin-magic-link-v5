@@ -501,6 +501,48 @@ test('revocation middleware fails closed on store errors for API requests only',
   assert.equal(reached, true);
 });
 
+test('revocation middleware checks only Content API paths, never plugin admin routes (ADM-16)', async () => {
+  const strapi = {
+    config: {
+      get: (key, fallback) =>
+        ({ 'api.rest.prefix': '/v2/', 'plugin::graphql.endpoint': '/gql' })[key] ?? fallback,
+    },
+    plugin: () => ({
+      service: () => ({
+        isJwtTokenBlocked: async () => {
+          throw new Error('store down');
+        },
+      }),
+    }),
+    log: { error() {} },
+  };
+  const middleware = createJwtRevocationMiddleware({ strapi });
+  const run = async (path) => {
+    const ctx = createCtx({ headers: { authorization: 'Bearer x.y.z' }, path });
+    let reached = false;
+    await middleware(ctx, async () => {
+      reached = true;
+    });
+    return { reached, status: ctx.status };
+  };
+
+  for (const path of [
+    '/content-manager/init',
+    '/magic-link/tokens',
+    '/upload/files',
+    '/admin/init',
+    '/api/articles',
+    '/v2x/a',
+  ]) {
+    assert.equal((await run(path)).reached, true, `${path} is not a Content API path`);
+  }
+  for (const path of ['/v2/articles', '/v2', '/gql']) {
+    const result = await run(path);
+    assert.equal(result.reached, false, path);
+    assert.equal(result.status, 503, path);
+  }
+});
+
 test('TOTP-only login never confirms the account and respects e-mail confirmation (AUTH-26)', async () => {
   const unconfirmed = { ...VICTIM, confirmed: false };
   let fixture = createLoginCoreStrapi({

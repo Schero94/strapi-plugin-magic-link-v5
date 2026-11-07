@@ -208,31 +208,26 @@ test(
   }
 );
 
-test(
-  'revocation middleware never locks admins out of plugin admin routes',
-  {
-    todo: 'middlewares/jwt-revocation.js skips only /admin/*; Strapi 5 serves plugin admin APIs at /<plugin>/... (e.g. /content-manager, /magic-link), so a store failure answers 503 to admin requests',
-  },
-  async () => {
-    const strapi = {
-      plugin: () => ({
-        service: () => ({
-          isJwtTokenBlocked: async () => {
-            throw new Error('store down');
-          },
-        }),
+// Fixed by scoping the middleware to Content API paths (ADM-16); kept as a regression guard.
+test('revocation middleware never locks admins out of plugin admin routes', async () => {
+  const strapi = {
+    plugin: () => ({
+      service: () => ({
+        isJwtTokenBlocked: async () => {
+          throw new Error('store down');
+        },
       }),
-      log: { error() {} },
-    };
-    const middleware = createJwtRevocationMiddleware({ strapi });
-    const ctx = {
-      path: '/content-manager/init',
-      request: { header: { authorization: 'Bearer synthetic.admin.jwt' } },
-    };
-    let reachedNext = false;
-    await middleware(ctx, async () => {
-      reachedNext = true;
-    });
-    assert.equal(reachedNext, true, `admin request answered ${ctx.status}`);
-  }
-);
+    }),
+    log: { error() {} },
+  };
+  const middleware = createJwtRevocationMiddleware({ strapi });
+  const ctx = {
+    path: '/content-manager/init',
+    request: { header: { authorization: 'Bearer synthetic.admin.jwt' } },
+  };
+  let reachedNext = false;
+  await middleware(ctx, async () => {
+    reachedNext = true;
+  });
+  assert.equal(reachedNext, true, `admin request answered ${ctx.status}`);
+});
