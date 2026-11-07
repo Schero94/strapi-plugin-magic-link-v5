@@ -5,7 +5,7 @@
     "singularName": "otp-code",
     "pluralName": "otp-codes",
     "displayName": "OTP Code",
-    "description": "One-Time Password codes for Magic Link 2FA"
+    "description": "One-time e-mail codes for the Magic Link second factor and authenticator enrolment"
   },
   "options": {
     "draftAndPublish": false
@@ -30,7 +30,7 @@
     },
     "type": {
       "type": "enumeration",
-      "enum": ["email", "sms", "totp"],
+      "enum": ["email", "totp-setup"],
       "default": "email",
       "required": true
     },
@@ -47,9 +47,6 @@
       "required": true
     },
     "magicLinkToken": {
-      "type": "string"
-    },
-    "phoneNumber": {
       "type": "string"
     },
     "metadata": {

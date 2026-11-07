@@ -1,288 +1,223 @@
 import { useState } from 'react';
-import { useIntl } from 'react-intl';
+import styled from 'styled-components';
+import { Box, Button, Field, Flex, Modal, NumberInput, Typography } from '@strapi/design-system';
+import { Check, Clock } from '@strapi/icons';
+import { useFormatters } from '../../hooks/useFormatters';
+import { useMagicLinkIntl } from '../../hooks/useMagicLinkIntl';
+import { useReturnFocus } from '../../hooks/useReturnFocus';
+import { space } from '../../utils/theme';
+import { InfoList } from './components/tokenStyles';
 import {
-  Typography,
-  Box,
-  Flex,
-  Button,
-  IconButton,
-  TextInput,
-} from '@strapi/design-system';
-import { Cross, Check } from '@strapi/icons';
-import getTrad from '../../utils/getTrad';
+  EXTEND_LIMITS,
+  EXTEND_PRESETS,
+  computeExtendedExpiry,
+  isIntegerInRange,
+} from './tokenModel';
 
-const ExtendTokenModal = ({ 
-  isOpen, 
-  onClose, 
-  onSubmit, 
-  selectedToken,
-  extendDays,
-  setExtendDays,
-  formatDate 
-}) => {
-  const { formatMessage } = useIntl();
-  const [customDays, setCustomDays] = useState('');
-  const [isCustomMode, setIsCustomMode] = useState(false);
+/** 2 x 2 preset grid with equal button widths. */
+const PresetGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: ${space(2)};
 
-  if (!isOpen || !selectedToken) return null;
+  & > button {
+    width: 100%;
+  }
+`;
 
-  const getButtonStyle = (isActive) => ({
-    flex: '1 1 calc(50% - 6px)',
-    minWidth: '100px',
-    padding: '16px 12px',
-    fontSize: '15px',
-    fontWeight: isActive ? '600' : '500',
-  });
+/**
+ * Extend-token dialog: presets (+1/7/30/90 days) or a custom whole number of
+ * days within EXTEND_LIMITS. The preview mirrors the server: an expired
+ * token is extended from now.
+ *
+ * @param {object} props
+ * @param {object|null} props.token - the token to extend; null closes the dialog
+ * @param {() => void} props.onClose
+ * @param {(token: object, days: number) => Promise<unknown>} props.onSubmit
+ * @param {() => (HTMLElement|null|undefined)} [props.getReturnFocusFallback] - focus target
+ *   when the element that opened the dialog is gone
+ */
+const ExtendTokenModal = ({ token, onClose, onSubmit, getReturnFocusFallback }) => {
+  const { t } = useMagicLinkIntl();
+  const { formatDateTime } = useFormatters();
+  const isOpen = Boolean(token);
+  const returnFocus = useReturnFocus(isOpen, getReturnFocusFallback);
+  const [preset, setPreset] = useState(7);
+  const [customDays, setCustomDays] = useState(undefined);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isValidDays = (value) => value && !isNaN(parseInt(value));
+  // Reset the choice for every token the dialog opens with. Adjusting state
+  // during render avoids an extra effect pass
+  // (https://react.dev/learn/you-might-not-need-an-effect).
+  const [shownToken, setShownToken] = useState(null);
+  if (shownToken !== token) {
+    setShownToken(token);
+    if (token) {
+      setPreset(7);
+      setCustomDays(undefined);
+      setIsSubmitting(false);
+    }
+  }
 
-  const calculateNewExpiryDate = () => {
-    const currentExpiry = selectedToken.expires_at ? new Date(selectedToken.expires_at) : new Date();
-    const newExpiry = new Date(currentExpiry);
-    newExpiry.setDate(newExpiry.getDate() + extendDays);
-    return formatDate(newExpiry);
-  };
+  if (!token) return null;
 
-  const handleSubmit = () => {
-    onSubmit(selectedToken.id);
-  };
+  const isCustom = customDays !== undefined;
+  const days = isCustom ? customDays : preset;
+  const daysValid = isIntegerInRange(days, EXTEND_LIMITS);
+  const customError =
+    isCustom && !daysValid
+      ? t(
+          'tokens.extend.customError',
+          'Enter a whole number of days from {min} to {max}.',
+          EXTEND_LIMITS
+        )
+      : undefined;
 
-  const handlePresetClick = (days) => {
-    setIsCustomMode(false);
-    setExtendDays(days);
-  };
-
-  const handleCustomClick = () => {
-    setIsCustomMode(true);
-    if (isValidDays(customDays)) {
-      setExtendDays(parseInt(customDays));
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!daysValid || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await onSubmit(token, days);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleCustomInputChange = (e) => {
-    const value = e.target.value;
-    setCustomDays(value);
-    if (isValidDays(value)) {
-      setExtendDays(parseInt(value));
-    }
+  const requestClose = () => {
+    if (!isSubmitting) onClose();
   };
 
   return (
-    <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(4, 28, 47, 0.45)',
-          backdropFilter: 'blur(3px)',
-          zIndex: 999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '20px',
-        }}
-        onClick={onClose}
-      >
-        {/* Modal Content */}
-        <Box
-          background="neutral0"
-          shadow="filterShadow"
-          style={{
-            position: 'relative',
-            width: '100%',
-            maxWidth: '480px',
-            borderRadius: '8px',
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <Flex
-            justifyContent="space-between"
-            alignItems="flex-start"
-            paddingTop={6}
-            paddingBottom={6}
-            paddingLeft={6}
-            paddingRight={5}
-            style={{
-              borderBottom: '1px solid rgba(128, 128, 128, 0.15)',
-            }}
-          >
-            <Flex direction="column" gap={1} alignItems="flex-start">
-              <Typography variant="beta" textColor="neutral800" style={{ fontSize: '16px', fontWeight: '600' }}>
-                {formatMessage({ id: getTrad('tokens.extend.title') })}
-              </Typography>
-              <Typography variant="pi" textColor="neutral500" style={{ fontSize: '13px' }}>
-                {selectedToken.email}
-              </Typography>
-            </Flex>
-            <IconButton
-              onClick={onClose}
-              label={formatMessage({ id: getTrad('tokens.details.close') })}
-              withTooltip={false}
-            >
-              <Cross />
-            </IconButton>
+    <Modal.Root open={isOpen} onOpenChange={(open) => !open && requestClose()}>
+      <Modal.Content style={{ maxWidth: '48rem' }} onCloseAutoFocus={returnFocus}>
+        <Modal.Header closeLabel={t('common.close', 'Close')}>
+          <Flex direction="column" alignItems="flex-start" gap={1} minWidth={0}>
+            <Modal.Title>{t('tokens.extend.title', 'Extend Token')}</Modal.Title>
+            <Typography variant="pi" textColor="neutral600" ellipsis>
+              {token.email}
+            </Typography>
           </Flex>
+        </Modal.Header>
+        <form onSubmit={handleSubmit} noValidate>
+          <Modal.Body>
+            <Flex direction="column" alignItems="stretch" gap={6}>
+              <InfoList>
+                <div>
+                  <dt>{t('tokens.extend.currentExpiry', 'Currently valid until')}</dt>
+                  <dd>
+                    {token.expires_at
+                      ? formatDateTime(token.expires_at)
+                      : t('tokens.details.unlimited', 'Unlimited')}
+                  </dd>
+                </div>
+              </InfoList>
 
-          {/* Body */}
-          <Box paddingTop={6} paddingBottom={6} paddingLeft={6} paddingRight={6}>
-            <Flex direction="column" gap={5}>
-              {/* Current Status */}
-              <Box 
-                padding={3} 
-                background="neutral100"
-                style={{ 
-                  borderRadius: '6px',
-                  textAlign: 'center',
-                  border: '1px solid rgba(128, 128, 128, 0.15)',
-                }}
+              <Flex
+                direction="column"
+                alignItems="stretch"
+                gap={2}
+                role="group"
+                aria-labelledby="extend-presets-label"
               >
-                <Typography 
-                  variant="omega" 
-                  textColor="neutral500"
-                  style={{ fontSize: '11px', display: 'block', marginBottom: '4px' }}
+                <Typography
+                  id="extend-presets-label"
+                  variant="pi"
+                  fontWeight="bold"
+                  textColor="neutral800"
                 >
-                  {formatMessage({ id: getTrad('tokens.extend.currentExpiry') })}
+                  {t('tokens.extend.selectExtension', 'Select extension')}
                 </Typography>
-                <Typography variant="pi" textColor="neutral800" style={{ fontSize: '15px', fontWeight: '600' }}>
-                  {formatDate(selectedToken.expires_at) || formatMessage({ id: getTrad('tokens.details.unlimited') })}
-                </Typography>
-              </Box>
+                <PresetGrid>
+                  {EXTEND_PRESETS.map((value) => {
+                    const selected = !isCustom && preset === value;
+                    return (
+                      <Button
+                        key={value}
+                        type="button"
+                        size="L"
+                        variant={selected ? 'default' : 'tertiary'}
+                        aria-pressed={selected}
+                        onClick={() => {
+                          setPreset(value);
+                          setCustomDays(undefined);
+                        }}
+                      >
+                        {t('tokens.extend.preset', '+{count, plural, one {# day} other {# days}}', {
+                          count: value,
+                        })}
+                      </Button>
+                    );
+                  })}
+                </PresetGrid>
+              </Flex>
 
-              {/* Extension Period Selection */}
-              <Box>
-                <Typography 
-                  variant="omega" 
-                  textColor="neutral600"
-                  style={{ fontSize: '12px', marginBottom: '12px', display: 'block' }}
-                >
-                  {formatMessage({ id: getTrad('tokens.extend.selectExtension') })}
-                </Typography>
-                <Flex gap={3} wrap="wrap">
-                  <Button
-                    variant={extendDays === 1 && !isCustomMode ? 'default' : 'tertiary'}
-                    size="L"
-                    onClick={() => handlePresetClick(1)}
-                    style={getButtonStyle(extendDays === 1 && !isCustomMode)}
-                  >
-                    {formatMessage({ id: getTrad('tokens.extend.preset1') })}
-                  </Button>
-                  <Button
-                    variant={extendDays === 7 && !isCustomMode ? 'default' : 'tertiary'}
-                    size="L"
-                    onClick={() => handlePresetClick(7)}
-                    style={getButtonStyle(extendDays === 7 && !isCustomMode)}
-                  >
-                    {formatMessage({ id: getTrad('tokens.extend.preset7') })}
-                  </Button>
-                  <Button
-                    variant={extendDays === 30 && !isCustomMode ? 'default' : 'tertiary'}
-                    size="L"
-                    onClick={() => handlePresetClick(30)}
-                    style={getButtonStyle(extendDays === 30 && !isCustomMode)}
-                  >
-                    {formatMessage({ id: getTrad('tokens.extend.preset30') })}
-                  </Button>
-                  <Button
-                    variant={extendDays === 90 && !isCustomMode ? 'default' : 'tertiary'}
-                    size="L"
-                    onClick={() => handlePresetClick(90)}
-                    style={getButtonStyle(extendDays === 90 && !isCustomMode)}
-                  >
-                    {formatMessage({ id: getTrad('tokens.extend.preset90') })}
-                  </Button>
-                </Flex>
-                
-                {/* Custom Days Input */}
-                <Box marginTop={3}>
-                  <Flex gap={2} alignItems="flex-end">
-                    <Box style={{ flex: 1 }}>
-                      <TextInput
-                        label={formatMessage({ id: getTrad('tokens.extend.customDays') })}
-                        placeholder={formatMessage({ id: getTrad('tokens.extend.customPlaceholder') })}
-                        value={customDays}
-                        onChange={handleCustomInputChange}
-                        onFocus={handleCustomClick}
-                        type="number"
-                        min="1"
-                        style={{ fontSize: '14px' }}
-                      />
-                    </Box>
-                    <Button
-                      variant={isCustomMode ? 'default' : 'tertiary'}
-                      size="L"
-                      onClick={handleCustomClick}
-                      disabled={!isValidDays(customDays)}
-                      style={{ 
-                        padding: '12px 20px',
-                        fontSize: '14px',
-                      }}
-                    >
-                      {formatMessage({ id: getTrad('tokens.extend.custom') })}
-                    </Button>
-                  </Flex>
-                </Box>
-              </Box>
+              <Field.Root
+                name="extend-custom-days"
+                error={customError}
+                hint={t('tokens.extend.customHint', 'Or enter {min} to {max} days.', EXTEND_LIMITS)}
+              >
+                <Field.Label>{t('tokens.extend.customDays', 'Custom number of days')}</Field.Label>
+                <NumberInput
+                  placeholder={t('tokens.extend.customPlaceholder', 'e.g. 14')}
+                  value={customDays}
+                  step={1}
+                  min={EXTEND_LIMITS.min}
+                  max={EXTEND_LIMITS.max}
+                  onValueChange={(value) => setCustomDays(value)}
+                />
+                <Field.Hint />
+                <Field.Error />
+              </Field.Root>
 
-              {/* New Expiry Date */}
               <Box>
-                <Flex alignItems="center" gap={1} style={{ marginBottom: '8px' }}>
-                  <Check style={{ width: '14px', height: '14px', color: '#16a34a' }} />
-                  <Typography variant="omega" textColor="success600" style={{ fontSize: '12px' }}>
-                    {formatMessage({ id: getTrad('tokens.extend.newExpiry') })}
-                  </Typography>
-                </Flex>
-                <Box 
-                  padding={3} 
-                  style={{ 
-                    borderRadius: '6px',
-                    border: '1px solid rgba(22, 163, 74, 0.3)',
-                    background: 'rgba(22, 163, 74, 0.06)',
-                    textAlign: 'center',
-                  }}
-                >
-                  <Typography variant="pi" textColor="success600" style={{ fontSize: '15px', fontWeight: '600' }}>
-                    {calculateNewExpiryDate()}
-                  </Typography>
-                </Box>
+                <InfoList aria-live="polite">
+                  <div>
+                    <dt>
+                      <Flex alignItems="center" gap={1} tag="span">
+                        <Check aria-hidden="true" focusable="false" width="14px" height="14px" />
+                        {t('tokens.extend.newExpiry', 'New expiry date')}
+                      </Flex>
+                    </dt>
+                    <dd>
+                      <Typography
+                        variant="omega"
+                        fontWeight="semiBold"
+                        textColor={daysValid ? 'success600' : 'neutral600'}
+                      >
+                        {daysValid
+                          ? formatDateTime(computeExtendedExpiry(token.expires_at, days))
+                          : t('common.emptyValue', '-')}
+                      </Typography>
+                    </dd>
+                  </div>
+                </InfoList>
               </Box>
             </Flex>
-          </Box>
-
-          {/* Footer */}
-          <Box
-            paddingTop={5}
-            paddingBottom={5}
-            paddingLeft={6}
-            paddingRight={6}
-            background="neutral100"
-            style={{
-              borderTop: '1px solid rgba(128, 128, 128, 0.12)',
-              borderBottomLeftRadius: '8px',
-              borderBottomRightRadius: '8px',
-            }}
-          >
-            <Flex justifyContent="flex-end" gap={3}>
-              <Button 
-                onClick={onClose}
-                size="M"
-                variant="tertiary"
-              >
-                {formatMessage({ id: getTrad('tokens.extend.cancel') })}
-              </Button>
-              <Button 
-                onClick={handleSubmit}
-                size="M"
-                variant="default"
-              >
-                {formatMessage({ id: getTrad('tokens.extend.submit') })}
-              </Button>
-            </Flex>
-          </Box>
-        </Box>
-      </div>
+          </Modal.Body>
+          <Modal.Footer justifyContent="flex-end" gap={2}>
+            <Button
+              type="button"
+              variant="tertiary"
+              size="M"
+              onClick={requestClose}
+              disabled={isSubmitting}
+            >
+              {t('common.cancel', 'Cancel')}
+            </Button>
+            <Button
+              type="submit"
+              size="M"
+              startIcon={<Clock />}
+              loading={isSubmitting}
+              disabled={!daysValid}
+            >
+              {t('tokens.extend.submit', 'Extend Token')}
+            </Button>
+          </Modal.Footer>
+        </form>
+      </Modal.Content>
+    </Modal.Root>
   );
 };
 

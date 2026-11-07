@@ -1,393 +1,425 @@
 'use strict';
 
 /**
- * OTP Controller
- *
- * Public endpoints for the OTP / TOTP second-factor flow and admin endpoints
- * for TOTP management.
+ * OTP controller: e-mail OTP second factor (public), OTP code management
+ * (admin) and the admin user's own authenticator (admin).
  *
  * Security properties of the public endpoints:
- *  - Zod validation of every request body BEFORE any service call
- *  - Dual rate-limiting: per-IP AND per-email (closes single-axis bypass)
- *  - Strict binding: /otp/send and /otp/verify require a valid magicLinkToken
- *    that was produced by /magic-link/login with requiresOTP=true
- *    (can be disabled via otp_strict_binding setting for legacy flows)
- *  - Generic error messages: on invalid email, missing phone, or failed code
- *    the response does NOT distinguish between "user doesn't exist" and
- *    "wrong code" in order to prevent user enumeration
- *  - Sensitive context keys are dropped even on the successful path
- *  - OTP pool anti-inflation: createOTP invalidates prior unused codes
- *    so brute-force success probability stays constant at 1 / 10^length
+ *  - Zod validation of every request body before any service call.
+ *  - Rate limits per IP and per e-mail (hashed limiter keys).
+ *  - Strict binding (default): /otp/send, /otp/verify and /otp/resend need
+ *    the loginToken of a pending server-side `otp` challenge started by
+ *    /magic-link/login. The unbound legacy flow (otp_strict_binding=false)
+ *    is refused whenever an MFA mode is active, so it can never replace
+ *    the authenticator.
+ *  - Generic answers for unknown users, wrong codes and foreign bindings.
+ *  - Sessions are issued through utils/login-session.js like every other
+ *    login path (session record, configured lifetime, refresh mode).
+ *
+ * Admin authenticator routes are namespaced to the admin principal
+ * (`admin:<id>`), so they can never touch an end user's enrolment.
  */
 
+const crypto = require('node:crypto');
 const {
   otpSendSchema,
   otpVerifySchema,
   otpResendSchema,
   totpTokenOnlySchema,
+  adminTotpSetupSchema,
+  otpCodesQuerySchema,
   parseBody,
 } = require('./validation');
-const { resolveJwt } = require('../utils/jwt');
+const { resolveMfaMode } = require('../utils/mfa-mode');
+const { filterContext } = require('../utils/context-policy');
+const { issueLoginSession, setNoStoreHeaders } = require('../utils/login-session');
+const i18n = require('../utils/i18n');
+const { claimUnconfirmedAccount } = require('../utils/account-claim');
+const { requiredChallenge, challengeSatisfiesPolicy } = require('../utils/challenge-policy');
+const { normalizeBackupCode } = require('../utils/totp');
 
+const OTP_UID = 'plugin::magic-link.otp-code';
+const USER_UID = 'plugin::users-permissions.user';
 const GENERIC_FAILURE = 'Invalid or expired verification code';
 const GENERIC_OTP_RESPONSE = 'If the request is valid, a verification code will be sent.';
+const ADMIN_PAGE_SIZE_LIMIT = 100;
 
-const SENSITIVE_CONTEXT_KEYS = [
-  'password', 'secret', 'apiKey', 'token',
-  'resetPasswordToken', 'confirmationToken',
-  'requiresOTP', 'otpVerified',
-  'requiresTOTP', 'totpVerified',
-];
+const plugin = () => strapi.plugin('magic-link');
 
 /**
- * Copies a context object, enforcing size limits and stripping sensitive keys.
- * @param {object} source
- * @returns {object}
+ * Query Engine filter for a derived OTP state, matching the admin badges:
+ * used codes are "used" even after expiry; unused ones are active or expired.
+ *
+ * @param {'active'|'expired'|'used'} status - Derived state.
+ * @param {Date} now - Reference time.
+ * @returns {object} Where clause.
  */
-const sanitizeContext = (source) => {
-  if (!source || typeof source !== 'object') return {};
-  const out = {};
-  for (const [key, val] of Object.entries(source)) {
-    if (SENSITIVE_CONTEXT_KEYS.includes(key)) continue;
-    if (val === undefined) continue;
-    if (typeof val === 'string') {
-      out[key] = val.substring(0, 2000);
-    } else if (typeof val === 'boolean') {
-      out[key] = val;
-    } else if (typeof val === 'number' && !Number.isNaN(val)) {
-      out[key] = val;
-    } else if (typeof val === 'object' && val !== null) {
-      try {
-        out[key] = JSON.parse(JSON.stringify(val).substring(0, 5000));
-      } catch {
-        // drop values that fail round-trip serialization
-      }
-    }
-  }
-  return out;
+const otpStatusWhere = (status, now) => {
+  if (status === 'used') return { used: true };
+  return { used: false, expiresAt: status === 'active' ? { $gt: now } : { $lt: now } };
 };
 
 /**
- * Applies IP + email rate limit for an OTP-related action. Returns the first
- * denial (retryAfter set on ctx). Returns null if the caller may proceed.
+ * Hashes a limiter key so e-mail addresses are not kept in clear.
  *
- * @param {object} ctx - Koa context
- * @param {string} email - Lower-cased email
- * @param {string} scope - Logical scope tag ('send' | 'verify' | 'resend')
- * @returns {Promise<{status: number, message: string}|null>}
+ * @param {string} scope - Key scope.
+ * @param {string} value - Value.
+ * @returns {string} Key.
+ */
+const limiterKey = (scope, value) =>
+  `${scope}:${crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 32)}`;
+
+/**
+ * Applies IP and e-mail rate limits. Returns a denial or null.
+ *
+ * @param {object} ctx - Koa context.
+ * @param {string} email - Lower-cased e-mail.
+ * @param {string} scope - 'send' | 'verify' | 'resend'.
+ * @returns {Promise<{message: string}|null>}
  */
 const enforceOtpRateLimits = async (ctx, email, scope) => {
-  const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
-  const ipAddress = ctx.request.ip;
-
-  const ipCheck = await rateLimiter.checkRateLimit(`ip:${scope}:${ipAddress}`, 'otp');
-  if (!ipCheck.allowed) {
-    ctx.set('Retry-After', String(ipCheck.retryAfter));
-    return { status: 429, message: `Too many requests. Please try again in ${ipCheck.retryAfter} seconds.` };
-  }
-
-  if (email) {
-    const emailCheck = await rateLimiter.checkRateLimit(`email:${scope}:${email}`, 'otp');
-    if (!emailCheck.allowed) {
-      ctx.set('Retry-After', String(emailCheck.retryAfter));
-      return { status: 429, message: `Too many requests. Please try again in ${emailCheck.retryAfter} seconds.` };
+  const rateLimiter = plugin().service('rate-limiter');
+  for (const key of [
+    `ip:${scope}:${ctx.request.ip}`,
+    email ? limiterKey(`email:${scope}`, email) : null,
+  ]) {
+    if (!key) continue;
+    const check = await rateLimiter.checkRateLimit(key, 'otp');
+    if (!check?.allowed) {
+      const retryAfter = Number.isFinite(check?.retryAfter) ? check.retryAfter : 60;
+      ctx.set('Retry-After', String(retryAfter));
+      return { message: `Too many requests. Please try again in ${retryAfter} seconds.` };
     }
   }
-
   return null;
 };
 
+/**
+ * Counts one code check against the always-on `verify` limiter (also active
+ * when public rate limiting is disabled). Returns a denial or null.
+ *
+ * @param {object} ctx - Koa context.
+ * @param {string} subject - Account key (hashed e-mail or principal key).
+ * @returns {Promise<{message: string}|null>}
+ */
+const enforceVerificationLimit = async (ctx, subject) => {
+  const check = await plugin()
+    .service('rate-limiter')
+    .checkRateLimit(`verify:${subject}`, 'verify');
+  if (check?.allowed) return null;
+  const retryAfter = Number.isFinite(check?.retryAfter) ? check.retryAfter : 60;
+  ctx.set('Retry-After', String(retryAfter));
+  return { message: `Too many attempts. Please try again in ${retryAfter} seconds.` };
+};
+
+/**
+ * Reads plugin settings.
+ *
+ * @returns {Promise<object>} Settings.
+ */
+const readSettings = async () =>
+  (await strapi.store({ type: 'plugin', name: 'magic-link' }).get({ key: 'settings' })) || {};
+
+/**
+ * Whether the unbound legacy OTP flow may run: only with strict binding
+ * explicitly disabled and no MFA mode active (AUTH-05).
+ *
+ * @param {object} settings - Settings.
+ * @returns {'strict'|'legacy'|'refused'} Mode.
+ */
+const bindingMode = (settings) => {
+  if (settings.otp_strict_binding !== false) return 'strict';
+  return resolveMfaMode(settings) === 'disabled' ? 'legacy' : 'refused';
+};
+
+const minutesOf = (seconds) => Math.max(1, Math.ceil(Number(seconds) / 60));
+
+const deliveryFailed = (ctx) => {
+  ctx.status = 503;
+  ctx.body = {
+    success: false,
+    error: { code: 'OTP_EMAIL_FAILED', message: 'The code could not be sent.' },
+  };
+  return ctx.body;
+};
+
+/**
+ * Returns the admin principal of the request.
+ *
+ * @param {object} ctx - Koa context.
+ * @returns {{type: 'admin', id: number}} Principal.
+ */
+const adminPrincipal = (ctx) => ({ type: 'admin', id: ctx.state.user.id });
+
+/**
+ * Verifies a code from the admin's current authenticator: a TOTP code, or a
+ * backup code when the input has the backup-code shape.
+ *
+ * @param {object} otpService - OTP service.
+ * @param {object} principal - Principal.
+ * @param {string} token - Submitted code.
+ * @returns {Promise<{valid: boolean}>}
+ */
+const verifyCurrentFactor = (otpService, principal, token) =>
+  normalizeBackupCode(token)
+    ? otpService.verifySecondFactor(principal, { backupCode: token })
+    : otpService.verifySecondFactor(principal, { totpCode: token });
+
+/**
+ * Strips stored hashes and bindings from an OTP code row for the admin list.
+ *
+ * @param {object} row - Row.
+ * @returns {object} Display fields.
+ */
+const toAdminRow = (row) => ({
+  id: row.id,
+  documentId: row.documentId,
+  email: row.email,
+  type: row.type,
+  used: row.used,
+  attempts: row.attempts,
+  expiresAt: row.expiresAt,
+  createdAt: row.createdAt,
+  updatedAt: row.updatedAt,
+  bound: Boolean(row.magicLinkToken),
+  metadata: row.metadata
+    ? { ipAddress: row.metadata.ipAddress || null, userAgent: row.metadata.userAgent || null }
+    : null,
+});
+
 module.exports = {
   /**
-   * Generates and sends an OTP code.
-   *
-   * Requires a valid magicLinkToken (when otp_strict_binding is enabled)
-   * that was issued with requiresOTP=true — i.e. the user has completed the
-   * first factor (clicked the magic link) and the server asked for a second
-   * factor. This prevents /otp/send from being used as a standalone email
-   * bombardment vector.
+   * Sends a new e-mail OTP for a pending login challenge.
    *
    * @route POST /api/magic-link/otp/send
+   * @param {object} ctx - Koa context.
+   * @returns {Promise<void>}
    */
   async send(ctx) {
+    setNoStoreHeaders(ctx);
+    const { email, magicLinkToken } = parseBody(otpSendSchema, ctx.request.body);
     try {
-      const { email: normalizedEmail, magicLinkToken } = parseBody(
-        otpSendSchema,
-        ctx.request.body
-      );
-
-      const otpService = strapi.plugin('magic-link').service('otp');
+      const otpService = plugin().service('otp');
       const otpSettings = await otpService.getOTPSettings();
+      if (!otpSettings.enabled) return ctx.badRequest('OTP is not enabled');
 
-      if (!otpSettings.enabled) {
-        return ctx.badRequest('OTP is not enabled');
-      }
+      const rateLimited = await enforceOtpRateLimits(ctx, email, 'send');
+      if (rateLimited) return ctx.tooManyRequests(rateLimited.message);
 
-      const rlFail = await enforceOtpRateLimits(ctx, normalizedEmail, 'send');
-      if (rlFail) return ctx.tooManyRequests(rlFail.message);
+      const settings = await readSettings();
+      const mode = bindingMode(settings);
+      if (mode === 'refused')
+        return ctx.badRequest('magicLinkToken is required while MFA is active');
 
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const settings = (await pluginStore.get({ key: 'settings' })) || {};
-      const strictBinding = settings.otp_strict_binding !== false;
-
-      if (strictBinding) {
-        // Clear 400 when the client simply forgot to send the binding
-        // token (usually a frontend bug) so the user is not left waiting
-        // on an email that will never arrive. An INVALID binding — i.e.
-        // token sent but mismatched — still returns the generic success
-        // response below to prevent account enumeration.
+      let boundToken = null;
+      if (mode === 'strict') {
+        // A missing token is a frontend bug and gets a clear 400; a wrong
+        // token gets the generic answer (no enumeration).
         if (!magicLinkToken) {
           return ctx.badRequest(
             'magicLinkToken is required. Call /magic-link/login first and pass the returned loginToken as magicLinkToken.'
           );
         }
-
-        const magicLink = strapi.plugin('magic-link').service('magic-link');
-        const boundToken = await magicLink.validateBindingForChallenge(
-          magicLinkToken,
-          normalizedEmail,
-          'otp'
-        );
+        boundToken = await plugin()
+          .service('magic-link')
+          .validateBindingForChallenge(magicLinkToken, email, 'otp');
         if (!boundToken) {
-          strapi.log.warn(
-            `[OTP] Binding rejected for ${normalizedEmail} from ${ctx.request.ip} (send)`
-          );
+          strapi.log.warn('[magic-link] OTP send: challenge binding rejected');
           return ctx.send({ success: true, message: GENERIC_OTP_RESPONSE });
         }
-      } else {
-        strapi.log.warn('[OTP] otp_strict_binding is disabled — running in legacy/insecure mode');
       }
 
-      const otpEntry = await otpService.createOTP(normalizedEmail, otpSettings.type, {
-        magicLinkToken,
+      const otpEntry = await otpService.createOTP(email, 'email', {
+        magicLinkToken: boundToken?.token || null,
         expirySeconds: otpSettings.expiry,
         codeLength: otpSettings.length,
         ipAddress: ctx.request.ip,
-        userAgent: ctx.request.headers['user-agent'],
+        userAgent: ctx.request.headers?.['user-agent'],
       });
 
-      if (otpSettings.type === 'email') {
-        await otpService.sendOTPEmail(normalizedEmail, otpEntry.code, {
-          subject: 'Your Verification Code',
-          expiryMinutes: Math.floor(otpSettings.expiry / 60),
+      try {
+        await otpService.sendOTPEmail(email, otpEntry.code, {
+          locale: i18n.getLocaleFromContext(ctx),
+          expiryMinutes: minutesOf(otpSettings.expiry),
         });
-      } else if (otpSettings.type === 'sms') {
-        const users = await strapi.documents('plugin::users-permissions.user').findMany({
-          filters: { email: normalizedEmail },
-          limit: 1,
-        });
-        const user = users && users[0];
-        if (user?.phoneNumber) {
-          await otpService.sendOTPSMS(user.phoneNumber, otpEntry.code);
-        }
-        // Generic response — do not reveal whether phone number was missing
+      } catch {
+        strapi.log.error('[magic-link] OTP e-mail delivery failed');
+        return deliveryFailed(ctx);
       }
 
       return ctx.send({
         success: true,
         message: 'OTP code sent successfully',
         expiresIn: otpSettings.expiry,
-        type: otpSettings.type,
+        type: 'email',
       });
-    } catch (error) {
-      strapi.log.error('Error sending OTP:', error);
+    } catch {
+      strapi.log.error('[magic-link] OTP send request failed');
       return ctx.badRequest('Failed to send OTP code');
     }
   },
 
   /**
-   * Verifies an OTP code and completes the magic-link login.
-   *
-   * When otp_strict_binding is enabled (default), a valid magicLinkToken
-   * with requiresOTP=true is required; otherwise the flow falls back to
-   * email-only verification (insecure legacy mode).
+   * Verifies an e-mail OTP and completes the login.
    *
    * @route POST /api/magic-link/otp/verify
+   * @param {object} ctx - Koa context.
+   * @returns {Promise<void>}
    */
   async verify(ctx) {
+    setNoStoreHeaders(ctx);
+    const { email, code, magicLinkToken } = parseBody(otpVerifySchema, ctx.request.body);
     try {
-      const { email: normalizedEmail, code, magicLinkToken } = parseBody(
-        otpVerifySchema,
-        ctx.request.body
-      );
-
-      const otpService = strapi.plugin('magic-link').service('otp');
-      const magicLinkService = strapi.plugin('magic-link').service('magic-link');
+      const otpService = plugin().service('otp');
+      const magicLinkService = plugin().service('magic-link');
       const otpSettings = await otpService.getOTPSettings();
+      if (!otpSettings.enabled) return ctx.badRequest('OTP is not enabled');
 
-      if (!otpSettings.enabled) {
-        return ctx.badRequest('OTP is not enabled');
-      }
+      const rateLimited =
+        (await enforceOtpRateLimits(ctx, email, 'verify')) ||
+        (await enforceVerificationLimit(ctx, limiterKey('otp-verify', email)));
+      if (rateLimited) return ctx.tooManyRequests(rateLimited.message);
 
-      const rlFail = await enforceOtpRateLimits(ctx, normalizedEmail, 'verify');
-      if (rlFail) return ctx.tooManyRequests(rlFail.message);
-
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const settings = (await pluginStore.get({ key: 'settings' })) || {};
-      const strictBinding = settings.otp_strict_binding !== false;
+      const settings = await readSettings();
+      const mode = bindingMode(settings);
+      if (mode === 'refused') return ctx.badRequest(GENERIC_FAILURE);
 
       let boundToken = null;
-      if (strictBinding) {
+      if (mode === 'strict') {
         boundToken = await magicLinkService.validateBindingForChallenge(
           magicLinkToken,
-          normalizedEmail,
+          email,
           'otp'
         );
         if (!boundToken) {
-          strapi.log.warn(
-            `[OTP] Binding rejected for ${normalizedEmail} from ${ctx.request.ip} (verify)`
-          );
+          strapi.log.warn('[magic-link] OTP verify: challenge binding rejected');
           return ctx.badRequest(GENERIC_FAILURE);
         }
       }
 
-      const verification = await otpService.verifyOTP(normalizedEmail, code, otpSettings.type);
-      if (!verification.valid) {
-        return ctx.badRequest(GENERIC_FAILURE);
-      }
+      const verification = await otpService.verifyOTP(
+        email,
+        code,
+        'email',
+        boundToken?.token || null
+      );
+      if (!verification.valid) return ctx.badRequest(GENERIC_FAILURE);
 
-      const users = await strapi.documents('plugin::users-permissions.user').findMany({
-        filters: { email: normalizedEmail },
-        limit: 1,
-      });
+      const users = await strapi.documents(USER_UID).findMany({ filters: { email }, limit: 1 });
       const user = users && users[0];
-
-      if (!user || user.blocked) {
+      if (!user || user.blocked) return ctx.badRequest(GENERIC_FAILURE);
+      if (
+        boundToken?.challenge?.userDocumentId &&
+        boundToken.challenge.userDocumentId !== user.documentId
+      ) {
         return ctx.badRequest(GENERIC_FAILURE);
       }
 
-      // Deactivate the magic-link token so it cannot be reused after OTP.
+      // Re-check the CURRENT policy: an authenticator enrolled after the
+      // challenge started, or MFA switched to required, means an e-mail code
+      // no longer completes this login (re-opening the link starts the
+      // required challenge).
+      const required = await requiredChallenge(otpService, settings, user.id);
+      if (!challengeSatisfiesPolicy('otp', required)) return ctx.badRequest(GENERIC_FAILURE);
+
       if (boundToken) {
-        await magicLinkService.deactivateToken(boundToken);
-      }
-
-      const tokenContext = boundToken?.context ?? {};
-      const sanitizedContext = sanitizeContext(tokenContext);
-
-      const jwtService = strapi.plugin('users-permissions').service('jwt');
-      // resolveJwt tolerates both sync-string and Promise return shapes so
-      // the controller stays consistent with auth.js (login / MFA / TOTP).
-      const jwt = await resolveJwt(jwtService.issue({ id: user.id, context: sanitizedContext }));
-
-      if (settings.store_login_info) {
-        await magicLinkService.storeLoginInfo?.({
-          userId: user.id,
-          email: user.email,
+        const consumed = await magicLinkService.consumeChallenge(boundToken, 'otp', {
+          userAgent: ctx.request.headers?.['user-agent'],
           ipAddress: ctx.request.ip,
-          userAgent: ctx.request.headers['user-agent'],
-          loginMethod: 'magic-link-otp',
-          success: true,
-        }).catch(() => {});
+        });
+        if (!consumed) return ctx.badRequest(GENERIC_FAILURE);
       }
 
-      return ctx.send({
-        jwt,
-        user: { id: user.id, username: user.username, email: user.email },
-        context: sanitizedContext,
+      // The code was delivered to the mailbox. An unconfirmed account is
+      // claimed: earlier sessions end and a foreign password is invalidated.
+      await claimUnconfirmedAccount(strapi, user);
+
+      const body = await issueLoginSession(strapi, ctx, {
+        user,
+        settings,
+        context: boundToken ? filterContext(boundToken.context, settings) : {},
+        source: boundToken ? 'Magic Link + Email OTP' : 'Email OTP',
+        extras: { otpVerified: true },
       });
-    } catch (error) {
-      strapi.log.error('Error verifying OTP:', error);
+      return ctx.send(body);
+    } catch {
+      strapi.log.error('[magic-link] OTP verification request failed');
       return ctx.badRequest('Failed to verify OTP code');
     }
   },
 
   /**
-   * Resends a new OTP code after the resend cooldown has elapsed.
-   * Also subject to strict binding, IP + email rate-limits, and the
-   * single-active-code invalidation policy enforced by createOTP.
+   * Sends a new code after the resend cooldown.
    *
    * @route POST /api/magic-link/otp/resend
+   * @param {object} ctx - Koa context.
+   * @returns {Promise<void>}
    */
   async resend(ctx) {
+    setNoStoreHeaders(ctx);
+    const { email, magicLinkToken } = parseBody(otpResendSchema, ctx.request.body);
     try {
-      const { email: normalizedEmail, magicLinkToken } = parseBody(
-        otpResendSchema,
-        ctx.request.body
-      );
-
-      const otpService = strapi.plugin('magic-link').service('otp');
+      const otpService = plugin().service('otp');
       const otpSettings = await otpService.getOTPSettings();
+      if (!otpSettings.enabled) return ctx.badRequest('OTP is not enabled');
 
-      if (!otpSettings.enabled) {
-        return ctx.badRequest('OTP is not enabled');
-      }
+      const rateLimited = await enforceOtpRateLimits(ctx, email, 'resend');
+      if (rateLimited) return ctx.tooManyRequests(rateLimited.message);
 
-      const rlFail = await enforceOtpRateLimits(ctx, normalizedEmail, 'resend');
-      if (rlFail) return ctx.tooManyRequests(rlFail.message);
+      const settings = await readSettings();
+      const mode = bindingMode(settings);
+      if (mode === 'refused')
+        return ctx.badRequest('magicLinkToken is required while MFA is active');
 
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const settings = (await pluginStore.get({ key: 'settings' })) || {};
-      const strictBinding = settings.otp_strict_binding !== false;
-
-      if (strictBinding) {
-        // UX: distinguish between "client forgot to send the binding
-        // token" (a legitimate frontend bug that deserves a clear 400)
-        // and "token is present but invalid" (an enumeration-sensitive
-        // failure that must look identical to success). Without this
-        // split the resend endpoint used to silently pretend success
-        // while the user waited forever for an email that was never
-        // going to be generated.
+      let boundToken = null;
+      if (mode === 'strict') {
         if (!magicLinkToken) {
           return ctx.badRequest(
             'magicLinkToken is required for OTP resend. Call /magic-link/login first and pass the returned loginToken as magicLinkToken.'
           );
         }
-
-        const magicLink = strapi.plugin('magic-link').service('magic-link');
-        const boundToken = await magicLink.validateBindingForChallenge(
-          magicLinkToken,
-          normalizedEmail,
-          'otp'
-        );
+        boundToken = await plugin()
+          .service('magic-link')
+          .validateBindingForChallenge(magicLinkToken, email, 'otp');
         if (!boundToken) {
-          strapi.log.warn(
-            `[OTP] Binding rejected for ${normalizedEmail} from ${ctx.request.ip} (resend)`
-          );
+          strapi.log.warn('[magic-link] OTP resend: challenge binding rejected');
           return ctx.send({ success: true, message: GENERIC_OTP_RESPONSE });
         }
       }
 
-      // Resend cooldown check — based on the newest unused code (or any code
-      // if all are already invalidated by createOTP's policy).
-      const lastCodes = await strapi.documents('plugin::magic-link.otp-code').findMany({
-        filters: { email: normalizedEmail, type: otpSettings.type },
-        sort: [{ createdAt: 'desc' }],
+      const lastCodes = await strapi.db.query(OTP_UID).findMany({
+        where: { email, type: 'email' },
+        orderBy: { createdAt: 'desc' },
         limit: 1,
       });
-
       if (lastCodes && lastCodes.length > 0) {
-        const lastCreated = new Date(lastCodes[0].createdAt);
-        const secondsSinceLastSend = (Date.now() - lastCreated.getTime()) / 1000;
+        const secondsSinceLastSend =
+          (Date.now() - new Date(lastCodes[0].createdAt).getTime()) / 1000;
         if (secondsSinceLastSend < otpSettings.resendCooldown) {
           const waitTime = Math.ceil(otpSettings.resendCooldown - secondsSinceLastSend);
-          return ctx.tooManyRequests(`Please wait ${waitTime} seconds before requesting a new code`);
+          ctx.set('Retry-After', String(waitTime));
+          return ctx.tooManyRequests(
+            `Please wait ${waitTime} seconds before requesting a new code`
+          );
         }
       }
 
-      // createOTP invalidates all prior unused codes before creating the new one,
-      // so no explicit "mark old as used" loop is needed here.
-      const otpEntry = await otpService.createOTP(normalizedEmail, otpSettings.type, {
-        magicLinkToken,
+      const otpEntry = await otpService.createOTP(email, 'email', {
+        magicLinkToken: boundToken?.token || null,
         expirySeconds: otpSettings.expiry,
         codeLength: otpSettings.length,
         ipAddress: ctx.request.ip,
-        userAgent: ctx.request.headers['user-agent'],
+        userAgent: ctx.request.headers?.['user-agent'],
       });
 
-      if (otpSettings.type === 'email') {
-        await otpService.sendOTPEmail(normalizedEmail, otpEntry.code, {
-          subject: 'Your New Verification Code',
-          expiryMinutes: Math.floor(otpSettings.expiry / 60),
+      try {
+        await otpService.sendOTPEmail(email, otpEntry.code, {
+          locale: i18n.getLocaleFromContext(ctx),
+          expiryMinutes: minutesOf(otpSettings.expiry),
         });
-      } else if (otpSettings.type === 'sms') {
-        const users = await strapi.documents('plugin::users-permissions.user').findMany({
-          filters: { email: normalizedEmail },
-          limit: 1,
-        });
-        const user = users && users[0];
-        if (user?.phoneNumber) {
-          await otpService.sendOTPSMS(user.phoneNumber, otpEntry.code);
-        }
+      } catch {
+        strapi.log.error('[magic-link] OTP resend delivery failed');
+        return deliveryFailed(ctx);
       }
 
       return ctx.send({
@@ -395,173 +427,279 @@ module.exports = {
         message: 'New OTP code sent successfully',
         expiresIn: otpSettings.expiry,
       });
-    } catch (error) {
-      strapi.log.error('Error resending OTP:', error);
+    } catch {
+      strapi.log.error('[magic-link] OTP resend request failed');
       return ctx.badRequest('Failed to resend OTP code');
     }
   },
 
+  // ───────────────────────────── Admin: OTP codes ─────────────────────────────
+
   /**
-   * List all OTP codes (Admin)
+   * Lists OTP codes with server-side filters and pagination. Hashes and
+   * bindings are never returned.
+   *
+   * @route GET /magic-link/otp/codes
+   * @param {object} ctx - Koa context.
+   * @returns {Promise<void>}
    */
   async listCodes(ctx) {
+    const query = parseBody(otpCodesQuerySchema, ctx.query || {});
+    const pageSize = Math.min(query.pageSize, ADMIN_PAGE_SIZE_LIMIT);
+    const now = new Date();
+    const where = {};
+    if (query.email) where.email = { $containsi: query.email };
+    if (query.type) where.type = query.type;
+    if (query.status) Object.assign(where, otpStatusWhere(query.status, now));
+    const count = (filter) => strapi.db.query(OTP_UID).count({ where: filter });
+
     try {
-      const { page = 1, pageSize = 10, email, type } = ctx.query;
+      const [rows, total, all, active, expired, used] = await Promise.all([
+        strapi.db.query(OTP_UID).findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          offset: (query.page - 1) * pageSize,
+          limit: pageSize,
+        }),
+        count(where),
+        // Stat cards count every code, independent of search and filters.
+        count({}),
+        count(otpStatusWhere('active', now)),
+        count(otpStatusWhere('expired', now)),
+        count(otpStatusWhere('used', now)),
+      ]);
 
-      const filters = {};
-      if (email) filters.email = { $containsi: email };
-      if (type) filters.type = type;
-
-      const codes = await strapi.documents('plugin::magic-link.otp-code').findMany({
-        filters,
-        sort: [{ createdAt: 'desc' }],
-        offset: (page - 1) * pageSize,
-        limit: Math.min(parseInt(pageSize, 10) || 10, 100),
-      });
-
-      const total = await strapi.documents('plugin::magic-link.otp-code').count({ filters });
-
-      ctx.send({
-        codes,
+      return ctx.send({
+        codes: (rows || []).map(toAdminRow),
+        stats: { total: all, active, expired, used },
         pagination: {
-          page: parseInt(page, 10),
-          pageSize: parseInt(pageSize, 10),
+          page: query.page,
+          pageSize,
           total,
           pageCount: Math.ceil(total / pageSize),
+          truncated: query.pageSize > pageSize,
         },
       });
-    } catch (error) {
-      strapi.log.error('Error listing OTP codes:', error);
+    } catch {
+      strapi.log.error('[magic-link] Admin OTP list request failed');
       return ctx.badRequest('Failed to list OTP codes');
     }
   },
 
   /**
-   * Delete OTP code (Admin)
+   * Deletes one OTP code by documentId (or by numeric id, as older admin
+   * builds send it).
+   *
+   * @route DELETE /magic-link/otp/codes/:id
+   * @param {object} ctx - Koa context.
+   * @returns {Promise<void>}
    */
   async deleteCode(ctx) {
+    const raw = String(ctx.params?.id || '');
+    if (!/^[A-Za-z0-9]{1,64}$/.test(raw)) return ctx.badRequest('Invalid OTP code id');
     try {
-      const { id } = ctx.params;
-      await strapi.documents('plugin::magic-link.otp-code').delete({ documentId: id });
-      ctx.send({ success: true, message: 'OTP code deleted successfully' });
-    } catch (error) {
-      strapi.log.error('Error deleting OTP code:', error);
+      const where = /^\d+$/.test(raw) ? { id: Number(raw) } : { documentId: raw };
+      const result = await strapi.db.query(OTP_UID).deleteMany({ where });
+      if (!result?.count) return ctx.notFound('OTP code not found');
+      return ctx.send({ success: true, message: 'OTP code deleted successfully' });
+    } catch {
+      strapi.log.error('[magic-link] Admin OTP delete request failed');
       return ctx.badRequest('Failed to delete OTP code');
     }
   },
 
   /**
-   * Cleanup expired OTP codes (Admin)
+   * Deletes expired OTP codes.
+   *
+   * @route POST /magic-link/otp/cleanup
+   * @param {object} ctx - Koa context.
+   * @returns {Promise<void>}
    */
   async cleanup(ctx) {
     try {
-      const otpService = strapi.plugin('magic-link').service('otp');
-      await otpService.cleanupExpiredCodes();
-      ctx.send({ success: true, message: 'Expired OTP codes cleaned up successfully' });
-    } catch (error) {
-      strapi.log.error('Error cleaning up OTP codes:', error);
+      const deleted = await plugin().service('otp').cleanupExpiredCodes();
+      return ctx.send({
+        success: true,
+        deleted,
+        message: 'Expired OTP codes cleaned up successfully',
+      });
+    } catch {
+      strapi.log.error('[magic-link] Admin OTP cleanup request failed');
       return ctx.badRequest('Failed to cleanup OTP codes');
     }
   },
 
   /**
-   * Setup TOTP for current user (Admin).
-   * SECURITY: The plaintext secret is returned once here so the user can
-   * scan the QR code or paste it into their authenticator. We return it
-   * under a single key (`secret`) and instruct the client NOT to log it.
-   * The DB stores only the AES-256-GCM-encrypted form.
+   * Number of end users (users-permissions) with an active authenticator.
+   * The Settings page uses it to warn before MFA becomes `required`.
+   *
+   * @route GET /magic-link/totp/enrollment-summary
+   * @param {object} ctx - Koa context.
+   * @returns {Promise<void>}
+   */
+  async enrollmentSummary(ctx) {
+    try {
+      const enrolled = await strapi.db.query('plugin::magic-link.totp-config').count({
+        where: { principalType: 'users-permissions', enabled: true },
+      });
+      return ctx.send({ data: { enrolled, enrollmentDuringLogin: true } });
+    } catch {
+      strapi.log.error('[magic-link] TOTP enrolment summary request failed');
+      return ctx.badRequest('Failed to load the enrolment summary');
+    }
+  },
+
+  // ─────────────────── Admin: the admin user's own authenticator ───────────────────
+
+  /**
+   * Starts (re-)enrolment of the admin user's own authenticator. With an
+   * active authenticator, `token` (a current code) is required.
+   *
+   * @route POST /magic-link/otp/totp/setup
+   * @param {object} ctx - Koa context.
+   * @returns {Promise<void>}
    */
   async setupTOTP(ctx) {
+    setNoStoreHeaders(ctx);
+    const { token } = parseBody(adminTotpSetupSchema, ctx.request.body);
     try {
-      const { email, id: userId } = ctx.state.user;
-      const otpService = strapi.plugin('magic-link').service('otp');
-      const setupData = await otpService.setupTOTP(userId, email);
-
-      ctx.send({ success: true, data: setupData });
-    } catch (error) {
-      strapi.log.error('Error setting up TOTP:', error);
+      const otpService = plugin().service('otp');
+      const principal = adminPrincipal(ctx);
+      const limited = await enforceVerificationLimit(ctx, `admin:${principal.id}`);
+      if (limited) return ctx.tooManyRequests(limited.message);
+      const status = await otpService.getTOTPStatus(principal);
+      if (status.enabled) {
+        const check = token
+          ? await verifyCurrentFactor(otpService, principal, token)
+          : { valid: false };
+        if (!check.valid) return ctx.forbidden('A current authenticator code is required');
+      }
+      const { binding: _binding, ...data } = await otpService.beginSetup(
+        principal,
+        ctx.state.user.email,
+        {
+          origin: 'admin',
+        }
+      );
+      return ctx.send({ success: true, data });
+    } catch {
+      strapi.log.error('[magic-link] Admin TOTP setup request failed');
       return ctx.badRequest('Failed to setup TOTP');
     }
   },
 
   /**
-   * Verify TOTP code (Admin)
+   * Confirms a pending enrolment (returns backup codes once) or checks a
+   * code of the active authenticator.
+   *
+   * @route POST /magic-link/otp/totp/verify
+   * @param {object} ctx - Koa context.
+   * @returns {Promise<void>}
    */
   async verifyTOTP(ctx) {
+    setNoStoreHeaders(ctx);
+    const { token } = parseBody(totpTokenOnlySchema, ctx.request.body);
     try {
-      const { token } = parseBody(totpTokenOnlySchema, ctx.request.body);
+      const otpService = plugin().service('otp');
+      const principal = adminPrincipal(ctx);
+      const limited = await enforceVerificationLimit(ctx, `admin:${principal.id}`);
+      if (limited) return ctx.tooManyRequests(limited.message);
+      const status = await otpService.getTOTPStatus(principal);
+      const result = status.pendingSetup
+        ? await otpService.confirmSetup(principal, token, { origin: 'admin' })
+        : await otpService.verifyTOTP(principal, token);
 
-      const { id: userId } = ctx.state.user;
-      const otpService = strapi.plugin('magic-link').service('otp');
-      const result = await otpService.verifyTOTP(userId, token, true);
-
-      if (result.valid) {
-        ctx.send({
-          success: true,
-          enabled: result.enabled,
-          message: 'TOTP code verified successfully',
-        });
-      } else {
-        ctx.send({ success: false, error: result.error, message: result.message });
+      if (!result.valid) {
+        return ctx.send({ success: false, error: result.error, message: result.message });
       }
-    } catch (error) {
-      strapi.log.error('Error verifying TOTP:', error);
+      return ctx.send({
+        success: true,
+        enabled: true,
+        ...(result.backupCodes ? { backupCodes: result.backupCodes } : {}),
+        message: 'TOTP code verified successfully',
+      });
+    } catch {
+      strapi.log.error('[magic-link] Admin TOTP verification request failed');
       return ctx.badRequest('Failed to verify TOTP');
     }
   },
 
   /**
-   * Disable TOTP for current user (Admin)
+   * Removes the admin user's authenticator after a current TOTP or backup code.
+   *
+   * @route POST /magic-link/otp/totp/disable
+   * @param {object} ctx - Koa context.
+   * @returns {Promise<void>}
    */
   async disableTOTP(ctx) {
+    setNoStoreHeaders(ctx);
+    const { token } = parseBody(totpTokenOnlySchema, ctx.request.body);
     try {
-      const { id: userId } = ctx.state.user;
-      const otpService = strapi.plugin('magic-link').service('otp');
-      const success = await otpService.disableTOTP(userId);
-
-      if (success) {
-        ctx.send({ success: true, message: 'TOTP disabled successfully' });
-      } else {
-        ctx.send({ success: false, message: 'TOTP was not enabled or does not exist' });
+      const otpService = plugin().service('otp');
+      const principal = adminPrincipal(ctx);
+      const limited = await enforceVerificationLimit(ctx, `admin:${principal.id}`);
+      if (limited) return ctx.tooManyRequests(limited.message);
+      const status = await otpService.getTOTPStatus(principal);
+      if (status.enabled) {
+        const check = await verifyCurrentFactor(otpService, principal, token);
+        if (!check.valid) return ctx.forbidden('A current authenticator code is required');
       }
-    } catch (error) {
-      strapi.log.error('Error disabling TOTP:', error);
+      const removed = await otpService.disableTOTP(principal);
+      return ctx.send(
+        removed
+          ? { success: true, message: 'TOTP disabled successfully' }
+          : { success: false, message: 'TOTP was not enabled or does not exist' }
+      );
+    } catch {
+      strapi.log.error('[magic-link] Admin TOTP disable request failed');
       return ctx.badRequest('Failed to disable TOTP');
     }
   },
 
   /**
-   * Get TOTP status for current user (Admin)
+   * Returns the admin user's authenticator status.
+   *
+   * @route GET /magic-link/otp/totp/status
+   * @param {object} ctx - Koa context.
+   * @returns {Promise<void>}
    */
   async getTOTPStatus(ctx) {
+    setNoStoreHeaders(ctx);
     try {
-      const { id: userId } = ctx.state.user;
-      const otpService = strapi.plugin('magic-link').service('otp');
-      const status = await otpService.getTOTPStatus(userId);
-      ctx.send({ success: true, data: status });
-    } catch (error) {
-      strapi.log.error('Error getting TOTP status:', error);
+      const status = await plugin().service('otp').getTOTPStatus(adminPrincipal(ctx));
+      return ctx.send({ success: true, data: status });
+    } catch {
+      strapi.log.error('[magic-link] Admin TOTP status request failed');
       return ctx.badRequest('Failed to get TOTP status');
     }
   },
 
   /**
-   * Generate backup codes (Admin - Enterprise feature)
+   * Replaces the admin user's backup codes after a current TOTP code.
+   *
+   * @route POST /magic-link/otp/totp/backup-codes
+   * @param {object} ctx - Koa context.
+   * @returns {Promise<void>}
    */
   async generateBackupCodes(ctx) {
+    setNoStoreHeaders(ctx);
+    const { token } = parseBody(totpTokenOnlySchema, ctx.request.body);
     try {
-      const { id: userId } = ctx.state.user;
-      const otpService = strapi.plugin('magic-link').service('otp');
-      const backupCodes = await otpService.generateBackupCodes(userId);
-
-      ctx.send({
+      const otpService = plugin().service('otp');
+      const principal = adminPrincipal(ctx);
+      const limited = await enforceVerificationLimit(ctx, `admin:${principal.id}`);
+      if (limited) return ctx.tooManyRequests(limited.message);
+      const check = await otpService.verifyTOTP(principal, token);
+      if (!check.valid) return ctx.forbidden('A current authenticator code is required');
+      const codes = await otpService.regenerateBackupCodes(principal);
+      return ctx.send({
         success: true,
-        codes: backupCodes,
+        codes,
         message: 'Backup codes generated. Store them securely!',
       });
-    } catch (error) {
-      strapi.log.error('Error generating backup codes:', error);
-      return ctx.badRequest(error.message || 'Failed to generate backup codes');
+    } catch {
+      strapi.log.error('[magic-link] Admin TOTP backup-code request failed');
+      return ctx.badRequest('Failed to generate backup codes');
     }
   },
 };

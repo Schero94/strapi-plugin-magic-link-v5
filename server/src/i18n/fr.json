@@ -20,7 +20,22 @@
     "settings.updateFailed": "Impossible de mettre à jour les paramètres",
     "settings.getFailed": "Impossible de récupérer les paramètres",
     "unauthorized": "Accès non autorisé",
-    "generic.error": "Une erreur s'est produite"
+    "generic.error": "Une erreur s'est produite",
+    "challenge.invalid": "Cette demande de vérification est invalide ou a expiré",
+    "mfa.setupRequired": "L'authentification à deux facteurs est requise. Veuillez d'abord configurer une application d'authentification",
+    "mfa.invalidCode": "Code de vérification invalide",
+    "otp.deliveryFailed": "Le code de vérification n'a pas pu être envoyé. Veuillez demander un nouveau code",
+    "totp.loginDisabled": "La connexion avec un code d'authentification n'est pas activée",
+    "credentials.invalid": "Identifiants invalides",
+    "login.failed": "La connexion n'a pas pu être finalisée. Veuillez réessayer",
+    "totp.notEnrolled": "Aucune application d'authentification n'est configurée pour ce compte",
+    "totp.currentCodeRequired": "Saisissez un code de votre application d'authentification actuelle pour continuer",
+    "totp.noPendingSetup": "Aucune configuration d'application d'authentification n'est en cours. Veuillez recommencer la configuration",
+    "totp.invalidEmailCode": "Le code reçu par e-mail est invalide ou a expiré",
+    "totp.alreadyEnrolled": "Une application d'authentification est déjà configurée pour ce compte",
+    "auth.required": "Veuillez vous connecter pour continuer",
+    "settings.security.forbidden": "Modifier les cibles des liens, les modèles ou les règles de compte ou MFA nécessite l'autorisation Paramètres : Sécurité",
+    "settings.linkOrigin.notAllowed": "Les URL des liens de connexion doivent utiliser une origine autorisée"
   },
   "success": {
     "token.created": "Magic Link envoyé avec succès",
@@ -32,5 +47,21 @@
     "settings.updated": "Paramètres mis à jour avec succès",
     "license.created": "Licence créée avec succès",
     "license.verified": "Licence vérifiée avec succès"
+  },
+  "mail": {
+    "otp.subject": "Votre code de vérification",
+    "otp.heading": "Votre code de vérification",
+    "otp.intro": "Saisissez ce code pour terminer votre connexion :",
+    "otp.expires": "Ce code expire dans {minutes}.",
+    "otp.ignore": "Si vous n'avez pas demandé ce code, vous pouvez ignorer cet e-mail.",
+    "otp.preheader": "Votre code de vérification : {code}",
+    "setup.subject": "Confirmez votre application d'authentification",
+    "setup.intro": "Saisissez ce code pour confirmer la nouvelle application d'authentification de votre compte :",
+    "unit.minute": "{count} minute",
+    "unit.minutes": "{count} minutes",
+    "welcome.subject": "Bienvenue",
+    "welcome.subjectApp": "Bienvenue sur {app}",
+    "welcome.greeting": "Bonjour {name},",
+    "welcome.body": "Merci de votre inscription. Votre lien de connexion arrive."
   }
 }

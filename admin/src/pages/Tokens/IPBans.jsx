@@ -1,832 +1,545 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import styled, { keyframes } from 'styled-components';
-import { useIntl } from 'react-intl';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Typography,
+  Alert,
   Box,
-  Flex,
   Button,
-  Loader,
-  Table,
-  Thead,
+  Field,
+  Flex,
+  IconButton,
+  Modal,
+  Searchbar,
   Tbody,
-  Tr,
   Td,
   Th,
-  Badge,
-  Searchbar,
-  Pagination,
-  PreviousLink,
-  PageLink,
-  NextLink,
-  IconButton,
+  Thead,
   TextInput,
+  Tr,
+  Typography,
+  VisuallyHidden,
 } from '@strapi/design-system';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
+import { ArrowClockwise, Check, Earth, Lock, Plus, Server, WarningCircle } from '@strapi/icons';
+import styled from 'styled-components';
+import { ConfirmDialog } from '../../components/shared/ConfirmDialog';
+import { UnsavedChangesDialog } from '../../components/shared/UnsavedChangesDialog';
+import { useMagicLinkIntl } from '../../hooks/useMagicLinkIntl';
+import { useMagicLinkRBAC } from '../../hooks/useMagicLinkRBAC';
+import { useDiscardGuard } from '../../hooks/useUnsavedChangesGuard';
+import { useReturnFocus } from '../../hooks/useReturnFocus';
+import { brand, color, space, theme, tint } from '../../utils/theme';
+import { normalizeIpAddress } from '../../utils/ipAddress.mjs';
 import {
-  ArrowClockwise,
-  Earth,
-  Trash,
-  Lock,
-  Check,
-  Cross,
-  Plus,
-  WarningCircle,
-} from '@strapi/icons';
-import getTrad from '../../utils/getTrad';
+  Avatar,
+  DataTable,
+  EmptyState,
+  FilterActions,
+  FilterBar,
+  FilterSearch,
+  FilterSelect,
+  LoadErrorState,
+  LoadingState,
+  MonoText,
+  PageSizeSelect,
+  StatsRow,
+  StyledTable,
+  TablePagination,
+} from './securityTabs.shared';
+import { clampPage, filterIps, getIpStats, getPageCount, paginate } from './securityTabs.utils';
+import { StatusBadge } from './components/tokenStyles';
 
-// ================ DESIGN TOKENS ================
-const theme = {
-  colors: {
-    primary: { 600: '#0284C7', 500: '#0EA5E9', 100: '#E0F2FE', 50: '#F0F9FF' },
-    success: { 600: '#16A34A', 500: '#22C55E', 100: '#DCFCE7', 50: '#F0FDF4' },
-    warning: { 600: '#D97706', 500: '#F59E0B', 100: '#FEF3C7', 50: '#FFFBEB' },
-    danger: { 600: '#DC2626', 500: '#EF4444', 100: '#FEE2E2', 50: '#FEF2F2' },
-    neutral: {
-      0: '#FFFFFF',
-      50: '#F9FAFB',
-      100: '#F3F4F6',
-      200: '#E5E7EB',
-      500: '#6B7280',
-      600: '#4B5563',
-      700: '#374151',
-      800: '#1F2937',
-      900: '#111827',
-    }
-  },
-  shadows: {
-    sm: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-    md: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-    xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-  },
-  transitions: {
-    fast: '150ms cubic-bezier(0.4, 0, 0.2, 1)',
-    normal: '300ms cubic-bezier(0.4, 0, 0.2, 1)',
-  },
-  spacing: {
-    md: '16px',
-    lg: '24px',
-    xl: '32px',
-  },
-  borderRadius: {
-    md: '8px',
-    lg: '12px',
-    xl: '16px',
-    full: '9999px',
-  }
-};
-
-// ================ ANIMATIONEN ================
-const fadeIn = keyframes`
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-`;
-
-const rotate = keyframes`
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-`;
-
-const float = keyframes`
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-5px); }
-`;
-
-// ================ STYLED COMPONENTS ================
-const Container = styled(Box)`
-  animation: ${fadeIn} 0.5s;
-  min-height: calc(100vh - 200px);
-  background: transparent;
-`;
-
-const StatsGrid = styled(Box)`
-  margin-bottom: ${theme.spacing.xl};
+const WarningBox = styled.div`
   display: flex;
-  gap: ${theme.spacing.md};
-  justify-content: center;
-  flex-wrap: wrap;
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
-
-  @media screen and (max-width: 768px) {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    gap: 12px !important;
-    max-width: 100% !important;
-    margin-bottom: 24px !important;
-  }
-`;
-
-const StatCard = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.lg};
-  transition: all ${theme.transitions.normal};
-  animation: ${fadeIn} 0.5s backwards;
-  animation-delay: ${props => props.$delay || '0s'};
-  box-shadow: ${theme.shadows.sm};
-  border: 1px solid ${props => props.theme.colors.neutral200};
-  min-width: 220px;
-  max-width: 300px;
-  flex: 1;
-  
-  &:hover {
-    transform: translateY(-4px);
-    box-shadow: ${theme.shadows.xl};
-    border-color: ${props => props.$color || theme.colors.primary[500]};
-    
-    .stat-icon {
-      transform: rotate(10deg) scale(1.1);
-    }
-  }
-
-  @media screen and (max-width: 768px) {
-    min-width: 250px !important;
-    max-width: 300px !important;
-    width: auto !important;
-    padding: 20px !important;
-    
-    &:hover {
-      transform: none !important;
-    }
-  }
-`;
-
-const StatIcon = styled(Box)`
-  width: 48px;
-  height: 48px;
+  align-items: flex-start;
+  gap: ${space(2)};
+  padding: ${space(3)};
   border-radius: ${theme.borderRadius.md};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: ${props => props.$bg};
-  transition: all ${theme.transitions.normal};
-  
+  background: ${tint.warning.bg};
+  border: 1px solid ${tint.warning.border};
+  color: ${color('neutral800')};
+
   svg {
-    width: 24px;
-    height: 24px;
-    color: ${props => props.$color};
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+  }
+
+  svg path {
+    fill: ${tint.warning.fg};
   }
 `;
 
-const StatValue = styled(Typography)`
-  font-size: 2rem;
-  font-weight: 700;
-  color: ${props => props.theme.colors.neutral800};
-  margin: ${theme.spacing.md} 0 4px;
+const MonoInput = styled(TextInput)`
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 `;
 
-const StatLabel = styled(Typography)`
-  font-size: 0.875rem;
-  color: ${props => props.theme.colors.neutral600};
-  font-weight: 500;
-`;
+/**
+ * Focus target when a confirm dialog closes and its opener left the DOM (the
+ * row disappeared after the action or a refresh): the tab's search field.
+ */
+const getSearchField = () => document.querySelector('input[name="ip-search"]');
 
-const DataTable = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
-  border-radius: ${theme.borderRadius.xl};
-  overflow: hidden;
-  box-shadow: ${theme.shadows.sm};
-  border: 1px solid ${props => props.theme.colors.neutral200};
-`;
-
-const StyledTable = styled(Table)`
-  thead {
-    background: ${props => props.theme.colors.neutral50};
-    border-bottom: 1px solid ${props => props.theme.colors.neutral200};
-    
-    th {
-      font-weight: 600;
-      color: ${props => props.theme.colors.neutral800};
-      font-size: 0.875rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      padding: ${theme.spacing.md};
-    }
-  }
-  
-  tbody tr {
-    transition: all ${theme.transitions.fast};
-    border-bottom: 1px solid ${props => props.theme.colors.neutral100};
-    
-    &:hover {
-      background: ${props => props.theme.colors.danger100};
-    }
-    
-    td {
-      padding: ${theme.spacing.md};
-      color: ${props => props.theme.colors.neutral800};
-    }
-  }
-
-  /* Mobile Card Layout */
-  @media screen and (max-width: 768px) {
-    display: block !important;
-    
-    thead {
-      display: none !important;
-    }
-    
-    tbody {
-      display: block !important;
-    }
-    
-    tr {
-      display: block !important;
-      margin-bottom: 16px !important;
-      border: 2px solid #E5E7EB !important;
-      border-radius: 12px !important;
-      padding: 16px !important;
-      background: white !important;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
-    }
-    
-    td {
-      display: flex !important;
-      justify-content: space-between !important;
-      align-items: center !important;
-      padding: 8px 0 !important;
-      border: none !important;
-      
-      &:not(:last-child) {
-        border-bottom: 1px solid #E5E7EB !important;
-        padding-bottom: 8px !important;
-        margin-bottom: 8px !important;
-      }
-      
-      &::before {
-        content: attr(data-label) !important;
-        font-weight: 600 !important;
-        color: #6B7280 !important;
-        font-size: 11px !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.5px !important;
-        flex-shrink: 0 !important;
-      }
-      
-      &[data-label=""]::before {
-        display: none !important;
-      }
-    }
-  }
-`;
-
-const AnimatedBadge = styled(Badge)`
-  font-weight: 600;
-  padding: 4px 8px;
-  transition: transform ${theme.transitions.fast};
-  
-  &:hover {
-    transform: scale(1.05);
-  }
-`;
-
-const EmptyState = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
-  border-radius: ${theme.borderRadius.xl};
-  padding: 64px;
-  text-align: center;
-  border: 2px dashed ${props => props.theme.colors.neutral300};
-  min-height: 400px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  
-  &::after {
-    content: '🛡️';
-    position: absolute;
-    bottom: 40px;
-    right: 40px;
-    font-size: 72px;
-    opacity: 0.08;
-    animation: ${float} 4s ease-in-out infinite;
-  }
-`;
-
-const FilterBar = styled(Flex)`
-  background: ${props => props.theme.colors.neutral0};
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.md};
-  margin-bottom: ${theme.spacing.lg};
-  box-shadow: ${theme.shadows.sm};
-  border: 1px solid ${props => props.theme.colors.neutral200};
-`;
-
-const LoadingOverlay = styled(Flex)`
-  min-height: 400px;
-  justify-content: center;
-  align-items: center;
-  
-  .loader-icon {
-    animation: ${rotate} 1s linear infinite;
-  }
-`;
-
-// ================ HAUPTKOMPONENTE ================
+/**
+ * IP bans tab: lists blocked IP addresses. Banning and unbanning need manage
+ * access (plugin::magic-link.manage, enforced by the server).
+ */
 const IPBans = () => {
-  const { formatMessage } = useIntl();
+  const { t } = useMagicLinkIntl();
   const { get, post } = useFetchClient();
   const { toggleNotification } = useNotification();
-  
-  // States
+  const {
+    canRead,
+    canManage,
+    isLoading: isLoadingPermissions,
+    error: permissionError,
+  } = useMagicLinkRBAC();
+
   const [bannedIPs, setBannedIPs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newIP, setNewIP] = useState('');
-  
-  // Stats berechnen
-  const stats = useMemo(() => ({
-    total: bannedIPs.length,
-  }), [bannedIPs]);
-  
-  // Gefilterte IPs
-  const filteredIPs = useMemo(() => {
-    let filtered = bannedIPs;
-    
-    if (searchQuery) {
-      filtered = filtered.filter(ip =>
-        ip.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-    
-    return filtered;
-  }, [bannedIPs, searchQuery]);
-  
-  // Pagination
-  const paginatedIPs = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    const end = start + pageSize;
-    return filteredIPs.slice(start, end);
-  }, [filteredIPs, currentPage, pageSize]);
-  
-  const totalPages = Math.ceil(filteredIPs.length / pageSize);
-  
-  // Stat Cards Konfiguration
-  const statCards = [
-    {
-      title: formatMessage({ id: getTrad('ipban.stats.total') }),
-      value: stats.total,
-      icon: Lock,
-      color: theme.colors.danger[600],
-      bg: theme.colors.danger[100],
-      delay: '0s'
-    },
-  ];
-  
-  // Fetch Functions
+  const [isBanning, setIsBanning] = useState(false);
+  const [pendingUnban, setPendingUnban] = useState(null);
+
+  const normalizedNewIP = normalizeIpAddress(newIP);
+  const discard = useDiscardGuard(showAddModal && newIP.trim() !== '');
+  // The modal is opened from state (no Modal.Trigger), so Radix cannot return
+  // focus on close; it goes back to the opener, or to the toolbar button when
+  // the opener is gone (the empty-state button after the first ban).
+  const banButtonRef = useRef(null);
+  const getReturnFocusFallback = useCallback(() => banButtonRef.current, []);
+  const returnFocus = useReturnFocus(showAddModal, getReturnFocusFallback);
+
+  const notify = useCallback(
+    (type, message) =>
+      toggleNotification({
+        type,
+        title:
+          type === 'success'
+            ? t('ipban.notifications.successTitle', 'Success')
+            : t('ipban.notifications.errorTitle', 'Error'),
+        message,
+      }),
+    [t, toggleNotification]
+  );
+
+  /** Loads the ban list. Returns true on success. */
   const fetchBannedIPs = useCallback(async () => {
-    setIsLoading(true);
     try {
       const response = await get('/magic-link/banned-ips');
-      setBannedIPs(response?.data?.ips || []);
-    } catch (error) {
-      console.error('Error fetching banned IPs:', error);
-      toggleNotification({
-        type: 'warning',
-        message: 'Fehler beim Laden der gesperrten IPs',
-        title: 'Fehler'
-      });
-    } finally {
-      setIsLoading(false);
+      const ips = response?.data?.ips;
+      setBannedIPs(Array.isArray(ips) ? ips.filter((ip) => typeof ip === 'string') : []);
+      setLoadError(false);
+      return true;
+    } catch {
+      setLoadError(true);
+      return false;
     }
-  }, [get, toggleNotification]);
-  
+  }, [get]);
+
   useEffect(() => {
-    fetchBannedIPs();
-  }, [fetchBannedIPs]);
-  
-  // Handlers
-  const handleRefresh = () => {
-    fetchBannedIPs();
-    toggleNotification({
-      type: 'success',
-      message: formatMessage({ id: getTrad('ipban.notifications.refreshSuccess') }),
-      title: formatMessage({ id: getTrad('tokens.notifications.success') })
-    });
+    if (isLoadingPermissions) return undefined;
+    // Without read access nothing is fetched; the loader is derived below.
+    if (!canRead) return undefined;
+    let active = true;
+    // State is set only after the request settles (no cascading render).
+    const load = async () => {
+      const ok = await fetchBannedIPs();
+      if (!active) return;
+      setIsLoading(false);
+      if (!ok)
+        notify(
+          'danger',
+          t('ipban.notifications.loadError', 'Banned IP addresses could not be loaded.')
+        );
+    };
+    load();
+    return () => {
+      active = false;
+    };
+  }, [canRead, isLoadingPermissions, fetchBannedIPs, notify, t]);
+
+  const stats = useMemo(() => getIpStats(bannedIPs), [bannedIPs]);
+  const filteredIPs = useMemo(() => filterIps(bannedIPs, searchQuery), [bannedIPs, searchQuery]);
+  const pageCount = getPageCount(filteredIPs.length, pageSize);
+  const safePage = clampPage(currentPage, pageCount);
+  const pageIPs = useMemo(
+    () => paginate(filteredIPs, safePage, pageSize),
+    [filteredIPs, safePage, pageSize]
+  );
+
+  const handleSearch = (value) => {
+    setSearchQuery(value);
+    setCurrentPage(1);
   };
-  
-  const handleBanIP = async () => {
-    if (!newIP || !isValidIP(newIP)) {
-      toggleNotification({
-        type: 'warning',
-        message: formatMessage({ id: getTrad('ipban.modal.invalidIP') }),
-        title: formatMessage({ id: getTrad('tokens.notifications.validation') })
-      });
-      return;
-    }
-    
+
+  const handlePageSize = (value) => {
+    setPageSize(value);
+    setCurrentPage(1);
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    const ok = await fetchBannedIPs();
+    setIsRefreshing(false);
+    notify(
+      ok ? 'success' : 'danger',
+      ok
+        ? t('ipban.notifications.refreshSuccess', 'IP list updated')
+        : t('ipban.notifications.loadError', 'Banned IP addresses could not be loaded.')
+    );
+  };
+
+  const closeModal = () => {
+    setShowAddModal(false);
+    setNewIP('');
+  };
+
+  const handleBanIP = async (event) => {
+    event?.preventDefault?.();
+    if (!canManage || isBanning) return;
+    if (!normalizedNewIP) return;
+    setIsBanning(true);
     try {
-      await post('/magic-link/ban-ip', {
-        data: { ip: newIP }
-      });
+      await post('/magic-link/ban-ip', { data: { ip: normalizedNewIP } });
+      closeModal();
+      notify(
+        'success',
+        t('ipban.notifications.banSuccess', 'IP {ip} has been banned', { ip: normalizedNewIP })
+      );
       await fetchBannedIPs();
-      setShowAddModal(false);
-      setNewIP('');
-      toggleNotification({
-        type: 'success',
-        message: formatMessage({ id: getTrad('ipban.notifications.banSuccess') }, { ip: newIP }),
-        title: formatMessage({ id: getTrad('tokens.notifications.success') })
-      });
-    } catch (error) {
-      toggleNotification({
-        type: 'warning',
-        message: formatMessage({ id: getTrad('ipban.notifications.banError') }),
-        title: formatMessage({ id: getTrad('tokens.notifications.error') })
-      });
+    } catch {
+      notify('danger', t('ipban.notifications.banError', 'Error banning IP'));
+    } finally {
+      setIsBanning(false);
     }
   };
-  
+
+  /** Removes an IP from the ban list after the ConfirmDialog. */
   const handleUnbanIP = async (ip) => {
+    if (!canManage) return;
     try {
-      await post('/magic-link/unban-ip', {
-        data: { ip }
-      });
+      await post('/magic-link/unban-ip', { data: { ip } });
+      notify('success', t('ipban.notifications.unbanSuccess', 'IP {ip} has been unbanned', { ip }));
       await fetchBannedIPs();
-      toggleNotification({
-        type: 'success',
-        message: formatMessage({ id: getTrad('ipban.notifications.unbanSuccess') }, { ip }),
-        title: formatMessage({ id: getTrad('tokens.notifications.success') })
-      });
-    } catch (error) {
-      toggleNotification({
-        type: 'warning',
-        message: formatMessage({ id: getTrad('ipban.notifications.unbanError') }),
-        title: formatMessage({ id: getTrad('tokens.notifications.error') })
-      });
+      // Close after the refresh, so a removed row's dialog returns focus
+      // to the search field instead of <body>.
+      setPendingUnban(null);
+    } catch {
+      notify('danger', t('ipban.notifications.unbanError', 'Error unbanning IP'));
     }
   };
-  
-  const isValidIP = (ip) => {
-    const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
-    const ipv6Pattern = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
-    return ipv4Pattern.test(ip) || ipv6Pattern.test(ip);
-  };
-  
-  // Loading State
-  if (isLoading) {
+
+  const heading = (
+    <VisuallyHidden tag="h2">{t('ipban.title', 'Banned IP addresses')}</VisuallyHidden>
+  );
+
+  if (isLoadingPermissions || (canRead && isLoading)) {
     return (
-      <Container>
-        <LoadingOverlay>
-          <Box className="loader-icon">
-            <Loader>{formatMessage({ id: getTrad('common.loadingBannedIPs') })}</Loader>
-          </Box>
-        </LoadingOverlay>
-      </Container>
+      <Box>
+        {heading}
+        <LoadingState label={t('common.loadingBannedIPs', 'Loading banned IP addresses...')} />
+      </Box>
     );
   }
-  
+
+  if (permissionError || !canRead) {
+    return (
+      <Box>
+        {heading}
+        <Alert variant="danger" closeLabel={t('common.close', 'Close')}>
+          {permissionError
+            ? t(
+                'common.permissions.loadError',
+                'Your permissions could not be loaded. Reload the page to try again.'
+              )
+            : t(
+                'ipban.permission.denied',
+                'You do not have permission to view banned IP addresses.'
+              )}
+        </Alert>
+      </Box>
+    );
+  }
+
+  const ipError =
+    newIP.trim() && !normalizedNewIP
+      ? t('ipban.modal.invalidIP', 'Please enter a valid IP address')
+      : undefined;
+
   return (
-    <Container paddingBottom={10}>
-      {/* Statistik Cards */}
-      <StatsGrid>
-        {statCards.map((stat, index) => {
-          const IconComponent = stat.icon;
-          return (
-            <StatCard 
-              key={index}
-              $color={stat.color}
-              $delay={stat.delay}
-            >
-              <Flex direction="column" alignItems="center">
-                <StatIcon 
-                  className="stat-icon"
-                  $bg={stat.bg}
-                  $color={stat.color}
-                >
-                  <IconComponent />
-                </StatIcon>
-                <StatValue>
-                  {stat.value}
-                </StatValue>
-                <StatLabel>{stat.title}</StatLabel>
-              </Flex>
-            </StatCard>
-          );
-        })}
-      </StatsGrid>
-      
-      {/* Filter Bar */}
-      <FilterBar gap={3} alignItems="center">
-        <Box flex="1">
+    <Box paddingBottom={7}>
+      {heading}
+
+      <StatsRow
+        label={t('ipban.stats.label', 'Ban statistics')}
+        items={[
+          {
+            key: 'total',
+            label: t('ipban.stats.total', 'Banned IPs'),
+            value: stats.total,
+            icon: Lock,
+            tone: 'danger',
+          },
+          {
+            key: 'ipv4',
+            label: t('ipban.stats.ipv4', 'IPv4 addresses'),
+            value: stats.ipv4,
+            icon: Earth,
+            tone: 'primary',
+          },
+          {
+            key: 'ipv6',
+            label: t('ipban.stats.ipv6', 'IPv6 addresses'),
+            value: stats.ipv6,
+            icon: Server,
+            tone: 'secondary',
+          },
+        ]}
+      />
+
+      <FilterBar role="search" aria-label={t('ipban.filters.label', 'Filter banned IP addresses')}>
+        <FilterSearch>
           <Searchbar
             name="ip-search"
+            autoComplete="off"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={formatMessage({ id: getTrad('common.searchIPPlaceholder') })}
-            clearLabel={formatMessage({ id: getTrad('common.clearLabel') })}
-            onClear={() => setSearchQuery('')}
-          />
-        </Box>
-        <Button
-          onClick={() => setShowAddModal(true)}
-          startIcon={<Plus />}
-          variant="default"
-          size="S"
-        >
-          {formatMessage({ id: getTrad('ipban.actions.ban') })}
-        </Button>
-        <Button
-          onClick={handleRefresh}
-          startIcon={<ArrowClockwise />}
-          variant="secondary"
-          size="S"
-        >
-          {formatMessage({ id: getTrad('ipban.actions.refresh') })}
-        </Button>
+            onChange={(event) => handleSearch(event.target.value)}
+            onClear={() => handleSearch('')}
+            clearLabel={t('common.search.clear', 'Clear search')}
+            placeholder={t('common.searchIPPlaceholder', 'Search by IP address...')}
+          >
+            {t('ipban.search.label', 'Search banned IP addresses')}
+          </Searchbar>
+        </FilterSearch>
+        <FilterSelect>
+          <PageSizeSelect value={pageSize} onChange={handlePageSize} />
+        </FilterSelect>
+        <FilterActions>
+          <Button
+            onClick={handleRefresh}
+            startIcon={<ArrowClockwise aria-hidden="true" />}
+            variant="secondary"
+            size="L"
+            loading={isRefreshing}
+          >
+            {t('ipban.actions.refresh', 'Refresh')}
+          </Button>
+          {canManage ? (
+            <Button
+              ref={banButtonRef}
+              onClick={() => setShowAddModal(true)}
+              startIcon={<Plus aria-hidden="true" />}
+              variant="danger"
+              size="L"
+            >
+              {t('ipban.actions.ban', 'Ban IP')}
+            </Button>
+          ) : null}
+        </FilterActions>
       </FilterBar>
-      
-      {/* Data Table */}
-      <DataTable>
-        {filteredIPs.length === 0 ? (
-          <EmptyState>
-            <Flex direction="column" alignItems="center" gap={6}>
-              <Box
-                style={{
-                  width: '120px',
-                  height: '120px',
-                  borderRadius: '50%',
-                  background: `linear-gradient(135deg, ${theme.colors.success[100]} 0%, ${theme.colors.success[200]} 100%)`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: theme.shadows.xl,
-                }}
-              >
-                <Earth style={{ width: '60px', height: '60px', color: theme.colors.success[600] }} />
-              </Box>
-              
-              <Typography 
-                variant="alpha" 
-                style={{ 
-                  fontSize: '1.75rem',
-                  fontWeight: '700',
-                  color: theme.colors.neutral[800],
-                  marginBottom: '8px',
-                }}
-              >
-                {formatMessage({ id: getTrad('ipban.empty.title') })}
-              </Typography>
-              
-              <Typography 
-                variant="omega" 
-                textColor="neutral600"
-                style={{
-                  fontSize: '1rem',
-                  maxWidth: '400px',
-                  lineHeight: '1.6',
-                }}
-              >
-                {formatMessage({ id: getTrad('ipban.empty.description') })}
-              </Typography>
-              
-              <Flex gap={3} justifyContent="center" style={{ marginTop: '16px' }}>
-                <Button
-                  onClick={() => setShowAddModal(true)}
-                  startIcon={<Plus />}
-                  size="L"
-                  style={{
-                    background: `linear-gradient(135deg, ${theme.colors.danger[600]} 0%, ${theme.colors.danger[700]} 100%)`,
-                    color: 'white',
-                    border: 'none',
-                    fontWeight: '600',
-                  }}
-                >
-                  {formatMessage({ id: getTrad('ipban.empty.action') })}
+
+      <DataTable aria-label={t('ipban.title', 'Banned IP addresses')}>
+        {loadError && bannedIPs.length === 0 ? (
+          <LoadErrorState
+            message={t('ipban.notifications.loadError', 'Banned IP addresses could not be loaded.')}
+            onRetry={handleRefresh}
+            isRetrying={isRefreshing}
+          />
+        ) : filteredIPs.length === 0 ? (
+          bannedIPs.length > 0 ? (
+            <EmptyState
+              icon={Earth}
+              title={t('ipban.empty.noMatches.title', 'No banned IP matches your search')}
+              description={t(
+                'ipban.empty.noMatches.description',
+                'Check the address or clear the search.'
+              )}
+              actions={
+                <Button onClick={() => handleSearch('')} variant="secondary" size="L">
+                  {t('ipban.empty.clearSearch', 'Clear search')}
                 </Button>
-              </Flex>
-            </Flex>
-          </EmptyState>
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={Earth}
+              tone="success"
+              title={t('ipban.empty.title', 'No Banned IPs')}
+              description={
+                canManage
+                  ? t(
+                      'ipban.empty.description',
+                      'No IP addresses are currently banned. Add an IP to block it.'
+                    )
+                  : t('ipban.empty.descriptionReadOnly', 'No IP addresses are currently banned.')
+              }
+              actions={
+                canManage ? (
+                  <Button
+                    onClick={() => setShowAddModal(true)}
+                    startIcon={<Plus aria-hidden="true" />}
+                    variant="danger"
+                    size="L"
+                  >
+                    {t('ipban.empty.action', 'Ban first IP')}
+                  </Button>
+                ) : null
+              }
+            />
+          )
         ) : (
           <>
-            <StyledTable>
+            <StyledTable $hover="danger" colCount={canManage ? 3 : 2} rowCount={pageIPs.length + 1}>
               <Thead>
                 <Tr>
-                  <Th>{formatMessage({ id: getTrad('common.tableHeaders.ipAddress') })}</Th>
-                  <Th>{formatMessage({ id: getTrad('common.status') })}</Th>
-                  <Th>{formatMessage({ id: getTrad('common.actions') })}</Th>
+                  <Th>{t('common.tableHeaders.ipAddress', 'IP Address')}</Th>
+                  <Th>{t('common.status', 'Status')}</Th>
+                  {canManage ? (
+                    <Th>
+                      <VisuallyHidden>{t('common.actions', 'Actions')}</VisuallyHidden>
+                    </Th>
+                  ) : null}
                 </Tr>
               </Thead>
               <Tbody>
-                {paginatedIPs.map((ip, index) => (
-                  <Tr key={index}>
-                    <Td>
-                      <Flex alignItems="center" gap={2}>
-                        <Box
-                          style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: theme.borderRadius.full,
-                            background: `linear-gradient(135deg, ${theme.colors.danger[500]} 0%, ${theme.colors.danger[600]} 100%)`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                          }}
-                        >
-                          <Lock style={{ width: '18px', height: '18px', color: 'white' }} />
-                        </Box>
-                        <Typography 
-                          fontWeight="semiBold"
-                          style={{ 
-                            fontFamily: 'monospace',
-                            fontSize: '14px',
-                          }}
-                        >
-                          {ip}
-                        </Typography>
+                {pageIPs.map((ip) => (
+                  <Tr key={ip}>
+                    <Td data-label={t('common.tableHeaders.ipAddress', 'IP Address')}>
+                      <Flex alignItems="center" gap={2} style={{ minWidth: 0 }}>
+                        <Avatar $background={brand.danger} aria-hidden="true">
+                          <Lock />
+                        </Avatar>
+                        <MonoText>{ip}</MonoText>
                       </Flex>
                     </Td>
-                    <Td>
-                      <AnimatedBadge variant="danger">{formatMessage({ id: getTrad('ipban.status.banned') })}</AnimatedBadge>
+                    <Td data-label={t('common.status', 'Status')}>
+                      <StatusBadge $tone="danger">{t('ipban.status.banned', 'Banned')}</StatusBadge>
                     </Td>
-                    <Td>
-                      <Flex gap={1} justifyContent="flex-end">
-                        <IconButton
-                          label={formatMessage({ id: getTrad('ipban.actions.unban') })}
-                          variant="success-ghost"
-                          onClick={() => handleUnbanIP(ip)}
-                          withTooltip={false}
-                        >
-                          <Check />
-                        </IconButton>
-                      </Flex>
-                    </Td>
+                    {canManage ? (
+                      <Td data-label="">
+                        <Flex gap={1} justifyContent="flex-end">
+                          <IconButton
+                            label={t('ipban.actions.unbanFor', 'Unban {ip}', { ip })}
+                            variant="success-light"
+                            onClick={() => setPendingUnban(ip)}
+                          >
+                            <Check aria-hidden="true" />
+                          </IconButton>
+                        </Flex>
+                      </Td>
+                    ) : null}
                   </Tr>
                 ))}
               </Tbody>
             </StyledTable>
-            
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <Box paddingTop={4} paddingBottom={4}>
-                <Flex justifyContent="center">
-                  <Pagination activePage={currentPage} pageCount={totalPages}>
-                    <PreviousLink onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}>
-                      {formatMessage({ id: getTrad('common.previous') })}
-                    </PreviousLink>
-                    {[...Array(totalPages)].map((_, i) => (
-                      <PageLink
-                        key={i + 1}
-                        number={i + 1}
-                        onClick={() => setCurrentPage(i + 1)}
-                      >
-                        {i + 1}
-                      </PageLink>
-                    ))}
-                    <NextLink onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}>
-                      {formatMessage({ id: getTrad('common.next') })}
-                    </NextLink>
-                  </Pagination>
-                </Flex>
-              </Box>
-            )}
+            <TablePagination
+              page={safePage}
+              pageCount={pageCount}
+              total={filteredIPs.length}
+              pageSize={pageSize}
+              onChange={setCurrentPage}
+            />
           </>
         )}
       </DataTable>
-      
-      {/* Add IP Modal */}
-      {showAddModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(4, 28, 47, 0.45)',
-            backdropFilter: 'blur(3px)',
-            zIndex: 999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
+
+      {canManage ? (
+        <Modal.Root
+          open={showAddModal}
+          onOpenChange={(open) => {
+            if (!open) discard.runGuarded(closeModal);
           }}
-          onClick={() => setShowAddModal(false)}
         >
-          <Box
-            background="neutral0"
-            shadow="filterShadow"
-            style={{
-              position: 'relative',
-              width: '100%',
-              maxWidth: '480px',
-              borderRadius: '8px',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <Flex
-              justifyContent="space-between"
-              alignItems="flex-start"
-              paddingTop={6}
-              paddingBottom={6}
-              paddingLeft={6}
-              paddingRight={5}
-              style={{
-                borderBottom: '1px solid #E9E9F0',
-              }}
-            >
-              <Flex direction="column" gap={1} alignItems="flex-start">
-                <Typography variant="beta" style={{ fontSize: '16px', fontWeight: '600' }}>
-                  {formatMessage({ id: getTrad('ipban.modal.title') })}
-                </Typography>
-                <Typography variant="pi" textColor="neutral600" style={{ fontSize: '13px' }}>
-                  {formatMessage({ id: getTrad('ipban.modal.subtitle') })}
-                </Typography>
-              </Flex>
-              <IconButton
-                onClick={() => setShowAddModal(false)}
-                label={formatMessage({ id: getTrad('common.close') })}
-                withTooltip={false}
-              >
-                <Cross />
-              </IconButton>
-            </Flex>
-
-            {/* Body */}
-            <Box paddingTop={6} paddingBottom={6} paddingLeft={6} paddingRight={6}>
-              <Flex direction="column" gap={4}>
-                <Box
-                  padding={3}
-                  background="warning100"
-                  style={{ 
-                    borderRadius: '6px',
-                    border: '1px solid #FEF3C7',
-                  }}
-                >
-                  <Flex gap={2} alignItems="flex-start">
-                    <WarningCircle style={{ width: '20px', height: '20px', color: theme.colors.warning[600], flexShrink: 0 }} />
-                    <Typography variant="pi" style={{ fontSize: '12px', lineHeight: '1.5' }}>
-                      {formatMessage({ id: getTrad('ipban.modal.warning') })}
-                    </Typography>
-                  </Flex>
-                </Box>
-                
-                <Box>
-                  <TextInput
-                    label={formatMessage({ id: getTrad('ipban.modal.label') })}
-                    placeholder={formatMessage({ id: getTrad('ipban.modal.placeholder') })}
-                    value={newIP}
-                    onChange={(e) => setNewIP(e.target.value)}
-                    style={{ fontSize: '14px', fontFamily: 'monospace' }}
-                  />
-                  <Typography 
-                    variant="pi" 
-                    textColor="neutral600" 
-                    style={{ marginTop: '6px', fontSize: '12px' }}
-                  >
-                    {formatMessage({ id: getTrad('ipban.modal.hint') })}
+          <Modal.Content onCloseAutoFocus={returnFocus}>
+            <form onSubmit={handleBanIP} noValidate>
+              <Modal.Header closeLabel={t('common.close', 'Close')}>
+                <Flex direction="column" alignItems="flex-start" gap={1}>
+                  <Modal.Title>{t('ipban.modal.title', 'Ban IP Address')}</Modal.Title>
+                  <Typography variant="pi" textColor="neutral600">
+                    {t('ipban.modal.subtitle', 'Add an IP address to the block list')}
                   </Typography>
-                </Box>
-              </Flex>
-            </Box>
-
-            {/* Footer */}
-            <Box
-              paddingTop={5}
-              paddingBottom={5}
-              paddingLeft={6}
-              paddingRight={6}
-              style={{
-                borderTop: '1px solid #E9E9F0',
-                background: '#fafafa',
-                borderBottomLeftRadius: '8px',
-                borderBottomRightRadius: '8px',
-              }}
-            >
-              <Flex justifyContent="flex-end" gap={3}>
-                <Button 
-                  onClick={() => {
-                    setShowAddModal(false);
-                    setNewIP('');
-                  }}
+                </Flex>
+              </Modal.Header>
+              <Modal.Body>
+                <Flex direction="column" alignItems="stretch" gap={4}>
+                  <WarningBox role="note">
+                    <WarningCircle aria-hidden="true" />
+                    <Typography variant="pi" textColor="neutral800">
+                      {t(
+                        'ipban.modal.warning',
+                        'Warning: This IP address will be immediately blocked and all associated tokens will be deactivated.'
+                      )}
+                    </Typography>
+                  </WarningBox>
+                  <Field.Root
+                    name="ban-ip-address"
+                    required
+                    error={ipError}
+                    hint={t('ipban.modal.hint', 'Enter an IPv4 or IPv6 address')}
+                  >
+                    <Field.Label>{t('ipban.modal.label', 'IP Address')}</Field.Label>
+                    <MonoInput
+                      autoFocus
+                      autoComplete="off"
+                      spellCheck={false}
+                      placeholder={t('ipban.modal.placeholder', 'e.g. 203.0.113.10')}
+                      value={newIP}
+                      onChange={(event) => setNewIP(event.target.value)}
+                    />
+                    <Field.Error />
+                    <Field.Hint />
+                  </Field.Root>
+                </Flex>
+              </Modal.Body>
+              <Modal.Footer>
+                <Button
+                  type="button"
                   size="M"
                   variant="tertiary"
+                  onClick={() => discard.runGuarded(closeModal)}
                 >
-                  {formatMessage({ id: getTrad('ipban.modal.cancel') })}
+                  {t('ipban.modal.cancel', 'Cancel')}
                 </Button>
-                <Button 
-                  onClick={handleBanIP}
+                <Button
+                  type="submit"
                   size="M"
                   variant="danger"
-                  startIcon={<Lock />}
-                  disabled={!newIP}
+                  startIcon={<Lock aria-hidden="true" />}
+                  disabled={!normalizedNewIP}
+                  loading={isBanning}
                 >
-                  {formatMessage({ id: getTrad('ipban.modal.submit') })}
+                  {t('ipban.modal.submit', 'Ban IP')}
                 </Button>
-              </Flex>
-            </Box>
-          </Box>
-        </div>
-      )}
-    </Container>
+              </Modal.Footer>
+            </form>
+          </Modal.Content>
+        </Modal.Root>
+      ) : null}
+
+      <UnsavedChangesDialog guard={discard} />
+
+      <ConfirmDialog
+        isOpen={canManage && pendingUnban !== null}
+        getReturnFocusFallback={getSearchField}
+        variant="default"
+        title={t('ipban.dialog.unban.title', 'Unban IP address?')}
+        description={t(
+          'ipban.dialog.unban.body',
+          'Requests from {ip} are allowed again. Deactivated tokens stay deactivated.',
+          { ip: pendingUnban ?? '' }
+        )}
+        confirmLabel={t('ipban.actions.unban', 'Unban')}
+        confirmIcon={<Check aria-hidden="true" />}
+        onConfirm={() => handleUnbanIP(pendingUnban)}
+        onClose={() => setPendingUnban(null)}
+      />
+    </Box>
   );
 };
 
 export default IPBans;
-

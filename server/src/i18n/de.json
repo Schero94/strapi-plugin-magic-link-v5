@@ -20,7 +20,22 @@
     "settings.updateFailed": "Einstellungen konnten nicht aktualisiert werden",
     "settings.getFailed": "Einstellungen konnten nicht abgerufen werden",
     "unauthorized": "Nicht autorisierter Zugriff",
-    "generic.error": "Ein Fehler ist aufgetreten"
+    "generic.error": "Ein Fehler ist aufgetreten",
+    "challenge.invalid": "Diese Bestätigungsanfrage ist ungültig oder abgelaufen",
+    "mfa.setupRequired": "Zwei-Faktor-Authentifizierung ist erforderlich. Bitte richten Sie zuerst eine Authenticator-App ein",
+    "mfa.invalidCode": "Ungültiger Bestätigungscode",
+    "otp.deliveryFailed": "Der Bestätigungscode konnte nicht gesendet werden. Bitte fordern Sie einen neuen Code an",
+    "totp.loginDisabled": "Die Anmeldung mit einem Authenticator-Code ist nicht aktiviert",
+    "credentials.invalid": "Ungültige Anmeldedaten",
+    "login.failed": "Die Anmeldung konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut",
+    "totp.notEnrolled": "Für dieses Konto ist keine Authenticator-App eingerichtet",
+    "totp.currentCodeRequired": "Geben Sie einen Code aus Ihrer aktuellen Authenticator-App ein, um fortzufahren",
+    "totp.noPendingSetup": "Es läuft keine Einrichtung einer Authenticator-App. Bitte starten Sie die Einrichtung erneut",
+    "totp.invalidEmailCode": "Der E-Mail-Code ist ungültig oder abgelaufen",
+    "totp.alreadyEnrolled": "Für dieses Konto ist bereits eine Authenticator-App eingerichtet",
+    "auth.required": "Bitte melden Sie sich an, um fortzufahren",
+    "settings.security.forbidden": "Für Änderungen an Link-Zielen, Vorlagen, Konto- oder MFA-Regeln ist die Berechtigung Einstellungen: Sicherheit erforderlich",
+    "settings.linkOrigin.notAllowed": "Anmeldelinks müssen einen erlaubten Origin verwenden"
   },
   "success": {
     "token.created": "Magic Link erfolgreich gesendet",
@@ -32,5 +47,21 @@
     "settings.updated": "Einstellungen erfolgreich aktualisiert",
     "license.created": "Lizenz erfolgreich erstellt",
     "license.verified": "Lizenz erfolgreich verifiziert"
+  },
+  "mail": {
+    "otp.subject": "Ihr Bestätigungscode",
+    "otp.heading": "Ihr Bestätigungscode",
+    "otp.intro": "Geben Sie diesen Code ein, um Ihre Anmeldung abzuschließen:",
+    "otp.expires": "Dieser Code läuft in {minutes} ab.",
+    "otp.ignore": "Wenn Sie diesen Code nicht angefordert haben, können Sie diese E-Mail ignorieren.",
+    "otp.preheader": "Ihr Bestätigungscode: {code}",
+    "setup.subject": "Bestätigen Sie Ihre Authenticator-App",
+    "setup.intro": "Geben Sie diesen Code ein, um die neue Authenticator-App für Ihr Konto zu bestätigen:",
+    "unit.minute": "{count} Minute",
+    "unit.minutes": "{count} Minuten",
+    "welcome.subject": "Willkommen",
+    "welcome.subjectApp": "Willkommen bei {app}",
+    "welcome.greeting": "Hallo {name},",
+    "welcome.body": "Danke für Ihre Registrierung. Ihr Anmeldelink ist unterwegs."
   }
 }

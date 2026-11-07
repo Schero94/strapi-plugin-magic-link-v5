@@ -8,40 +8,6 @@
  * run jobs, or perform some special logic.
  */
 
-// IMPORTANT: every action needs `subCategory` set, otherwise Strapi 5's
-// role editor simply does not render its checkbox. Before adding the
-// explicit 'General' subCategory here, the `plugin::magic-link.access`
-// permission was invisible in Settings → Roles → Plugins → Magic Link,
-// so an admin could neither grant it to nor revoke it from a role —
-// they only saw the two Settings checkboxes (Read / Edit) and had no
-// way to control whether the plugin menu link and License page were
-// reachable for the role.
-const magicLinkActions = {
-  actions: [
-    {
-      section: 'plugins',
-      displayName: 'Access the Magic Link plugin',
-      uid: 'access',
-      subCategory: 'General',
-      pluginName: 'magic-link',
-    },
-    {
-      section: 'plugins',
-      displayName: 'Read',
-      uid: 'settings.read',
-      subCategory: 'Settings',
-      pluginName: 'magic-link',
-    },
-    {
-      section: 'plugins',
-      displayName: 'Edit',
-      uid: 'settings.update',
-      subCategory: 'Settings',
-      pluginName: 'magic-link',
-    },
-  ],
-};
-
 // Top-level import so pack-up inlines this into the bundle.
 //
 // This used to live inside the bootstrap function below, but pack-up
@@ -56,13 +22,26 @@ const magicLinkActions = {
 // server/src/utils/crypto.js). The correct relative path is
 // `./utils/crypto`.
 const cryptoUtilsSelfTest = require('./utils/crypto');
+const { createJwtRevocationMiddleware } = require('./middlewares/jwt-revocation');
+const passwordlessCompat = require('./middlewares/passwordless-compat');
+const { migrateSettings } = require('./utils/settings-migration');
+const { clampTokenLength } = require('./services/magic-link');
+const { createDefaultSettings } = require('./utils/default-settings');
+const { updateJwtSessions } = require('./utils/jwt-session-store');
+const {
+  RBAC_ACTIONS,
+  migrateLegacyAccessPermission,
+  runEvery,
+  runLater,
+  warnOnUnsafeProxyConfig,
+} = require('./utils/lifecycle');
 
 module.exports = async ({ strapi }) => {
-  // Fail fast on missing production secrets. getEncryptionKey() and
-  // getOtpPepper() throw when NODE_ENV=production and their env vars are
-  // not set — eager check here turns that into a clear boot-time error
-  // instead of a runtime error on the first OTP request.
+  // Fail fast on missing or weak secrets (MAGIC_LINK_ENCRYPTION_KEY,
+  // MAGIC_LINK_OTP_PEPPER, both >= 32 characters). Only an explicit
+  // MAGIC_LINK_ALLOW_DEV_SECRETS=true outside production skips this.
   try {
+    cryptoUtilsSelfTest.assertSecretsConfigured();
     cryptoUtilsSelfTest.encrypt('self-test');
     cryptoUtilsSelfTest.hashOTP('000000');
   } catch (e) {
@@ -77,230 +56,131 @@ module.exports = async ({ strapi }) => {
   let settings = await pluginStore.get({ key: 'settings' });
 
   if (!settings) {
-    // Get server URL in Strapi v5 way
-    const serverUrl = strapi.config.get('server.url', 'http://localhost:1337');
-    
-    const value = {
-      enabled: true,
-      createUserIfNotExists: true,
-      expire_period: 3600,
-      confirmationUrl: serverUrl,
-      from_name: 'Administration Panel',
-      from_email: '', // Empty by default - will use Strapi email config
-      response_email: '',
-      token_length: 32,
-      stays_valid: false,
-      store_login_info: true,
-      // Context Field Control
-      context_whitelist: [], // If set, only these fields are allowed in context (e.g., ['redirectTo', 'role'])
-      context_blacklist: ['password', 'secret', 'apiKey', 'token'], // These fields are always removed from context
-      object: 'Magic Link Login',
-      message_html: `<p>Hi!</p>
-<p>Please click on the link below to login.</p>
-<p><%= URL %>?loginToken=<%= CODE %></p>
-<p>Thanks.</p>`,
-      message_text: `Hi!
-Please click on the link below to login.
-<%= URL %>?loginToken=<%= CODE %>
-Thanks.`,
-      // Additional settings from passwordless-plugin
-      // NOTE: `max_login_attempts` is superseded by the rate_limit_* group.
-      // It remains in the UI for backwards compatibility but has no effect;
-      // brute-force protection is exclusively handled by rate_limit_enabled
-      // + rate_limit_max_attempts + rate_limit_window_minutes.
-      login_path: '/magic-link/login',
-      user_creation_strategy: 'email',
-      verify_email: false,
-      welcome_email: false,
-      use_jwt_token: true,
-      jwt_token_expires_in: '30d',
-      // Legacy. Use confirmationUrl (backend redirect target) and
-      // frontend_url + frontend_login_path (SPA deep-link target) instead.
-      // Kept for schema stability; the backend never reads it.
-      callback_url: serverUrl,
-      allow_magic_links_on_public_registration: false,
-      // Rate Limiting Settings
-      rate_limit_enabled: true,
-      rate_limit_max_attempts: 5,
-      rate_limit_window_minutes: 15,
-      // OTP Settings (Premium Feature)
-      otp_enabled: false,
-      otp_type: 'email',
-      otp_length: 6,
-      otp_expiry: 300,
-      otp_max_attempts: 3,
-      otp_resend_cooldown: 60,
-      // When true (recommended, default), every /otp/send and /otp/verify
-      // call MUST carry a valid magicLinkToken that originated the challenge.
-      // Set to false only for legacy integrations that expose OTP as a
-      // standalone flow. Disabling this weakens authentication significantly.
-      otp_strict_binding: true,
-      // SMS Provider Settings — reserved for a future release.
-      // The SMS-OTP path in services/otp.js currently only logs the
-      // outgoing code; wiring these values into a real provider
-      // (Twilio / Vonage) is tracked as future work. The settings are
-      // kept so that integrators can pre-fill values without losing
-      // them on upgrade.
-      sms_provider: null,
-      sms_api_key: '',
-      sms_api_secret: '',
-      sms_from_number: '',
-      // TOTP Settings (Advanced Feature)
-      totp_issuer: 'Magic Link',
-      totp_algorithm: 'SHA1',
-      totp_digits: 6,
-      totp_period: 30,
-      // MFA Settings (Premium/Advanced Feature).
-      // mfa_mode is the authoritative switch; mfa_require_totp is a legacy
-      // alias that maps to mfa_mode='required' for backwards compat.
-      mfa_mode: 'disabled', // 'disabled' | 'optional' | 'required'
-      mfa_require_totp: false,
-      totp_as_primary_auth: false, // Allow login with Email + TOTP only (Advanced)
-      // Frontend URL for Magic Link redirects
-      frontend_url: '', // e.g., https://myapp.com - if empty, uses callback_url
-      frontend_login_path: '/auth/magic-link', // Path appended to frontend_url for login
-    };
+    const value = createDefaultSettings();
 
     await pluginStore.set({ key: 'settings', value });
-  } else if (settings && settings.store_login_info === undefined) {
-    // If store_login_info is undefined, set it to true
-    settings.store_login_info = true;
-    await pluginStore.set({ key: 'settings', value: settings });
+  } else {
+    const migration = migrateSettings(settings, {
+      serverUrl: strapi.config.get('server.url', ''),
+      clampTokenLength,
+    });
+    const next = migration.settings;
+    if (next.store_login_info === undefined) next.store_login_info = true;
+    if (migration.changed || settings.store_login_info === undefined) {
+      await pluginStore.set({ key: 'settings', value: next });
+      if (migration.removedKeys > 0) {
+        strapi.log.info(
+          `[magic-link] Removed ${migration.removedKeys} obsolete WhatsApp/SMS setting(s)`
+        );
+      }
+    }
   }
 
-  await strapi.admin.services.permission.actionProvider.registerMany(
-    magicLinkActions.actions
+  // Authenticator enrolments from before 6.0.0: namespace them by principal
+  // (users-permissions vs admin), fail closed where ownership is not
+  // provable, store per-enrolment TOTP parameters and finish a key rotation.
+  // Unmigrated rows have no principal key and are never used for a login.
+  try {
+    const totpStats = await strapi.plugin('magic-link').service('otp').migrateTotpConfigs();
+    if (totpStats.assigned || totpStats.disabled || totpStats.reencrypted) {
+      strapi.log.info(
+        `[magic-link] TOTP migration: ${totpStats.assigned} assigned, ${totpStats.disabled} disabled, ` +
+          `${totpStats.reencrypted} re-encrypted`
+      );
+    }
+  } catch {
+    strapi.log.error(
+      '[magic-link] TOTP enrolment migration failed; unmigrated enrolments stay inactive'
+    );
+  }
+
+  // Admin RBAC (6.0.0): read, manage, tokens.issue, settings.read/update.
+  // Roles that held the 5.x `access` action get read + manage.
+  await strapi.admin.services.permission.actionProvider.registerMany([...RBAC_ACTIONS]);
+  try {
+    const { roles } = await migrateLegacyAccessPermission(strapi);
+    if (roles > 0) {
+      strapi.log.info(
+        `[magic-link] Migrated the 5.x "access" permission to read + manage for ${roles} role(s)`
+      );
+    }
+  } catch {
+    strapi.log.error(
+      '[magic-link] Admin permission migration failed; grant Magic Link Read/Manage to roles manually'
+    );
+  }
+
+  warnOnUnsafeProxyConfig(strapi);
+
+  // Older releases stored plaintext JWTs in the session audit list; keep
+  // only their hashes and drop records past the retention period.
+  try {
+    await updateJwtSessions(strapi, (sessions) => sessions);
+  } catch {
+    strapi.log.error('[magic-link] JWT session list could not be cleaned');
+  }
+
+  // Reject revoked users-permissions JWTs (see middlewares/jwt-revocation.js).
+  strapi.server.use(createJwtRevocationMiddleware({ strapi }));
+
+  // /api/passwordless/* compatibility rewrite. Registered here (not in
+  // register()) so it runs after Strapi's errors/security/CORS middlewares.
+  strapi.server.use(passwordlessCompat({}, { strapi }));
+
+  // Background jobs. Every timer is tracked and cleared in destroy(), and a
+  // failing job is logged instead of becoming an unhandled rejection.
+  const plugin = () => strapi.plugin('magic-link');
+
+  // Login tokens stored without salt by very old releases can no longer be
+  // used; deactivate them once so they do not linger as active rows.
+  runLater(
+    strapi,
+    4000,
+    async () => {
+      const count = await plugin().service('magic-link').deactivateLegacyTokens();
+      if (count > 0)
+        strapi.log.info(`[magic-link] Deactivated ${count} legacy unhashed login token(s)`);
+    },
+    () => strapi.log.debug('[magic-link] Legacy token cleanup skipped')
   );
 
-  // JWT-Blacklist-Middleware hinzufügen
-  strapi.server.use(async (ctx, next) => {
-    // Nur fortfahren, wenn es eine Authentifizierung gibt
-    const token = ctx.request.header.authorization;
-    if (token && token.startsWith('Bearer ')) {
-      try {
-        const jwtToken = token.substring(7);
-        
-        // Sicherer Service-Zugriff mit Null-Check
-        const magicLinkPlugin = strapi.plugin('magic-link');
-        if (!magicLinkPlugin || !magicLinkPlugin.service) {
-          // Plugin noch nicht vollständig geladen, überspringe Check
-          return next();
-        }
-        
-        const magicLink = magicLinkPlugin.service('magic-link');
-        if (!magicLink || !magicLink.isJwtTokenBlocked) {
-          // Service noch nicht vollständig geladen, überspringe Check
-          return next();
-        }
-        
-        // Prüfen, ob der Token gesperrt ist
-        const isBlocked = await magicLink.isJwtTokenBlocked(jwtToken);
-        
-        if (isBlocked) {
-          return ctx.unauthorized('This token has been revoked');
-        }
-      } catch (error) {
-        // Bei Fehlern lieber fortfahren als die Anfrage zu blockieren
-        console.error('Error checking JWT token blacklist:', error);
-      }
-    }
-    
-    return next();
-  });
+  runLater(
+    strapi,
+    10000,
+    () => plugin().service('otp').cleanupExpiredCodes(),
+    () => strapi.log.debug('[magic-link] OTP cleanup skipped')
+  );
 
-  // Initialize Rate Limiter Cleanup Job
-  // Note: strapi is captured as closure from the bootstrap function parameter
-  
-  // Initial cleanup - wait longer for DB to be ready
-  setTimeout(async () => {
-    try {
-      const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
-      await rateLimiter.cleanupExpired();
-    } catch (error) {
-      // Silently ignore on first cleanup if DB not ready yet
-      strapi.log.debug('[CLEANUP] Rate limit cleanup skipped - DB not ready');
-    }
-  }, 10000);
-  
-  // Cleanup every 30 minutes - strapi is captured as closure
-  setInterval(async () => {
-    try {
-      const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
-      await rateLimiter.cleanupExpired();
-    } catch (error) {
-      // Silent fail - service handles its own logging
-    }
-  }, 30 * 60 * 1000);
+  // Every 5 minutes: expired OTP codes, expired JWT revocation entries and
+  // login tokens that expired more than 30 days ago.
+  runEvery(
+    strapi,
+    5 * 60 * 1000,
+    async () => {
+      await plugin().service('otp').cleanupExpiredCodes();
+      const magicLinkService = plugin().service('magic-link');
+      await magicLinkService.getBlockedJwtTokens();
+      await magicLinkService.cleanupExpiredTokens();
+    },
+    () => strapi.log.debug('[magic-link] Periodic cleanup skipped')
+  );
 
-  // Initialize OTP Cleanup Job
-  // Note: strapi is captured as closure from the bootstrap function parameter
-  
-  // Initial cleanup for OTP codes
-  setTimeout(async () => {
-    try {
-      const otpService = strapi.plugin('magic-link').service('otp');
-      await otpService.cleanupExpiredCodes();
-    } catch (error) {
-      strapi.log.debug('[CLEANUP] OTP cleanup skipped - DB not ready');
-    }
-  }, 10000);
-  
-  // Cleanup expired OTP codes every 5 minutes - strapi is captured as closure
-  setInterval(async () => {
-    try {
-      const otpService = strapi.plugin('magic-link').service('otp');
-      await otpService.cleanupExpiredCodes();
-    } catch (error) {
-      // Silent fail - service handles its own logging
-    }
-  }, 5 * 60 * 1000);
-
-  // License-guard initialization is intentionally a no-op in the
-  // marketplace build. The license-key activation flow in the admin UI
-  // remains available, but the plugin no longer auto-validates on boot
-  // and does NOT start a periodic ping. We still call initialize() so
-  // any future hook in the service has a stable entry point.
-  try {
-    const licenseGuardService = strapi.plugin('magic-link').service('license-guard');
-    setTimeout(async () => {
-      try {
-        await licenseGuardService.initialize();
-      } catch (initErr) {
-        // Initialization is best-effort — never fatal.
-        strapi.log.debug('[magic-link] license-guard initialize() warning:', initErr.message);
-      }
-    }, 3000);
-  } catch (error) {
-    strapi.log.debug('[magic-link] license-guard service not available at bootstrap:', error.message);
-  }
-
-  // [AUTO-MIGRATION] Update old 'magic-link' provider to 'local'
-  // This ensures users can login with both Magic-Link AND Email/Password
-  try {
-    setTimeout(async () => {
-      // Using Document Service API
-      const usersToUpdate = await strapi.documents('plugin::users-permissions.user').findMany({
-        filters: { provider: 'magic-link' },
+  // Users created by releases before 4.x carry the provider 'magic-link';
+  // switch them to 'local' so password login keeps working for them.
+  runLater(
+    strapi,
+    5000,
+    async () => {
+      const updated = await strapi.db.query('plugin::users-permissions.user').updateMany({
+        where: { provider: 'magic-link' },
+        data: { provider: 'local' },
       });
-
-      if (usersToUpdate && usersToUpdate.length > 0) {
-        strapi.log.info('[MIGRATION] Found %d user(s) with old provider "magic-link"', usersToUpdate.length);
-        
-        // Update all users using Document Service API
-        for (const user of usersToUpdate) {
-          await strapi.documents('plugin::users-permissions.user').update({
-            documentId: user.documentId,
-          data: { provider: 'local' },
-        });
-        }
-
-        strapi.log.info('[SUCCESS] Migration complete: Updated %d user(s) to provider "local"', usersToUpdate.length);
-        strapi.log.info('[INFO] Users can now login with both Magic-Link AND Email/Password');
-      } else {
-        strapi.log.info('[INFO] Migration skipped: All users already using provider "local"');
+      if (updated?.count > 0) {
+        strapi.log.info(
+          `[magic-link] Migrated ${updated.count} user(s) from provider "magic-link" to "local"`
+        );
       }
-    }, 5000); // Wait 5 seconds to ensure DB is ready
-  } catch (error) {
-    strapi.log.error('[ERROR] Migration failed:', error);
-  }
+    },
+    () => strapi.log.error('[magic-link] Provider migration failed')
+  );
 };

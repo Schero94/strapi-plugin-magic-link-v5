@@ -12,21 +12,23 @@ module.exports = {
     try {
       const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
       const stats = await rateLimiter.getStats();
-      
+
       if (!stats) {
         return ctx.badRequest('Failed to get rate limit stats');
       }
-      
+
       ctx.send({
         success: true,
         data: stats,
       });
-    } catch (error) {
-      strapi.log.error('Error getting rate limit stats:', error);
-      ctx.throw(500, error);
+    } catch {
+      // Limiter errors can carry store connection details: never log or
+      // return them.
+      strapi.log.error('[magic-link] Rate-limit statistics could not be loaded');
+      ctx.throw(500, 'Failed to get rate limit stats');
     }
   },
-  
+
   /**
    * Cleanup expired rate limit entries
    */
@@ -34,38 +36,34 @@ module.exports = {
     try {
       const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
       const result = await rateLimiter.cleanupExpired();
-      
+
       ctx.send({
         success: true,
         message: `Cleaned up ${result.cleaned} expired entries`,
         data: result,
       });
-    } catch (error) {
-      strapi.log.error('Error cleaning up rate limits:', error);
-      ctx.throw(500, error);
+    } catch {
+      strapi.log.error('[magic-link] Rate-limit cleanup failed');
+      ctx.throw(500, 'Failed to clean up rate limits');
     }
   },
-  
+
   /**
-   * Reset all rate limits
+   * Resets the public rate-limit counters. The always-on code-check and
+   * admin limiters are kept (services/rate-limiter.js resetAll).
    */
   async reset(ctx) {
     try {
-      const pluginStore = strapi.store({
-        type: 'plugin',
-        name: 'magic-link',
-      });
-      
-      await pluginStore.set({ key: 'rate_limits', value: { limits: {} } });
-      
+      const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
+      await rateLimiter.resetAll();
+
       ctx.send({
         success: true,
         message: 'All rate limits have been reset',
       });
-    } catch (error) {
-      strapi.log.error('Error resetting rate limits:', error);
-      ctx.throw(500, error);
+    } catch {
+      strapi.log.error('[magic-link] Rate-limit reset failed');
+      ctx.throw(500, 'Failed to reset rate limits');
     }
   },
 };
-

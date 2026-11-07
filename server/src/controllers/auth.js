@@ -1,824 +1,511 @@
 'use strict';
+
 /**
- * Auth.js controller
+ * Public authentication controller: send-link, link login (GET and POST),
+ * Magic Link + TOTP and TOTP-only login.
  *
- * @description: A set of functions called "actions" for managing `Auth`.
+ * Security model:
+ * - E-mail is the only delivery channel.
+ * - Second-factor state is kept in the server-only `challenge` attribute of
+ *   the token. Client context can neither start nor skip a challenge.
+ * - TOTP takes precedence over e-mail OTP: a user with an enabled
+ *   authenticator always gets the TOTP challenge (the link click already
+ *   proves e-mail ownership), so enabling OTP can never weaken MFA.
+ * - Required MFA without an authenticator starts a `totp-setup` challenge:
+ *   the user enrols through /totp/enroll and /totp/enroll/confirm
+ *   (controllers/totp.js) before any session is issued.
+ * - Tokens are consumed with conditional updates (single use is atomic).
+ * - Sessions are issued through utils/login-session.js, which honours the
+ *   users-permissions jwtManagement mode and sanitizes the user.
  */
 
-const _ = require('lodash');
-const createId = require('../utils/id');
+const crypto = require('node:crypto');
 const i18n = require('../utils/i18n');
-const cryptoUtils = require('../utils/crypto');
 const { normalizeEmail } = require('../utils/email');
-const { resolveJwt } = require('../utils/jwt');
-const { appendJwtSession } = require('../utils/jwt-session-store');
-const createMagicWhatsAppProvider = require('../services/magic-whatsapp-provider');
+const { requiredChallenge, challengeSatisfiesPolicy } = require('../utils/challenge-policy');
+const { filterContext } = require('../utils/context-policy');
+const { issueLoginSession, setNoStoreHeaders } = require('../utils/login-session');
+const { claimUnconfirmedAccount } = require('../utils/account-claim');
 const {
   sendLinkSchema,
+  loginExchangeSchema,
   mfaVerifyTotpSchema,
   loginWithTotpSchema,
   parseBody,
 } = require('./validation');
 
+const USER_UID = 'plugin::users-permissions.user';
+
+const plugin = () => strapi.plugin('magic-link');
+
+/**
+ * Applies a rate-limit check and writes a 429 response when exceeded.
+ *
+ * @param {object} ctx - Koa context.
+ * @param {string} key - Limiter key.
+ * @param {string} type - Limiter type.
+ * @returns {Promise<boolean>} True when the request may continue.
+ */
+const allowRequest = async (ctx, key, type) => {
+  const check = await plugin().service('rate-limiter').checkRateLimit(key, type);
+  if (check?.allowed) return true;
+  const retryAfter = Number.isFinite(check?.retryAfter) ? check.retryAfter : 60;
+  ctx.set('Retry-After', String(retryAfter));
+  i18n.sendError(ctx, 'rate.limit.exceeded', 429, {}, { retryAfter });
+  return false;
+};
+
+/**
+ * Hashes a value for use as a rate-limiter key, so login tokens and e-mail
+ * addresses are never kept in clear in limiter memory.
+ *
+ * @param {string} scope - Key scope.
+ * @param {string} value - Value to hash.
+ * @returns {string} Limiter key.
+ */
+const limiterKey = (scope, value) =>
+  `${scope}:${crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 32)}`;
+
+/**
+ * Counts one second-factor code check against the always-on `verify`
+ * limiter (10 per 15 minutes per subject), which applies even when public
+ * rate limiting is disabled. Writes a 429 when exceeded.
+ *
+ * @param {object} ctx - Koa context.
+ * @param {string} subject - Account or challenge key (never a secret in clear).
+ * @returns {Promise<boolean>} True when the check may run.
+ */
+const allowVerification = (ctx, subject) => allowRequest(ctx, `verify:${subject}`, 'verify');
+
+/**
+ * Finds a users-permissions user by normalised e-mail.
+ *
+ * @param {string} email - E-mail address.
+ * @returns {Promise<object|null>} User or null.
+ */
+const findUserByEmail = async (email) => {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return null;
+  const users = await strapi
+    .documents(USER_UID)
+    .findMany({ filters: { email: normalized }, limit: 1 });
+  return (users && users[0]) || null;
+};
+
+/**
+ * Confirms the user after a magic link proved the mailbox. An unconfirmed
+ * account is claimed: earlier sessions end and a password someone else may
+ * have set is invalidated (utils/account-claim.js).
+ *
+ * @param {object} user - User entity.
+ * @returns {Promise<void>}
+ */
+const confirmUser = async (user) => {
+  await claimUnconfirmedAccount(strapi, user);
+};
+
+const requestInfoOf = (ctx) => ({
+  userAgent: ctx.request?.header?.['user-agent'],
+  ipAddress: ctx.request?.ip,
+});
+
+/**
+ * Creates and mails an e-mail OTP for a pending challenge.
+ *
+ * @param {object} ctx - Koa context.
+ * @param {object} token - Token record.
+ * @param {object} settings - Plugin settings.
+ * @returns {Promise<boolean>} Whether the code was sent (else a 503 was written).
+ */
+const sendChallengeOtp = async (ctx, token, settings) => {
+  const otpService = plugin().service('otp');
+  const expirySeconds = Number.isFinite(settings.otp_expiry) ? settings.otp_expiry : 300;
+  const otpEntry = await otpService.createOTP(token.email, 'email', {
+    magicLinkToken: token.token,
+    expirySeconds,
+    codeLength: settings.otp_length || 6,
+    ipAddress: ctx.request.ip,
+    userAgent: ctx.request.header?.['user-agent'],
+  });
+
+  try {
+    await otpService.sendOTPEmail(token.email, otpEntry.code, {
+      locale: i18n.getLocaleFromContext(ctx),
+      expiryMinutes: Math.max(1, Math.round(expirySeconds / 60)),
+    });
+    return true;
+  } catch {
+    strapi.log.error('[magic-link] OTP e-mail delivery failed');
+    i18n.sendError(
+      ctx,
+      'otp.deliveryFailed',
+      503,
+      {},
+      {
+        code: 'OTP_EMAIL_FAILED',
+        resendEndpoint: '/api/magic-link/otp/resend',
+      }
+    );
+    return false;
+  }
+};
+
+const otpChallengeResponse = (token, loginToken, settings) => ({
+  requiresOTP: true,
+  message: 'OTP verification required',
+  email: token.email,
+  loginToken,
+  expiresIn: Number.isFinite(settings.otp_expiry) ? settings.otp_expiry : 300,
+});
+
+const totpChallengeResponse = (token, loginToken) => ({
+  requiresTOTP: true,
+  message: 'TOTP verification required for MFA',
+  email: token.email,
+  loginToken,
+});
+
+const totpSetupChallengeResponse = (token, loginToken) => ({
+  requiresTOTPSetup: true,
+  message: 'Set up an authenticator app to continue',
+  email: token.email,
+  loginToken,
+  enrollEndpoint: '/api/magic-link/totp/enroll',
+});
+
+/**
+ * Reads the login token from a POST body (preferred) or the legacy GET query.
+ *
+ * @param {object} ctx - Koa context.
+ * @returns {string|null} Login token.
+ */
+const readLoginToken = (ctx) => {
+  if (String(ctx.method || '').toUpperCase() === 'POST') {
+    return parseBody(loginExchangeSchema, ctx.request.body).loginToken;
+  }
+  const value = ctx.query?.loginToken;
+  return typeof value === 'string' && value.length > 0 && value.length <= 512 ? value : null;
+};
+
 module.exports = {
   /**
-   * Handles magic link login token verification with rate limiting
+   * Exchanges a magic-link token for a session, or starts the required
+   * second-factor challenge.
+   *
+   * POST /api/magic-link/login { loginToken } is the recommended call from a
+   * frontend landing page. GET /api/magic-link/login?loginToken=... is kept
+   * for compatibility (the token then appears in access logs).
+   *
+   * @param {object} ctx - Koa context.
+   * @returns {Promise<void>}
    */
   async login(ctx) {
-    const { loginToken } = ctx.query;
-    const magicLink = strapi.plugin('magic-link').service('magic-link');
-    const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
-    const userService = strapi.plugin('users-permissions').service('user');
-    const jwtService = strapi.plugin('users-permissions').service('jwt');
-
-    // The "plugin disabled" admin toggle was removed in the marketplace
-    // build — the plugin is always active once installed. Individual
-    // login modes (OTP/TOTP) are still gated by their own settings.
-
-    if (_.isEmpty(loginToken)) {
+    setNoStoreHeaders(ctx);
+    const loginToken = readLoginToken(ctx);
+    if (!loginToken) {
       return i18n.sendError(ctx, 'token.invalid', 400);
     }
 
-    const ipAddress = ctx.request.ip;
-    const loginCheck = await rateLimiter.checkRateLimit(ipAddress, 'login');
-    if (!loginCheck.allowed) {
-      ctx.set('Retry-After', String(loginCheck.retryAfter));
-      return ctx.tooManyRequests(`Too many login attempts. Please try again in ${loginCheck.retryAfter} seconds.`);
-    }
+    if (!(await allowRequest(ctx, ctx.request.ip, 'login'))) return undefined;
 
+    const magicLink = plugin().service('magic-link');
     const token = await magicLink.fetchToken(loginToken);
-
-    if (!token || !token.is_active) {
+    if (!token) {
       return i18n.sendError(ctx, 'token.invalid', 400);
     }
 
-    const isValid = await magicLink.isTokenValid(token);
-
+    const pendingChallenge =
+      token.challenge && !token.challenge.verifiedAt ? token.challenge : null;
+    const isValid = pendingChallenge
+      ? await magicLink.isTokenValid({ ...token, is_used: false })
+      : await magicLink.isTokenValid(token);
     if (!isValid) {
       await magicLink.deactivateToken(token);
       return i18n.sendError(ctx, 'token.invalid', 400);
     }
 
-    // Check if OTP is enabled. License gating was removed in the
-    // marketplace refactor — OTP-email is part of the free tier and is
-    // available to every install, conditional only on the admin's
-    // `otp_enabled` setting.
-    const settings = await magicLink.settings();
-
-    if (settings.otp_enabled) {
-      // Mark token as requiring OTP using Document Service API.
-      // Keep this BEFORE generating the code so a concurrent login attempt
-      // with the same link cannot race past the flag.
-      await strapi.documents('plugin::magic-link.token').update({
-        documentId: token.documentId,
-        data: {
-          context: {
-            ...(token.context || {}),
-            requiresOTP: true,
-            otpVerified: false,
-          },
-        },
-      });
-
-      const otpService = strapi.plugin('magic-link').service('otp');
-      const otpEntry = await otpService.createOTP(token.email, 'email', {
-        magicLinkToken: token.token,
-        expirySeconds: settings.otp_expiry || 300,
-        codeLength: settings.otp_length || 6,
-        ipAddress: ctx.request.ip,
-        userAgent: ctx.request.header['user-agent'],
-      });
-
-      // Surface mail-transport failures as an actionable 503 instead of
-      // a generic 500. The code row already exists so the frontend can
-      // prompt the user to hit /otp/resend without starting from scratch.
-      try {
-        await otpService.sendOTPEmail(token.email, otpEntry.code, {
-          subject: 'Your Verification Code',
-          expiryMinutes: Math.floor((settings.otp_expiry || 300) / 60),
-        });
-      } catch (mailErr) {
-        strapi.log.error(`[magic-link] OTP email delivery failed for ${token.email}: ${mailErr.message}`);
-        ctx.status = 503;
-        ctx.body = {
-          data: null,
-          error: {
-            status: 503,
-            name: 'OtpDeliveryError',
-            message: 'Verification code could not be sent. Please request a new code.',
-            details: {
-              code: 'OTP_EMAIL_FAILED',
-              resendEndpoint: '/api/magic-link/otp/resend',
-              email: token.email,
-              loginToken: token.token,
-            },
-          },
-        };
-        return;
-      }
-
-      return ctx.send({
-        requiresOTP: true,
-        message: 'OTP verification required',
-        email: token.email,
-        loginToken: token.token,
-        expiresIn: settings.otp_expiry || 300,
-      });
-    }
-
-    // Check whether Magic Link must be followed by a TOTP challenge.
-    //
-    // `mfa_mode` is the authoritative switch:
-    //   'disabled' → TOTP step always skipped
-    //   'optional' → only prompted when the user has TOTP configured+enabled
-    //   'required' → every user MUST configure TOTP; logins without it fail
-    //
-    // The legacy `mfa_require_totp` flag maps to 'required' for
-    // backwards compatibility with existing installs. If both are set,
-    // mfa_mode wins.
-    const mfaMode = ['disabled', 'optional', 'required'].includes(settings.mfa_mode)
-      ? settings.mfa_mode
-      : (settings.mfa_require_totp ? 'required' : 'disabled');
-
-    if (mfaMode !== 'disabled') {
-      const otpService = strapi.plugin('magic-link').service('otp');
-
-      // Lower-case the token email for the lookup so a legacy uppercase
-      // address in the DB still matches — createToken now writes lower-
-      // case, but tokens issued on older builds may still carry the
-      // original casing.
-      const lookupEmail = normalizeEmail(token.email);
-      const users = await strapi.documents('plugin::users-permissions.user').findMany({
-        filters: { email: lookupEmail },
-        limit: 1,
-      });
-      const user = users && users.length > 0 ? users[0] : null;
-
-      if (user) {
-        const totpStatus = await otpService.getTOTPStatus(user.id);
-
-        // Mode: required — user MUST have TOTP configured. Block otherwise.
-        if (mfaMode === 'required' && !(totpStatus.configured && totpStatus.enabled)) {
-          return ctx.badRequest(
-            'TOTP is required but not yet configured for this account. Please set up TOTP in your profile and try again.'
-          );
-        }
-
-        // Mode: optional/required — if TOTP is enabled, force the challenge.
-        if (totpStatus.configured && totpStatus.enabled) {
-          // Mark token as requiring TOTP verification using Document Service API
-          await strapi.documents('plugin::magic-link.token').update({
-            documentId: token.documentId,
-            data: {
-              context: {
-                ...(token.context || {}),
-                requiresTOTP: true,
-                totpVerified: false,
-                userId: user.id,
-                userDocumentId: user.documentId
-              }
-            }
-          });
-          
-          // Return response indicating TOTP is required
-          return ctx.send({
-            requiresTOTP: true,
-            message: 'TOTP verification required for MFA',
-            email: token.email,
-            loginToken: token.token,
-            userId: user.id
-          });
-        }
-      }
-    }
-    
-    // No OTP or TOTP required, proceed with normal login
-    // Collect request information for security logging
-    const requestInfo = {
-      userAgent: ctx.request.header['user-agent'],
-      ipAddress: ctx.request.ip
-    };
-
-    await magicLink.updateTokenOnLogin(token, requestInfo);
-
-    // Case-insensitive user lookup, same rationale as the MFA branch above.
-    const mainLookupEmail = normalizeEmail(token.email);
-    const users = await strapi.documents('plugin::users-permissions.user').findMany({
-      filters: { email: mainLookupEmail },
-      limit: 1,
-    });
-    const user = users && users.length > 0 ? users[0] : null;
-
+    const settings = (await magicLink.settings()) || {};
+    const user = await findUserByEmail(token.email);
     if (!user) {
-      return i18n.sendError(ctx, 'wrong.email', 400);
+      await magicLink.deactivateToken(token);
+      return i18n.sendError(ctx, 'token.invalid', 400);
     }
-
     if (user.blocked) {
-      // Kill the token before returning so the already-blocked user cannot
-      // hammer the endpoint from multiple IPs with the same link. The
-      // standard rate-limiter alone does not cover IP rotation.
       await magicLink.deactivateToken(token);
       return i18n.sendError(ctx, 'blocked.user', 403);
     }
 
-    if (!user.confirmed) {
-      await userService.edit(user.id, { confirmed: true });
-    }
-    
-    // In Strapi v5, sanitization works differently
-    // We need to handle it differently to avoid the "Missing schema" error
-    const sanitizedUser = { ...user };
-    delete sanitizedUser.password;
-    delete sanitizedUser.resetPasswordToken;
-    delete sanitizedUser.confirmationToken;
-    delete sanitizedUser.roles;
+    // The current MFA policy decides; it may have changed since the
+    // challenge started (settings, or an authenticator enrolled meanwhile).
+    const challenge = await requiredChallenge(plugin().service('otp'), settings, user.id);
 
-    let context;
-    try {
-      context = token.context || {};
-    } catch (e) {
-      context = {};
-    }
-    
-    // Sanitize context values (size limits) but pass ALL fields through.
-    // Security-sensitive fields are already filtered by whitelist/blacklist
-    // in the token creation step (tokens.js). No need to filter again here.
-    const sensitiveKeys = ['password', 'secret', 'apiKey', 'token', 'resetPasswordToken', 'confirmationToken'];
-    const sanitizedContext = {};
-    for (const [key, val] of Object.entries(context)) {
-      // Skip internal/sensitive keys as safety net
-      if (sensitiveKeys.includes(key)) continue;
-      if (val === undefined) continue;
-
-      if (typeof val === 'string') {
-        sanitizedContext[key] = val.substring(0, 2000);
-      } else if (typeof val === 'boolean') {
-        sanitizedContext[key] = val;
-      } else if (typeof val === 'number' && !isNaN(val)) {
-        sanitizedContext[key] = val;
-      } else if (typeof val === 'object' && val !== null) {
-        try {
-          const jsonStr = JSON.stringify(val).substring(0, 5000);
-          sanitizedContext[key] = JSON.parse(jsonStr);
-        } catch {
-          // Skip values that cannot be serialized
-        }
+    // A started challenge is never skipped. Repeated opens (mail scanners,
+    // double clicks) answer with the same challenge without new side effects
+    // while the e-mail OTP is still valid. A pending challenge that is weaker
+    // than the current policy is replaced by the required one below.
+    if (pendingChallenge && challengeSatisfiesPolicy(pendingChallenge.type, challenge)) {
+      if (pendingChallenge.type === 'totp') {
+        return ctx.send(totpChallengeResponse(token, loginToken));
       }
+      if (pendingChallenge.type === 'totp-setup') {
+        return ctx.send(totpSetupChallengeResponse(token, loginToken));
+      }
+      const expirySeconds = Number.isFinite(settings.otp_expiry) ? settings.otp_expiry : 300;
+      const sentAt = new Date(pendingChallenge.otpSentAt || 0).getTime();
+      if (Number.isFinite(sentAt) && Date.now() - sentAt < expirySeconds * 1000) {
+        return ctx.send(otpChallengeResponse(token, loginToken, settings));
+      }
+      const restarted = await magicLink.startChallenge(token, {
+        ...pendingChallenge,
+        otpSentAt: new Date().toISOString(),
+      });
+      if (!restarted) return i18n.sendError(ctx, 'token.invalid', 400);
+      if (!(await sendChallengeOtp(ctx, token, settings))) return undefined;
+      return ctx.send(otpChallengeResponse(token, loginToken, settings));
     }
-    
-    // Generate JWT — resolveJwt handles sync/Promise return uniformly.
-    const jwtToken = await resolveJwt(jwtService.issue({
-      id: user.id,
-      context: sanitizedContext,
-    }));
 
-    strapi.log.debug('[magic-link] JWT Token generated:', typeof jwtToken, jwtToken ? 'has value' : 'empty');
-    
-    // Hole JWT-Konfiguration, um Ablaufzeit zu berechnen
-    let expirationTime = settings.jwt_token_expires_in || '30d';
-    
-    // Parse die Ablaufzeit (z.B. "30d" -> 30 Tage)
-    let expiresAt = new Date();
-    if (expirationTime.endsWith('d')) {
-      const days = parseInt(expirationTime.slice(0, -1), 10);
-      expiresAt.setDate(expiresAt.getDate() + days);
-    } else if (expirationTime.endsWith('h')) {
-      const hours = parseInt(expirationTime.slice(0, -1), 10);
-      expiresAt.setHours(expiresAt.getHours() + hours);
-    } else if (expirationTime.endsWith('m')) {
-      const minutes = parseInt(expirationTime.slice(0, -1), 10);
-      expiresAt.setMinutes(expiresAt.getMinutes() + minutes);
-    } else {
-      // Fallback auf 30 Tage
-      expiresAt.setDate(expiresAt.getDate() + 30);
+    if (challenge === 'totp-setup') {
+      // The link click proves the mailbox; the user enrols an authenticator
+      // before any session exists (controllers/totp.js enroll*).
+      const started = await magicLink.startChallenge(token, {
+        type: 'totp-setup',
+        userId: user.id,
+        userDocumentId: user.documentId,
+      });
+      if (!started) return i18n.sendError(ctx, 'token.invalid', 400);
+      return ctx.send(totpSetupChallengeResponse(token, loginToken));
     }
-    
-    await appendJwtSession(strapi, {
-      id: `session_${Date.now()}_${createId(12)}`,
-      userId: user.id,
-      userEmail: user.email,
-      username: user.username || user.email.split('@')[0],
-      jwtTokenHash: cryptoUtils.hashJwt(jwtToken),
-      createdAt: new Date().toISOString(),
-      expiresAt: expiresAt.toISOString(),
-      isRevoked: false,
-      ipAddress: requestInfo.ipAddress,
-      userAgent: requestInfo.userAgent,
+
+    if (challenge === 'totp') {
+      const started = await magicLink.startChallenge(token, {
+        type: 'totp',
+        userId: user.id,
+        userDocumentId: user.documentId,
+      });
+      if (!started) return i18n.sendError(ctx, 'token.invalid', 400);
+      return ctx.send(totpChallengeResponse(token, loginToken));
+    }
+
+    if (challenge === 'otp') {
+      const started = await magicLink.startChallenge(token, {
+        type: 'otp',
+        userId: user.id,
+        userDocumentId: user.documentId,
+        otpSentAt: new Date().toISOString(),
+      });
+      if (!started) return i18n.sendError(ctx, 'token.invalid', 400);
+      if (!(await sendChallengeOtp(ctx, token, settings))) return undefined;
+      return ctx.send(otpChallengeResponse(token, loginToken, settings));
+    }
+
+    const consumed = await magicLink.consumeLoginToken(token, requestInfoOf(ctx));
+    if (!consumed) {
+      return i18n.sendError(ctx, 'token.invalid', 400);
+    }
+
+    await confirmUser(user);
+    const body = await issueLoginSession(strapi, ctx, {
+      user,
+      settings,
+      context: filterContext(token.context, settings),
       source: 'Magic Link Login',
-      lastUsedAt: new Date().toISOString(),
-      context: sanitizedContext,
     });
-    
-    // `use_jwt_token` lets the admin suppress the JWT in the response
-    // body. This is useful for SSO-style integrations where an external
-    // system (e.g. a reverse proxy or session broker) issues the real
-    // token AFTER Magic-Link validation. In that case the response only
-    // confirms "this user clicked a valid link".
-    const issueJwtInResponse = settings?.use_jwt_token !== false;
-
-    const responseBody = {
-      user: sanitizedUser,
-      context: sanitizedContext,
-      expires_at: expiresAt.toISOString(),
-      expiry_formatted: new Intl.DateTimeFormat('de-DE', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(expiresAt),
-    };
-    if (issueJwtInResponse) {
-      responseBody.jwt = jwtToken;
-    } else {
-      responseBody.tokenIssued = true; // hint for clients that a session exists server-side
-    }
-    ctx.send(responseBody);
+    return ctx.send(body);
   },
 
+  /**
+   * Requests a magic link by e-mail. The response is identical for known,
+   * unknown, blocked and unconfirmed addresses and is sent before any user
+   * lookup or mail delivery happens, so neither status nor timing reveals
+   * whether an account exists.
+   *
+   * @param {object} ctx - Koa context.
+   * @returns {Promise<void>}
+   */
   async sendLink(ctx) {
-    // Strapi v5 pattern für Service Zugriff
-    const magicLink = strapi.plugin('magic-link').service('magic-link');
-    const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
-
-    // The "plugin disabled" admin toggle was removed in the marketplace
-    // build — see auth.login() for context.
-
+    setNoStoreHeaders(ctx);
     const params = parseBody(sendLinkSchema, ctx.request.body);
 
-    const email = params.email || null;
-    const phoneNumber = params.phoneNumber || params.phone || null;
-    const context = params.context || {};
-    const username = params.username || null;
-    const deliveryMethod = params.delivery || params.via || 'email';
-    const useWhatsApp = deliveryMethod === 'whatsapp' || Boolean(phoneNumber && (params.delivery || params.via));
+    if (!(await allowRequest(ctx, ctx.request.ip, 'ip'))) return undefined;
+    // Hashed like the OTP/TOTP keys: no address in limiter memory, and case
+    // variants of one address share a bucket.
+    const emailKey = limiterKey('email', String(params.email).trim().toLowerCase());
+    if (!(await allowRequest(ctx, emailKey, 'email'))) return undefined;
 
-    if (useWhatsApp && !phoneNumber) {
-      ctx.status = 400;
-      ctx.body = { data: null, error: { status: 400, message: 'phoneNumber is required for WhatsApp delivery' } };
-      return;
-    }
-    
-    // Rate limiting check - both IP and email/phone
-    const ipAddress = ctx.request.ip;
-    const ipCheck = await rateLimiter.checkRateLimit(ipAddress, 'ip');
-    
-    if (!ipCheck.allowed) {
-      return ctx.tooManyRequests(`Too many requests. Please try again in ${ipCheck.retryAfter} seconds.`);
-    }
-    
-    if (email) {
-      const emailCheck = await rateLimiter.checkRateLimit(email, 'email');
-      
-      if (!emailCheck.allowed) {
-        return ctx.tooManyRequests(`Too many requests for this email. Please try again in ${emailCheck.retryAfter} seconds.`);
-      }
-    }
+    const magicLink = plugin().service('magic-link');
+    const locale = i18n.getLocaleFromContext(ctx);
+    Promise.resolve()
+      .then(() =>
+        magicLink.requestLoginLink({
+          locale,
+          email: params.email,
+          username: params.username,
+          context: params.context || {},
+        })
+      )
+      .then((outcome) => {
+        if (outcome !== 'sent')
+          strapi.log.debug(`[magic-link] send-link finished without mail: ${outcome}`);
+      })
+      .catch(() => {
+        strapi.log.error('[magic-link] send-link processing failed');
+      });
 
-    // Load settings once for the user-lookup / policy block.
-    const sendLinkSettings = await magicLink.settings();
-    const allowPublicRegistration = sendLinkSettings?.allow_magic_links_on_public_registration === true;
-    const requireVerifiedEmail = sendLinkSettings?.verify_email === true;
-
-    // --------------------------------------------------------------------
-    //  USER ENUMERATION HARDENING
-    // --------------------------------------------------------------------
-    // Earlier versions returned different error messages for
-    //   (a) email unknown,
-    //   (b) email typo / casing mismatch,
-    //   (c) email known but not confirmed,
-    //   (d) user blocked.
-    // A client could therefore enumerate which addresses belong to real
-    // accounts. We now answer all of those cases with the SAME generic
-    // success envelope below. Internally we still short-circuit so no
-    // real token / mail is sent, and the admin can inspect the reason in
-    // the structured server log.
-    //
-    // The only non-generic failure we still surface is a downstream
-    // delivery error after user/token creation. The WhatsApp channel is
-    // delegated to the standalone Magic WhatsApp plugin.
-    const GENERIC_SEND_RESPONSE = {
-      email: email || null,
-      username: username || null,
+    return ctx.send({
+      email: params.email,
+      username: params.username || null,
       sent: true,
-      delivery: useWhatsApp ? 'whatsapp' : 'email',
-    };
-    const silentReject = (reason) => {
-      strapi.log.warn(`[magic-link] sendLink rejected silently: ${reason} (email=${email || '-'}, ip=${ipAddress})`);
-      return ctx.send(GENERIC_SEND_RESPONSE);
-    };
-
-    // Remember whether the user existed BEFORE we potentially auto-create
-    // them, so we can trigger the welcome email only on genuine first-time
-    // sign-ups. Always look up by normalised email to match the DB state.
-    const lookupEmail = normalizeEmail(email);
-    let existingUser = null;
-    try {
-      const lookup = await strapi.documents('plugin::users-permissions.user').findMany({
-        filters: lookupEmail ? { email: lookupEmail } : { username },
-        limit: 1,
-      });
-      existingUser = (lookup && lookup[0]) || null;
-    } catch {
-      existingUser = null;
-    }
-
-    // Gate on public registration: if the user does not exist yet and the
-    // admin did NOT opt in to public-registration via Magic Link, answer
-    // with the generic response instead of revealing "unknown user".
-    if (!existingUser && !allowPublicRegistration) {
-      return silentReject('unknown_email_and_public_registration_disabled');
-    }
-
-    let user;
-    try {
-      user = await magicLink.user(email, username);
-    } catch {
-      return silentReject('user_service_error');
-    }
-
-    if (!user) {
-      return silentReject('user_not_found_or_created');
-    }
-
-    if (lookupEmail && normalizeEmail(user.email) !== lookupEmail) {
-      return silentReject('email_mismatch_after_lookup');
-    }
-
-    if (user.blocked) {
-      return silentReject('blocked_user');
-    }
-
-    // `verify_email`: only send Magic Links to accounts whose email has
-    // been confirmed (e.g. via classic registration flow). Prevents
-    // account takeover via typosquatted email addresses.
-    if (requireVerifiedEmail && !user.confirmed && existingUser) {
-      return silentReject('email_not_confirmed');
-    }
-
-    // `welcome_email`: if the user was just auto-created, fire a welcome
-    // mail in the background. We never block the Magic-Link flow on the
-    // welcome mail succeeding.
-    if (!existingUser && sendLinkSettings?.welcome_email === true) {
-      setImmediate(async () => {
-        try {
-          await strapi.plugin('email').service('email').send({
-            to: user.email,
-            from: sendLinkSettings?.from_email
-              ? `${sendLinkSettings.from_name || ''} <${sendLinkSettings.from_email}>`.trim()
-              : undefined,
-            replyTo: sendLinkSettings?.response_email || undefined,
-            subject: `Welcome${sendLinkSettings?.from_name ? ' to ' + sendLinkSettings.from_name : ''}!`,
-            text: `Hi ${user.username || user.email},\n\nThanks for joining. Your Magic Link is on the way.`,
-            html: `<p>Hi ${user.username || user.email},</p><p>Thanks for joining. Your Magic Link is on the way.</p>`,
-          });
-        } catch (welcomeErr) {
-          strapi.log.warn(`[magic-link] Welcome email failed for ${user.email}: ${welcomeErr.message}`);
-        }
-      });
-    }
-
-    try {
-      const token = await magicLink.createToken(user.email, context);
-
-      if (useWhatsApp) {
-        const confirmationUrl = sendLinkSettings?.confirmationUrl || `${process.env.URL || 'http://localhost:1337'}/api/magic-link/login`;
-        const tokenValue = token._plaintextToken || token.token;
-        const separator = confirmationUrl.includes('?') ? '&' : '?';
-        const loginUrl = `${confirmationUrl}${separator}loginToken=${encodeURIComponent(tokenValue)}`;
-        const expiresAt = token.expires_at ? new Date(token.expires_at).getTime() : NaN;
-        const expiresInSeconds = Number.isFinite(expiresAt)
-          ? Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000))
-          : (sendLinkSettings?.expire_period || 3600);
-
-        const provider = createMagicWhatsAppProvider({ strapi });
-        await provider.sendMagicLink({ phoneNumber, loginUrl, expiresInSeconds });
-
-        ctx.send({
-          email,
-          phoneNumber,
-          username,
-          sent: true,
-          delivery: 'whatsapp',
-        });
-      } else {
-        // Send via Email (default)
-        await magicLink.sendLoginLink(token);
-        ctx.send({
-          email,
-          username,
-          sent: true,
-          delivery: 'email',
-        });
-      }
-    } catch (err) {
-      if (err.code === 'MAGIC_WHATSAPP_UNAVAILABLE' || err.code === 'MAGIC_WHATSAPP_SEND_FAILED') {
-        ctx.status = 503;
-        ctx.body = {
-          data: null,
-          error: {
-            status: 503,
-            name: 'WhatsAppDeliveryError',
-            message: 'WhatsApp delivery is unavailable. Try again later or use email.',
-            details: { code: err.code },
-          },
-        };
-        return;
-      }
-      return ctx.badRequest(err);
-    }
+      delivery: 'email',
+    });
   },
 
   /**
-   * Verifies a TOTP code after a successful Magic Link click (MFA scenario 1).
-   * Rate-limited per-IP and per-token to prevent brute-force against the
-   * 6-digit TOTP space.
+   * Completes a Magic Link + TOTP challenge started by login().
    *
    * @route POST /api/magic-link/verify-mfa-totp
-   * @throws {BadRequestError} When the token/code is invalid or expired
+   * @param {object} ctx - Koa context.
+   * @returns {Promise<void>}
    */
   async verifyMFATOTP(ctx) {
-    const { loginToken, totpCode } = parseBody(mfaVerifyTotpSchema, ctx.request.body);
+    setNoStoreHeaders(ctx);
+    const { loginToken, totpCode, backupCode } = parseBody(mfaVerifyTotpSchema, ctx.request.body);
 
-    const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
-    const ipAddress = ctx.request.ip;
-    const ipCheck = await rateLimiter.checkRateLimit(ipAddress, 'otp');
-    if (!ipCheck.allowed) {
-      ctx.set('Retry-After', String(ipCheck.retryAfter));
-      return ctx.tooManyRequests(`Too many TOTP attempts. Please try again in ${ipCheck.retryAfter} seconds.`);
-    }
-    const tokenKey = `totp:${loginToken.substring(0, 32)}`;
-    const tokenCheck = await rateLimiter.checkRateLimit(tokenKey, 'otp');
-    if (!tokenCheck.allowed) {
-      ctx.set('Retry-After', String(tokenCheck.retryAfter));
-      return ctx.tooManyRequests(`Too many TOTP attempts for this login. Please try again in ${tokenCheck.retryAfter} seconds.`);
-    }
+    if (!(await allowRequest(ctx, ctx.request.ip, 'otp'))) return undefined;
+    if (!(await allowRequest(ctx, limiterKey('totp-challenge', loginToken), 'otp')))
+      return undefined;
 
-    const magicLink = strapi.plugin('magic-link').service('magic-link');
-    const otpService = strapi.plugin('magic-link').service('otp');
-    const userService = strapi.plugin('users-permissions').service('user');
-    const jwtService = strapi.plugin('users-permissions').service('jwt');
+    const magicLink = plugin().service('magic-link');
+    const otpService = plugin().service('otp');
 
     const token = await magicLink.fetchToken(loginToken);
-    
-    if (!token || !token.is_active) {
-      return ctx.badRequest('Invalid or expired token');
+    const challenge = token?.challenge;
+    if (!token || challenge?.type !== 'totp' || challenge.verifiedAt) {
+      return i18n.sendError(ctx, 'challenge.invalid', 400);
     }
-    
-    // Check if token requires TOTP
-    const context = token.context || {};
-    if (!context.requiresTOTP || !context.userId) {
-      return ctx.badRequest('TOTP verification not required for this token');
-    }
-    
-    // Verify TOTP code
-    const verificationResult = await otpService.verifyTOTP(context.userId, totpCode, false);
-    
-    if (!verificationResult.valid) {
-      return ctx.badRequest(verificationResult.message || 'Invalid TOTP code');
-    }
-    
-    // Mark token as TOTP-verified using Document Service API
-    await strapi.documents('plugin::magic-link.token').update({
-      documentId: token.documentId,
-      data: {
-        context: {
-          ...context,
-          totpVerified: true
-        }
-      }
-    });
-    
-    // Proceed with login
-    const requestInfo = {
-      userAgent: ctx.request.header['user-agent'],
-      ipAddress: ctx.request.ip
-    };
-    
-    await magicLink.updateTokenOnLogin(token, requestInfo);
-    
-    // Find user using Document Service API
-    // Prefer documentId (Strapi v5), fallback to id for backward compatibility
-    let user = null;
-    if (context.userDocumentId) {
-      user = await strapi.documents('plugin::users-permissions.user').findOne({
-        documentId: context.userDocumentId,
-      });
-    } else if (context.userId) {
-      const users = await strapi.documents('plugin::users-permissions.user').findMany({
-        filters: { id: context.userId },
-        limit: 1,
-      });
-      user = users && users.length > 0 ? users[0] : null;
-    }
-    
-    if (!user) {
-      return ctx.badRequest('User not found');
+    if (!(await magicLink.isTokenValid({ ...token, is_used: false }))) {
+      await magicLink.deactivateToken(token);
+      return i18n.sendError(ctx, 'challenge.invalid', 400);
     }
 
+    // The user comes from the server-side challenge and must still own the
+    // token's e-mail address.
+    const user = challenge.userDocumentId
+      ? await strapi.documents(USER_UID).findOne({ documentId: challenge.userDocumentId })
+      : null;
+    if (
+      !user ||
+      String(user.id) !== String(challenge.userId) ||
+      normalizeEmail(user.email) !== normalizeEmail(token.email)
+    ) {
+      await magicLink.deactivateToken(token);
+      return i18n.sendError(ctx, 'challenge.invalid', 400);
+    }
     if (user.blocked) {
-      // Match the main login() branch: kill the token and return the
-      // same i18n key + 403 status the rest of the plugin uses.
       await magicLink.deactivateToken(token);
       return i18n.sendError(ctx, 'blocked.user', 403);
     }
 
-    if (!user.confirmed) {
-      await userService.edit(user.id, { confirmed: true });
+    const status = await otpService.getTOTPStatus(user.id);
+    if (!status?.configured || !status?.enabled) {
+      return i18n.sendError(ctx, 'challenge.invalid', 400);
     }
-    
-    // Sanitize user data
-    const sanitizedUser = { ...user };
-    delete sanitizedUser.password;
-    delete sanitizedUser.resetPasswordToken;
-    delete sanitizedUser.confirmationToken;
-    delete sanitizedUser.roles;
-    
-    // Sanitize context from token (pass all fields except sensitive ones)
-    const mfaSensitiveKeys = ['password', 'secret', 'apiKey', 'token', 'resetPasswordToken', 'confirmationToken', 'requiresTOTP', 'totpVerified', 'userId'];
-    const mfaSanitizedContext = {};
-    for (const [key, val] of Object.entries(context)) {
-      if (mfaSensitiveKeys.includes(key)) continue;
-      if (val === undefined) continue;
-      if (typeof val === 'string') {
-        mfaSanitizedContext[key] = val.substring(0, 2000);
-      } else if (typeof val === 'boolean') {
-        mfaSanitizedContext[key] = val;
-      } else if (typeof val === 'number' && !isNaN(val)) {
-        mfaSanitizedContext[key] = val;
-      } else if (typeof val === 'object' && val !== null) {
-        try {
-          const jsonStr = JSON.stringify(val).substring(0, 5000);
-          mfaSanitizedContext[key] = JSON.parse(jsonStr);
-        } catch {
-          // Skip values that cannot be serialized
-        }
-      }
+
+    if (!(await allowVerification(ctx, `up:${user.id}`))) return undefined;
+
+    // A backup code is the recovery path when the authenticator is lost.
+    const verification = await otpService.verifySecondFactor(user.id, { totpCode, backupCode });
+    if (!verification?.valid) {
+      return i18n.sendError(ctx, 'mfa.invalidCode', 400);
     }
-    
-    // Generate JWT with context (resolveJwt tolerates sync-string and
-    // Promise return values from jwtService.issue, identical to the
-    // defensive handling in login()).
-    const settings = await magicLink.settings();
-    const jwtToken = await resolveJwt(jwtService.issue({
-      id: user.id,
-      mfaVerified: true,
-      context: mfaSanitizedContext,
-    }));
-    
-    // Calculate expiration
-    let expirationTime = settings.jwt_token_expires_in || '30d';
-    let expiresAt = new Date();
-    if (expirationTime.endsWith('d')) {
-      const days = parseInt(expirationTime.slice(0, -1), 10);
-      expiresAt.setDate(expiresAt.getDate() + days);
-    } else if (expirationTime.endsWith('h')) {
-      const hours = parseInt(expirationTime.slice(0, -1), 10);
-      expiresAt.setHours(expiresAt.getHours() + hours);
+
+    const consumed = await magicLink.consumeChallenge(token, 'totp', requestInfoOf(ctx));
+    if (!consumed) {
+      return i18n.sendError(ctx, 'challenge.invalid', 400);
     }
-    
-    await appendJwtSession(strapi, {
-      id: `session_${Date.now()}_${createId(12)}`,
-      userId: user.id,
-      userEmail: user.email,
-      username: user.username || user.email.split('@')[0],
-      jwtTokenHash: cryptoUtils.hashJwt(jwtToken),
-      createdAt: new Date().toISOString(),
-      expiresAt: expiresAt.toISOString(),
-      isRevoked: false,
-      ipAddress: requestInfo.ipAddress,
-      userAgent: requestInfo.userAgent,
-      source: 'Magic Link + TOTP (MFA)',
-      lastUsedAt: new Date().toISOString(),
-      mfaVerified: true,
-      context: mfaSanitizedContext,
+
+    await confirmUser(user);
+    const settings = (await magicLink.settings()) || {};
+    const body = await issueLoginSession(strapi, ctx, {
+      user,
+      settings,
+      context: filterContext(token.context, settings),
+      source:
+        verification.method === 'backup-code'
+          ? 'Magic Link + backup code (MFA)'
+          : 'Magic Link + TOTP (MFA)',
+      claims: { mfaVerified: true },
+      extras: {
+        mfaVerified: true,
+        ...(verification.method === 'backup-code'
+          ? { backupCodesRemaining: verification.remaining }
+          : {}),
+      },
     });
-    
-    ctx.send({
-      jwt: jwtToken,
-      user: sanitizedUser,
-      mfaVerified: true,
-      context: mfaSanitizedContext,
-      expires_at: expiresAt.toISOString()
-    });
+    return ctx.send(body);
   },
 
   /**
-   * Passwordless login using Email + TOTP code (primary factor, scenario 2).
-   * Rate-limited per-IP and per-email. Responds with a generic error message
-   * for non-existent users or incorrect codes to prevent user enumeration.
+   * Passwordless login with e-mail + TOTP code (primary factor). Answers
+   * with one generic error for unknown users, blocked users, missing
+   * enrollment and wrong codes.
    *
    * @route POST /api/magic-link/login-totp
-   * @throws {ForbiddenError} When the feature/license is not available
-   * @throws {BadRequestError} When email/code is invalid (generic message)
+   * @param {object} ctx - Koa context.
+   * @returns {Promise<void>}
    */
   async loginWithTOTP(ctx) {
-    const { email: normalizedEmail, totpCode } = parseBody(loginWithTotpSchema, ctx.request.body);
+    setNoStoreHeaders(ctx);
+    const { email, totpCode } = parseBody(loginWithTotpSchema, ctx.request.body);
 
-    const magicLink = strapi.plugin('magic-link').service('magic-link');
-    const otpService = strapi.plugin('magic-link').service('otp');
-    const rateLimiter = strapi.plugin('magic-link').service('rate-limiter');
-    const userService = strapi.plugin('users-permissions').service('user');
-    const jwtService = strapi.plugin('users-permissions').service('jwt');
+    // Per IP, per (account, IP) pair and a looser per-account budget: one
+    // client cannot lock a victim out with a handful of requests, and many
+    // clients together still cannot brute-force one account (AUTH-26).
+    if (!(await allowRequest(ctx, ctx.request.ip, 'login'))) return undefined;
+    if (!(await allowRequest(ctx, limiterKey('totp-login', `${email}|${ctx.request.ip}`), 'otp')))
+      return undefined;
+    if (!(await allowRequest(ctx, limiterKey('totp-login-account', email), 'login')))
+      return undefined;
+    // Always-on brute-force guard, also when public rate limiting is off.
+    // Keyed by the e-mail hash, so unknown accounts behave the same.
+    if (!(await allowVerification(ctx, limiterKey('totp-login', email)))) return undefined;
 
-    const ipAddress = ctx.request.ip;
-    const ipCheck = await rateLimiter.checkRateLimit(ipAddress, 'login');
-    if (!ipCheck.allowed) {
-      ctx.set('Retry-After', String(ipCheck.retryAfter));
-      return ctx.tooManyRequests(`Too many login attempts. Please try again in ${ipCheck.retryAfter} seconds.`);
-    }
-    const emailCheck = await rateLimiter.checkRateLimit(`totp:${normalizedEmail}`, 'otp');
-    if (!emailCheck.allowed) {
-      ctx.set('Retry-After', String(emailCheck.retryAfter));
-      return ctx.tooManyRequests(`Too many TOTP attempts. Please try again in ${emailCheck.retryAfter} seconds.`);
-    }
-
-    const settings = await magicLink.settings();
+    const magicLink = plugin().service('magic-link');
+    const otpService = plugin().service('otp');
+    const settings = (await magicLink.settings()) || {};
     if (!settings.totp_as_primary_auth) {
-      return ctx.forbidden('TOTP login is not enabled');
+      return i18n.sendError(ctx, 'totp.loginDisabled', 403);
     }
 
-    // License gating removed in the marketplace refactor: TOTP login is
-    // available whenever the admin has enabled `totp_as_primary_auth`.
-
-    const GENERIC_INVALID = 'Invalid credentials';
-
-    const users = await strapi.documents('plugin::users-permissions.user').findMany({
-      filters: { email: normalizedEmail },
-      limit: 1,
-    });
-    const user = users && users.length > 0 ? users[0] : null;
-
-    if (!user) {
-      return ctx.badRequest(GENERIC_INVALID);
+    const user = await findUserByEmail(email);
+    const status = user && !user.blocked ? await otpService.getTOTPStatus(user.id) : null;
+    if (!user || user.blocked || !status?.configured || !status?.enabled) {
+      // Same work as a real verification, so timing does not reveal accounts.
+      await otpService.simulateVerification?.(totpCode);
+      return i18n.sendError(ctx, 'credentials.invalid', 400);
     }
 
-    if (user.blocked) {
-      return ctx.badRequest(GENERIC_INVALID);
-    }
-
-    const totpStatus = await otpService.getTOTPStatus(user.id);
-
-    if (!totpStatus.configured || !totpStatus.enabled) {
-      return ctx.badRequest(GENERIC_INVALID);
-    }
-
-    const verificationResult = await otpService.verifyTOTP(user.id, totpCode, false);
-
-    if (!verificationResult.valid) {
-      return ctx.badRequest(GENERIC_INVALID);
-    }
-    
-    // User is verified, proceed with login
+    // TOTP does not prove e-mail ownership: never confirm here, and respect
+    // the users-permissions "email confirmation" setting like /auth/local.
     if (!user.confirmed) {
-      await userService.edit(user.id, { confirmed: true });
+      const advanced = await magicLink.userSettings();
+      if (advanced?.email_confirmation) {
+        return i18n.sendError(ctx, 'credentials.invalid', 400);
+      }
     }
-    
-    // Sanitize user data
-    const sanitizedUser = { ...user };
-    delete sanitizedUser.password;
-    delete sanitizedUser.resetPasswordToken;
-    delete sanitizedUser.confirmationToken;
-    delete sanitizedUser.roles;
-    
-    // Generate JWT — resolveJwt keeps sync/Promise handling uniform.
-    const jwtToken = await resolveJwt(jwtService.issue({
-      id: user.id,
-      totpLogin: true,
-    }));
-    
-    // Calculate expiration
-    let expirationTime = settings.jwt_token_expires_in || '30d';
-    let expiresAt = new Date();
-    if (expirationTime.endsWith('d')) {
-      const days = parseInt(expirationTime.slice(0, -1), 10);
-      expiresAt.setDate(expiresAt.getDate() + days);
-    } else if (expirationTime.endsWith('h')) {
-      const hours = parseInt(expirationTime.slice(0, -1), 10);
-      expiresAt.setHours(expiresAt.getHours() + hours);
+
+    const verification = await otpService.verifyTOTP(user.id, totpCode);
+    if (!verification?.valid) {
+      return i18n.sendError(ctx, 'credentials.invalid', 400);
     }
-    
-    await appendJwtSession(strapi, {
-      id: `session_${Date.now()}_${createId(12)}`,
-      userId: user.id,
-      userEmail: user.email,
-      username: user.username || user.email.split('@')[0],
-      jwtTokenHash: cryptoUtils.hashJwt(jwtToken),
-      createdAt: new Date().toISOString(),
-      expiresAt: expiresAt.toISOString(),
-      isRevoked: false,
-      ipAddress: ctx.request.ip,
-      userAgent: ctx.request.header['user-agent'],
+
+    const body = await issueLoginSession(strapi, ctx, {
+      user,
+      settings,
+      context: {},
       source: 'TOTP Login (Primary)',
-      lastUsedAt: new Date().toISOString(),
-      totpLogin: true,
+      claims: { totpLogin: true },
+      extras: { loginMethod: 'totp' },
     });
-    
-    ctx.send({
-      jwt: jwtToken,
-      user: sanitizedUser,
-      loginMethod: 'totp',
-      expires_at: expiresAt.toISOString()
-    });
+    return ctx.send(body);
   },
 };

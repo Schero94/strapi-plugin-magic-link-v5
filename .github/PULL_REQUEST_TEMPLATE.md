@@ -1,20 +1,21 @@
-<!-- 
+<!--
 Thank you for contributing to Magic-Link!
 Please fill out this template to help us review your PR.
 -->
 
 ## Description
+
 <!-- Provide a clear and concise description of your changes -->
 
-
-
 ## Related Issue(s)
+
 <!-- Link to related issues. Use "Closes #123" or "Fixes #123" to auto-close issues -->
 
 - Closes #
 - Related to #
 
 ## Type of Change
+
 <!-- Put an `x` in all boxes that apply -->
 
 - [ ] Bug fix (non-breaking change that fixes an issue)
@@ -28,12 +29,12 @@ Please fill out this template to help us review your PR.
 - [ ] Security improvement
 
 ## Feature Area
+
 <!-- Which part of the plugin does this affect? -->
 
 - [ ] Magic Link Authentication
-- [ ] Email OTP (Premium)
-- [ ] TOTP / MFA (Advanced)
-- [ ] WhatsApp Integration
+- [ ] Email OTP
+- [ ] TOTP / MFA
 - [ ] Token Management
 - [ ] IP Banning / Rate Limiting
 - [ ] JWT Sessions
@@ -45,36 +46,38 @@ Please fill out this template to help us review your PR.
 - [ ] Documentation
 
 ## Testing
+
 <!-- Describe the tests you ran to verify your changes -->
 
 - [ ] I have tested these changes locally
 - [ ] I have tested authentication functionality
 - [ ] I have tested with different auth modes (if applicable)
 - [ ] New and existing tests pass locally with my changes
+- [ ] `npm run lint`, `npm run format:check`, `npm test`, `npm run build` and `npm run verify` pass
 
 ### Test Environment
 
-- **Plugin Version**: 
-- **Strapi Version**: 
-- **Node Version**: 
-- **OS**: 
+- **Plugin Version**:
+- **Strapi Version**:
+- **Node Version**:
+- **OS**:
 
 ### Authentication Testing
+
 <!-- If applicable, describe how you tested auth functionality -->
 
 - [ ] Tested Magic Link flow
 - [ ] Tested Email OTP flow
 - [ ] Tested TOTP setup and verification
-- [ ] Tested WhatsApp integration
 - [ ] Verified token generation and validation
 - [ ] Tested rate limiting
 
 ## Screenshots/Videos
+
 <!-- If applicable, add screenshots of dashboard, settings, or auth flow -->
 
-
-
 ## Checklist
+
 <!-- Put an `x` in all boxes that apply -->
 
 - [ ] My code follows the project's code style
@@ -86,17 +89,17 @@ Please fill out this template to help us review your PR.
 - [ ] I have removed any sensitive information (credentials, API keys)
 
 ## Breaking Changes
+
 <!-- If this introduces breaking changes, describe the impact and migration path -->
 
-
-
 ## Additional Context
+
 <!-- Add any other context about the PR here -->
 
-
-
 ---
+
 **PR Title Format**: Please use conventional commits format:
-- `feat: add whatsapp integration`
+
+- `feat: add login link expiry presets`
 - `fix: resolve token validation issue`
 - `docs: update authentication configuration`

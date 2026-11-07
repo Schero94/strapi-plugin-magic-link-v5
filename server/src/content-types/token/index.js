@@ -2,4 +2,4 @@
 
 const schema = require('./schema.json');
 
-module.exports = { schema }; 
+module.exports = { schema };

@@ -1,324 +1,249 @@
-import { useState, useEffect } from 'react';
-import { useIntl } from 'react-intl';
+import { useMemo, useState } from 'react';
 import {
-  Typography,
-  Box,
-  Flex,
   Button,
+  Checkbox,
+  Field,
+  Flex,
+  Modal,
+  NumberInput,
   TextInput,
   Textarea,
-  Checkbox,
+  Typography,
 } from '@strapi/design-system';
-import { Sparkle, Cross } from '@strapi/icons';
-import getTrad from '../../utils/getTrad';
+import { Sparkle } from '@strapi/icons';
+import { UnsavedChangesDialog } from '../../components/shared/UnsavedChangesDialog';
+import { useDiscardGuard } from '../../hooks/useUnsavedChangesGuard';
+import { useMagicLinkIntl } from '../../hooks/useMagicLinkIntl';
+import { useReturnFocus } from '../../hooks/useReturnFocus';
+import { GradientButton, Panel } from './components/tokenStyles';
+import { TTL_LIMITS, validateCreateForm } from './tokenModel';
 
-const CreateTokenModal = ({ isOpen, onClose, onSubmit, formData, setFormData }) => {
-  const { formatMessage } = useIntl();
-  const [contextText, setContextText] = useState('');
-  const [contextError, setContextError] = useState('');
-  
-  // Reset context when modal opens/closes (MUST be before early return!)
-  useEffect(() => {
-    if (isOpen && formData.context && Object.keys(formData.context).length > 0) {
-      setContextText(JSON.stringify(formData.context, null, 2));
-    } else {
-      setContextText('');
-      setContextError('');
+const initialForm = (ttl) => ({ email: '', ttl, contextText: '', sendEmail: true });
+
+/**
+ * Create-token dialog. It hands the complete payload to the parent, which
+ * posts it and closes the dialog only after the request succeeded.
+ *
+ * @param {object} props
+ * @param {boolean} props.isOpen
+ * @param {number} props.defaultTtl - hours
+ * @param {() => void} props.onClose
+ * @param {(payload: {email: string, ttl: number, context: object, sendEmail: boolean}) => Promise<unknown>} props.onSubmit
+ */
+const CreateTokenModal = ({ isOpen, defaultTtl, onClose, onSubmit }) => {
+  const { t } = useMagicLinkIntl();
+  const [form, setForm] = useState(() => initialForm(defaultTtl));
+  const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const returnFocus = useReturnFocus(isOpen);
+
+  // Reset the form whenever the dialog opens or the default TTL changes while
+  // it is open. Adjusting state during render avoids an extra effect pass
+  // (https://react.dev/learn/you-might-not-need-an-effect).
+  const [resetKey, setResetKey] = useState(null);
+  const nextResetKey = isOpen ? `open:${defaultTtl}` : null;
+  if (resetKey !== nextResetKey) {
+    setResetKey(nextResetKey);
+    if (isOpen) {
+      setForm(initialForm(defaultTtl));
+      setSubmitted(false);
+      setIsSubmitting(false);
     }
-  }, [isOpen, formData.context]);
+  }
 
-  const handleSubmit = (e) => {
-    e?.preventDefault();
-    
-    // Validate JSON if context is provided
-    if (contextText.trim()) {
-      try {
-        const parsedContext = JSON.parse(contextText);
-        setFormData({ ...formData, context: parsedContext });
-      } catch (err) {
-        setContextError(formatMessage({ id: getTrad('tokens.create.context.error') }));
-        return;
+  const isDirty =
+    isOpen &&
+    (form.email.trim() !== '' ||
+      form.contextText.trim() !== '' ||
+      form.ttl !== defaultTtl ||
+      form.sendEmail !== true);
+  const discard = useDiscardGuard(isDirty && !isSubmitting);
+
+  const validation = useMemo(() => validateCreateForm(form), [form]);
+  const { errors } = validation;
+  const hasErrors = Object.keys(errors).length > 0;
+
+  const update = (field) => (value) => setForm((previous) => ({ ...previous, [field]: value }));
+
+  let emailError;
+  if (submitted && errors.email === 'required') {
+    emailError = t('tokens.create.email.required', 'Enter an email address.');
+  } else if (submitted && errors.email === 'format') {
+    emailError = t('tokens.create.email.invalid', 'Enter a valid email address.');
+  }
+
+  const ttlError = errors.ttl
+    ? t('tokens.create.ttl.error', 'Enter a whole number of hours from {min} to {max}.', TTL_LIMITS)
+    : undefined;
+
+  let contextError;
+  if (errors.context === 'reserved') {
+    contextError = t(
+      'tokens.create.context.reserved',
+      'These keys are reserved for the server: {keys}',
+      {
+        keys: validation.reservedKeys.join(', '),
       }
-    }
-    
-    onSubmit();
-  };
+    );
+  } else if (errors.context === 'object') {
+    contextError = t('tokens.create.context.object', 'The context must be a JSON object.');
+  } else if (errors.context === 'json') {
+    contextError = t('tokens.create.context.error', 'Invalid JSON format');
+  }
 
-  const getLabelStyle = () => ({
-    marginBottom: '8px',
-    fontSize: '13px',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px'
-  });
-
-  const updateFormData = (field, value) => {
-    setFormData({ ...formData, [field]: value });
-  };
-
-  const handleContextChange = (e) => {
-    const value = e.target.value;
-    setContextText(value);
-    setContextError('');
-    
-    // Try to parse JSON
-    if (value.trim()) {
-      try {
-        JSON.parse(value);
-        setContextError('');
-      } catch (err) {
-        setContextError(formatMessage({ id: getTrad('tokens.create.context.error') }));
-      }
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setSubmitted(true);
+    if (hasErrors || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await onSubmit({
+        email: form.email.trim(),
+        ttl: form.ttl,
+        context: validation.context,
+        sendEmail: form.sendEmail,
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
-  
-  if (!isOpen) return null;
+
+  const requestClose = () => {
+    if (isSubmitting) return;
+    discard.runGuarded(onClose);
+  };
 
   return (
-    <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(4, 28, 47, 0.45)',
-          backdropFilter: 'blur(3px)',
-          zIndex: 999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '20px',
-        }}
-        onClick={onClose}
-      >
-        {/* Modal Content */}
-        <Box
-          as="form"
-          background="neutral0"
-          shadow="filterShadow"
-          style={{
-            position: 'relative',
-            width: '100%',
-            maxWidth: '600px',
-            maxHeight: 'calc(100vh - 40px)',
-            overflow: 'auto',
-            borderRadius: '8px',
-          }}
-          onClick={(e) => e.stopPropagation()}
-          onSubmit={handleSubmit}
-          autoComplete="off"
-        >
-          {/* Header */}
-          <Box
-            paddingTop={6}
-            paddingLeft={7}
-            paddingRight={7}
-            paddingBottom={4}
-            style={{
-              borderBottom: '1px solid #f1f1f1',
-            }}
-          >
-            <Flex justifyContent="space-between" alignItems="flex-start">
-              <Flex direction="column" gap={1} style={{ flex: 1, marginRight: '16px' }}>
-                <Typography 
-                  variant="alpha" 
-                  fontWeight="bold"
-                  style={{ 
-                    fontSize: '20px', 
-                    lineHeight: '1.2',
-                  }}
-                >
-                  {formatMessage({ id: getTrad('tokens.create.title') })}
-                </Typography>
-              </Flex>
-              <Button
-                onClick={onClose}
-                variant="ghost"
-                style={{ 
-                  padding: '8px',
-                  minWidth: 'auto',
-                  marginTop: '-4px',
-                }}
-              >
-                <Cross />
-              </Button>
-            </Flex>
-          </Box>
-
-          {/* Body */}
-          <Box 
-            paddingTop={6}
-            paddingLeft={7}
-            paddingRight={7}
-            paddingBottom={6}
-          >
-            <Flex direction="column" alignItems="stretch" gap={6}>
-              {/* E-Mail Feld */}
-              <Box>
-                <Typography 
-                  variant="sigma" 
-                  fontWeight="semiBold"
-                  textColor="neutral800"
-                  style={getLabelStyle()}
-                >
-                  {formatMessage({ id: getTrad('tokens.create.email.label') })}
-                </Typography>
-                <TextInput
-                  placeholder={formatMessage({ id: getTrad('tokens.create.email.placeholder') })}
-                  type="email"
+    <>
+      <Modal.Root open={isOpen} onOpenChange={(open) => !open && requestClose()}>
+        <Modal.Content style={{ maxWidth: '60rem' }} onCloseAutoFocus={returnFocus}>
+          <Modal.Header closeLabel={t('common.close', 'Close')}>
+            <Modal.Title>{t('tokens.create.title', 'Create Magic Link Token')}</Modal.Title>
+          </Modal.Header>
+          <form onSubmit={handleSubmit} autoComplete="off" noValidate>
+            <Modal.Body>
+              <Flex direction="column" alignItems="stretch" gap={6}>
+                <Field.Root
                   name="create-token-email"
-                  id="create-token-email"
-                  autoComplete="off"
-                  value={formData.email}
-                  onChange={(e) => updateFormData('email', e.target.value)}
                   required
-                  size="M"
-                  style={{ fontSize: '14px' }}
-                />
-                <Typography 
-                  variant="pi" 
-                  textColor="neutral600" 
-                  style={{ marginTop: '6px', fontSize: '12px' }}
+                  error={emailError}
+                  hint={t(
+                    'tokens.create.email.hint',
+                    'The login link is created for this email address.'
+                  )}
                 >
-                  {formatMessage({ id: getTrad('tokens.create.email.hint') })}
-                </Typography>
-              </Box>
-              
-              {/* Gültigkeitsdauer */}
-              <Box>
-                <Typography 
-                  variant="sigma" 
-                  fontWeight="semiBold"
-                  textColor="neutral800"
-                  style={getLabelStyle()}
-                >
-                  {formatMessage({ id: getTrad('tokens.create.ttl.label') })}
-                </Typography>
-                <TextInput
-                  type="number"
-                  value={formData.ttl}
-                  onChange={(e) => updateFormData('ttl', parseInt(e.target.value) || 24)}
-                  min="1"
-                  max="168"
-                  size="M"
-                  style={{ fontSize: '14px' }}
-                />
-                <Typography 
-                  variant="pi" 
-                  textColor="neutral600"
-                  style={{ marginTop: '6px', fontSize: '12px' }}
-                >
-                  {formatMessage({ id: getTrad('tokens.create.ttl.hint') })}
-                </Typography>
-              </Box>
-              
-              {/* JSON Context */}
-              <Box>
-                <Typography 
-                  variant="sigma" 
-                  fontWeight="semiBold"
-                  textColor="neutral800"
-                  style={getLabelStyle()}
-                >
-                  {formatMessage({ id: getTrad('tokens.create.context.label') })}
-                </Typography>
-                <Textarea
-                  placeholder={formatMessage({ id: getTrad('tokens.create.context.placeholder') })}
-                  value={contextText}
-                  onChange={handleContextChange}
-                  style={{ 
-                    fontSize: '13px', 
-                    fontFamily: 'monospace',
-                    minHeight: '100px',
-                  }}
-                />
-                {contextError ? (
-                  <Typography 
-                    variant="pi" 
-                    textColor="danger600" 
-                    style={{ marginTop: '6px', fontSize: '12px' }}
-                  >
-                    ⚠️ {contextError}
-                  </Typography>
-                ) : (
-                  <Typography 
-                    variant="pi" 
-                    textColor="neutral600"
-                    style={{ marginTop: '6px', fontSize: '12px' }}
-                  >
-                    {formatMessage({ id: getTrad('tokens.create.context.hint') })}
-                  </Typography>
-                )}
-              </Box>
-              
-              {/* E-Mail senden Checkbox */}
-              <Box 
-                background="neutral100"
-                padding={4}
-                style={{ borderRadius: '6px' }}
-              >
-                <Checkbox
-                  checked={!!formData.sendEmail}
-                  onCheckedChange={(checked) => updateFormData('sendEmail', !!checked)}
-                >
-                  <Typography variant="pi" fontWeight="medium">
-                    {formatMessage({ id: getTrad('tokens.create.sendEmail.label') })}
-                  </Typography>
-                </Checkbox>
-                {formData.sendEmail && (
-                  <Typography 
-                    variant="omega" 
-                    textColor="neutral600"
-                    style={{ marginTop: '4px', marginLeft: '28px', fontSize: '11px' }}
-                  >
-                    {formatMessage({ id: getTrad('tokens.create.sendEmail.hint') })}
-                  </Typography>
-                )}
-              </Box>
-            </Flex>
-          </Box>
+                  <Field.Label>{t('tokens.create.email.label', 'Email address')}</Field.Label>
+                  <TextInput
+                    type="email"
+                    autoComplete="off"
+                    placeholder={t('tokens.create.email.placeholder', 'user@example.com')}
+                    value={form.email}
+                    onChange={(event) => update('email')(event.target.value)}
+                  />
+                  <Field.Hint />
+                  <Field.Error />
+                </Field.Root>
 
-          {/* Footer */}
-          <Box 
-            paddingTop={4}
-            paddingLeft={7}
-            paddingRight={7}
-            paddingBottom={6}
-            style={{
-              borderTop: '1px solid #f1f1f1',
-              backgroundColor: '#fafafa',
-              borderBottomLeftRadius: '8px',
-              borderBottomRightRadius: '8px',
-            }}
-          >
-            <Flex justifyContent="flex-end" gap={3}>
-              <Button 
-                type="button"
-                onClick={onClose} 
-                variant="tertiary"
-                size="M"
-              >
-                {formatMessage({ id: getTrad('tokens.create.cancel') })}
-              </Button>
+                <Field.Root
+                  name="create-token-ttl"
+                  required
+                  error={ttlError}
+                  hint={t(
+                    'tokens.create.ttl.hint',
+                    'How long the link stays valid ({min} to {max} hours).',
+                    TTL_LIMITS
+                  )}
+                >
+                  <Field.Label>
+                    {t('tokens.create.ttl.label', 'Validity Period (Hours)')}
+                  </Field.Label>
+                  <NumberInput
+                    value={form.ttl}
+                    onValueChange={(value) => update('ttl')(value)}
+                    step={1}
+                    min={TTL_LIMITS.min}
+                    max={TTL_LIMITS.max}
+                  />
+                  <Field.Hint />
+                  <Field.Error />
+                </Field.Root>
+
+                <Field.Root
+                  name="create-token-context"
+                  error={contextError}
+                  hint={t(
+                    'tokens.create.context.hint',
+                    'Optional JSON object passed with the token, for example a redirect path.'
+                  )}
+                >
+                  <Field.Label>
+                    {t('tokens.create.context.label', 'JSON Context (Optional)')}
+                  </Field.Label>
+                  <Textarea
+                    placeholder={t('tokens.create.context.placeholder', '\'{ "key": "value" }\'')}
+                    value={form.contextText}
+                    onChange={(event) => update('contextText')(event.target.value)}
+                    style={{ fontFamily: 'monospace', minHeight: '100px' }}
+                  />
+                  <Field.Hint />
+                  <Field.Error />
+                </Field.Root>
+
+                <Panel>
+                  <Flex direction="column" alignItems="stretch" gap={1}>
+                    <Checkbox
+                      name="create-token-send-email"
+                      checked={form.sendEmail}
+                      onCheckedChange={(checked) => update('sendEmail')(checked === true)}
+                      aria-describedby="create-token-send-email-hint"
+                    >
+                      {t('tokens.create.sendEmail.label', 'Send the login link by email')}
+                    </Checkbox>
+                    <Typography
+                      variant="pi"
+                      textColor="neutral600"
+                      id="create-token-send-email-hint"
+                    >
+                      {form.sendEmail
+                        ? t(
+                            'tokens.create.sendEmail.hint',
+                            'The user receives an email with the login link right away.'
+                          )
+                        : t(
+                            'tokens.create.sendEmail.off',
+                            'No email is sent. The token is shown once after creation so you can share it yourself.'
+                          )}
+                    </Typography>
+                  </Flex>
+                </Panel>
+              </Flex>
+            </Modal.Body>
+            <Modal.Footer justifyContent="flex-end" gap={2}>
               <Button
-                type="submit"
-                startIcon={<Sparkle />}
-                size="M"
-                style={{
-                  background: 'linear-gradient(135deg, #5B3AE1 0%, #8B5CF6 100%)',
-                  color: 'white',
-                  border: 'none',
-                  fontWeight: '600',
-                  boxShadow: '0 2px 8px rgba(139, 92, 246, 0.25)',
-                }}
-                disabled={!formData.email || !!contextError}
+                type="button"
+                variant="tertiary"
+                size="L"
+                onClick={requestClose}
+                disabled={isSubmitting}
               >
-                {formatMessage({ id: getTrad('tokens.create.submit') })}
+                {t('common.cancel', 'Cancel')}
               </Button>
-            </Flex>
-          </Box>
-        </Box>
-      </div>
+              <GradientButton
+                type="submit"
+                disabled={isSubmitting || (submitted && hasErrors)}
+                aria-busy={isSubmitting ? 'true' : undefined}
+              >
+                <Sparkle aria-hidden="true" focusable="false" />
+                {isSubmitting
+                  ? t('tokens.create.submitting', 'Creating...')
+                  : t('tokens.create.submit', 'Create Token')}
+              </GradientButton>
+            </Modal.Footer>
+          </form>
+        </Modal.Content>
+      </Modal.Root>
+      <UnsavedChangesDialog guard={discard} />
+    </>
   );
 };
 

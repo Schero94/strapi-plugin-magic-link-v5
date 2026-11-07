@@ -20,7 +20,22 @@
     "settings.updateFailed": "Could not update settings",
     "settings.getFailed": "Could not get settings",
     "unauthorized": "Unauthorized access",
-    "generic.error": "An error occurred"
+    "generic.error": "An error occurred",
+    "challenge.invalid": "This verification request is invalid or has expired",
+    "mfa.setupRequired": "Two-factor authentication is required. Please set up an authenticator app first",
+    "mfa.invalidCode": "Invalid verification code",
+    "otp.deliveryFailed": "The verification code could not be sent. Please request a new code",
+    "totp.loginDisabled": "Login with an authenticator code is not enabled",
+    "credentials.invalid": "Invalid credentials",
+    "login.failed": "The login could not be completed. Please try again",
+    "totp.notEnrolled": "No authenticator app is set up for this account",
+    "totp.currentCodeRequired": "Enter a code from your current authenticator app to continue",
+    "totp.noPendingSetup": "No authenticator setup is in progress. Please start the setup again",
+    "totp.invalidEmailCode": "The e-mail code is invalid or has expired",
+    "totp.alreadyEnrolled": "An authenticator app is already set up for this account",
+    "auth.required": "Please log in to continue",
+    "settings.security.forbidden": "Changing link targets, templates, account or MFA rules requires the Settings: Security permission",
+    "settings.linkOrigin.notAllowed": "Login link URLs must use an allowed origin"
   },
   "success": {
     "token.created": "Magic Link sent successfully",
@@ -32,5 +47,21 @@
     "settings.updated": "Settings updated successfully",
     "license.created": "License created successfully",
     "license.verified": "License verified successfully"
+  },
+  "mail": {
+    "otp.subject": "Your verification code",
+    "otp.heading": "Your verification code",
+    "otp.intro": "Enter this code to complete your login:",
+    "otp.expires": "This code will expire in {minutes}.",
+    "otp.ignore": "If you didn't request this code, you can safely ignore this email.",
+    "otp.preheader": "Your verification code: {code}",
+    "setup.subject": "Confirm your authenticator app",
+    "setup.intro": "Enter this code to confirm the new authenticator app for your account:",
+    "unit.minute": "{count} minute",
+    "unit.minutes": "{count} minutes",
+    "welcome.subject": "Welcome",
+    "welcome.subjectApp": "Welcome to {app}",
+    "welcome.greeting": "Hi {name},",
+    "welcome.body": "Thanks for joining. Your login link is on the way."
   }
 }

@@ -1,492 +1,615 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import styled, { keyframes } from 'styled-components';
-import { useIntl } from 'react-intl';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import styled from 'styled-components';
+import { Accordion, Alert, Badge, Box, Button, Flex, Typography } from '@strapi/design-system';
 import {
-  Box,
-  Button,
-  Flex,
-  TextInput,
-  Textarea,
-  Typography,
-  Grid,
-  Switch,
-  NumberInput,
-  Divider,
-  SingleSelect,
-  SingleSelectOption,
-  Accordion,
-  Badge,
-} from '@strapi/design-system';
-import { Check, Cog, Mail, Shield, Code, Link, Key, Lock, Lightning, CheckCircle } from '@strapi/icons';
-import { useFetchClient, useNotification } from '@strapi/strapi/admin';
-import getTrad from '../../utils/getTrad';
+  ArrowClockwise,
+  Check,
+  Clock,
+  Code,
+  Cog,
+  Key,
+  Lock,
+  Mail,
+  WarningCircle,
+} from '@strapi/icons';
+import { Page, useFetchClient, useNotification } from '@strapi/strapi/admin';
+import { useMagicLinkIntl } from '../../hooks/useMagicLinkIntl';
+import { useMagicLinkRBAC } from '../../hooks/useMagicLinkRBAC';
+import { useFormatters } from '../../hooks/useFormatters';
+import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import { usePluginLanguage } from '../../components/LanguageProvider';
-import { getTemplateList, getTemplate } from '../../utils/emailTemplates';
+import { ConfirmDialog } from '../../components/shared/ConfirmDialog';
+import { UnsavedChangesDialog } from '../../components/shared/UnsavedChangesDialog';
+import { PluginPageTitle } from '../../components/shared/Headings';
+import { reducedMotion } from '../../components/shared/motion';
+import { toPlaceholderSyntax } from '../../utils/emailTemplates';
+import { brand, color, space, theme, tint } from '../../utils/theme';
+import { BulletList } from './components/SettingsUi';
+import { GeneralSection } from './sections/GeneralSection';
+import { AuthSection } from './sections/AuthSection';
+import { MfaSection } from './sections/MfaSection';
+import { EmailSection } from './sections/EmailSection';
+import { RateLimitSection } from './sections/RateLimitSection';
+import { AdvancedSection } from './sections/AdvancedSection';
+import {
+  FIELD_SECTIONS,
+  buildSavePayload,
+  fieldId,
+  getServerErrorField,
+  getServerErrorFields,
+  isSettingsDirty,
+  orderedErrorKeys,
+  parseEnrollmentSummary,
+  resolveMfaMode,
+  sanitizeLoadedSettings,
+  validateSettings,
+} from './utils/settingsForm';
 
-// ================ THEME ================
-const theme = {
-  colors: {
-    primary: { 600: '#0284C7', 700: '#075985', 100: '#E0F2FE', 50: '#F0F9FF' },
-    success: { 600: '#16A34A', 700: '#15803D', 100: '#DCFCE7', 50: '#F0FDF4' },
-    danger: { 600: '#DC2626', 700: '#B91C1C', 100: '#FEE2E2', 50: '#FEF2F2' },
-    warning: { 600: '#D97706', 700: '#A16207', 100: '#FEF3C7', 50: '#FFFBEB' },
-    neutral: { 0: '#FFFFFF', 50: '#F9FAFB', 100: '#F3F4F6', 200: '#E5E7EB', 400: '#9CA3AF', 600: '#4B5563', 700: '#374151', 800: '#1F2937' }
-  },
-  shadows: { sm: '0 1px 3px rgba(0,0,0,0.1)', md: '0 4px 6px rgba(0,0,0,0.1)', xl: '0 20px 25px rgba(0,0,0,0.1)' },
-  borderRadius: { md: '8px', lg: '12px', xl: '16px' }
-};
+/* ------------------------------------------------------------------ */
+/* Layout                                                              */
+/* ------------------------------------------------------------------ */
 
-// ================ ANIMATIONS ================
-const fadeIn = keyframes`
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-`;
-
-const PlaceholderGrid = styled(Box)`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-`;
-
-const PlaceholderTile = styled(Box)`
-  border-radius: 8px;
-  border: 1px solid rgba(14, 165, 233, 0.3);
-  background: rgba(14, 165, 233, 0.04);
-  padding: 14px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  min-height: 120px;
-  transition: all 0.15s ease;
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(2, 132, 199, 0.15);
-    border-color: rgba(14, 165, 233, 0.6);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-`;
-
-const shimmer = keyframes`
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-`;
-
-// ================ STYLED COMPONENTS ================
-const Container = styled(Box)`
-  animation: ${fadeIn} 0.5s;
-  max-width: 1400px;
+const Container = styled.form`
+  max-width: 1440px;
   margin: 0 auto;
 `;
 
-const ToggleCard = styled(Box)`
-  background: ${props => props.$active ? 'rgba(22, 163, 74, 0.08)' : 'rgba(128, 128, 128, 0.06)'};
-  border-radius: ${theme.borderRadius.md};
-  padding: 20px;
-  transition: all 0.2s ease;
-  border: 2px solid ${props => props.$active ? 'rgba(22, 163, 74, 0.4)' : 'rgba(128, 128, 128, 0.2)'};
-  box-shadow: ${props => props.$active ? '0 4px 12px rgba(34, 197, 94, 0.15)' : '0 1px 3px rgba(0, 0, 0, 0.1)'};
-  position: relative;
-  user-select: none;
-  cursor: pointer;
-  
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: ${props => props.$active ? '0 6px 16px rgba(34, 197, 94, 0.25)' : '0 3px 8px rgba(128, 128, 128, 0.2)'};
-    border-color: ${props => props.$active ? 'rgba(22, 163, 74, 0.6)' : 'rgba(128, 128, 128, 0.4)'};
-  }
-  
-  &:active {
-    transform: translateY(0px);
-    box-shadow: ${props => props.$active ? '0 2px 6px rgba(34, 197, 94, 0.15)' : '0 1px 2px rgba(0, 0, 0, 0.1)'};
-  }
-  
-  ${props => props.$active && `
-    &::before {
-      content: '${props.$statusLabel || ''}';
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      background: #16A34A;
-      color: white;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 10px;
-      font-weight: bold;
-    }
-  `}
-  
-  ${props => !props.$active && `
-    &::before {
-      content: '${props.$statusLabel || ''}';
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      background: rgba(128, 128, 128, 0.5);
-      color: white;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 10px;
-      font-weight: bold;
-    }
-  `}
-`;
-
-const GreenToggle = styled.div`
-  ${props => props.$isActive && `
-    button[role="switch"] {
-      background-color: #16A34A !important;
-      border-color: #16A34A !important;
-      
-      &:hover {
-        background-color: #15803D !important;
-        border-color: #15803D !important;
-      }
-      
-      &:focus {
-        background-color: #16A34A !important;
-        border-color: #16A34A !important;
-        box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2) !important;
-      }
-    }
-    
-    /* Toggle handle */
-    button[role="switch"] > span {
-      background-color: white !important;
-    }
-  `}
-  
-  ${props => !props.$isActive && `
-    button[role="switch"] {
-      background-color: rgba(128, 128, 128, 0.3);
-      
-      &:hover {
-        background-color: rgba(128, 128, 128, 0.4);
-      }
-    }
-  `}
-`;
-
-const StickySaveBar = styled(Box)`
+const StickySaveBar = styled.div`
   position: sticky;
   top: 0;
   z-index: 10;
-  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
-  box-shadow: ${theme.shadows.sm};
-`;
-
-const IconWrapper = styled.div`
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  margin-bottom: 12px;
-  background: ${props => props.$bgColor || 'rgba(2, 132, 199, 0.12)'};
-  
-  svg {
-    width: 24px;
-    height: 24px;
-    color: ${props => props.$iconColor || 'var(--colors-primary600, #0284C7)'};
+  justify-content: space-between;
+  gap: ${space(4)};
+  padding: ${space(6)};
+  background: ${color('neutral0')};
+  border-bottom: 1px solid ${color('neutral150')};
+  box-shadow: ${theme.shadows.sm};
+
+  @media (max-width: 768px) {
+    position: static;
+    padding: ${space(4)};
   }
 `;
 
-// ================ COMPONENT ================
+const HeaderActions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: ${space(2)};
+  min-width: 0;
+`;
+
+const Content = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${space(6)};
+  padding: ${space(6)} ${space(6)} ${space(7)};
+
+  @media (max-width: 768px) {
+    padding: ${space(4)};
+  }
+`;
+
+const InfoBanner = styled.div`
+  display: flex;
+  gap: ${space(3)};
+  align-items: flex-start;
+  padding: ${space(6)};
+  border-radius: ${theme.borderRadius.lg};
+  background: ${tint.primary.bg};
+  border: 1px solid ${tint.primary.border};
+
+  @media (max-width: 480px) {
+    padding: ${space(4)};
+  }
+`;
+
+const BannerIcon = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: ${brand.primary};
+
+  svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  svg path {
+    fill: ${brand.onFill};
+  }
+`;
+
+const FooterBox = styled.div`
+  display: flex;
+  gap: ${space(3)};
+  align-items: center;
+  justify-content: center;
+  padding: ${space(6)};
+  border-radius: ${theme.borderRadius.lg};
+  background: ${tint.success.bg};
+  border: 1px solid ${tint.success.border};
+  text-align: left;
+
+  > svg {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+  }
+
+  > svg path {
+    fill: ${tint.success.fg};
+  }
+`;
+
+/**
+ * "Unsaved changes" badge. The DS warning variant (warning700 on warning200)
+ * reaches only 3.6:1 in the light theme; the warning tint keeps 4.8:1 light
+ * and > 8:1 dark.
+ */
+const UnsavedBadge = styled(Badge)`
+  && {
+    background: ${tint.warning.bg};
+    box-shadow: inset 0 0 0 1px ${tint.warning.border};
+  }
+
+  && span {
+    color: ${tint.warning.fg};
+  }
+`;
+
+/** Danger marker after the title of a section that contains invalid fields. */
+const SectionErrorMark = styled.span`
+  display: inline-block;
+  margin-left: ${space(1)};
+  padding: 0 ${space(2)};
+  border-radius: ${theme.borderRadius.sm};
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.8rem;
+  text-transform: uppercase;
+  vertical-align: middle;
+  background: ${tint.danger.bg};
+  box-shadow: inset 0 0 0 1px ${tint.danger.border};
+  color: ${tint.danger.fg};
+`;
+
+/** Save button in the brand gradient (one gradient for all Magic Link pages). */
+const SaveButton = styled(Button)`
+  && {
+    background: ${brand.gradient};
+    border: none;
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+    transition:
+      box-shadow ${theme.transitions.fast},
+      transform ${theme.transitions.fast};
+  }
+
+  && span,
+  && svg path {
+    color: ${brand.onFill};
+    fill: ${brand.onFill};
+    font-weight: 700;
+  }
+
+  &&:hover:not([aria-disabled='true']) {
+    background: ${brand.gradientHover};
+    transform: translateY(-1px);
+  }
+
+  &&[aria-disabled='true'] {
+    opacity: 0.5;
+  }
+
+  ${reducedMotion}
+`;
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                             */
+/* ------------------------------------------------------------------ */
+
+/** Settings response -> form state (templates shown in the 6.0 placeholder syntax). */
+const toFormState = (raw) => {
+  const clean = sanitizeLoadedSettings(raw);
+  for (const key of ['message_html', 'message_text', 'object']) {
+    if (typeof clean[key] === 'string') clean[key] = toPlaceholderSyntax(clean[key]);
+  }
+  return clean;
+};
+
+const listFrom = (payload) => {
+  const data = payload?.data ?? payload;
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.templates)) return data.templates;
+  return [];
+};
+
+const NO_INTEGRATIONS = Object.freeze({
+  emailDesignerInstalled: false,
+  magicMailInstalled: false,
+  emailProviderConfigured: false,
+  emailProviderName: null,
+});
+
+/* ------------------------------------------------------------------ */
+/* Page                                                                */
+/* ------------------------------------------------------------------ */
+
 const SettingsModern = () => {
-  const { formatMessage } = useIntl();
+  const { t } = useMagicLinkIntl();
+  const { formatNumber } = useFormatters();
   const { toggleNotification } = useNotification();
-  const { get, put } = useFetchClient();
-  const { language, changeLanguage } = usePluginLanguage();
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  
-  const [settings, setSettings] = useState({
-    enabled: true,
-    createUserIfNotExists: true,
-    expire_period: 3600,
-    confirmationUrl: '',
-    from_name: '',
-    from_email: '',
-    response_email: '',
-    token_length: 32,
-    stays_valid: false,
-    object: '',
-    message_html: '',
-    message_text: '',
-    max_login_attempts: 5,
-    context_whitelist: [],
-    context_blacklist: ['password', 'secret', 'apiKey', 'token'],
-    login_path: '/magic-link/login',
-    user_creation_strategy: 'email',
-    verify_email: false,
-    welcome_email: false,
-    use_jwt_token: true,
-    jwt_token_expires_in: '30d',
-    callback_url: '',
-    allow_magic_links_on_public_registration: false,
-    store_login_info: true,
-    ui_language: 'en',
-    rate_limit_enabled: true,
-    rate_limit_max_attempts: 5,
-    rate_limit_window_minutes: 15,
-    use_email_designer: false,
-    email_designer_template_id: '',
-    use_magic_mail: false,
-    // OTP Settings
-    otp_enabled: false,
-    otp_type: 'email',
-    otp_length: 6,
-    otp_expiry: 300,
-    otp_max_attempts: 3,
-    otp_resend_cooldown: 60,
-    // MFA Settings
-    mfa_mode: 'disabled',
-    mfa_require_totp: false,
-    totp_as_primary_auth: false,
-    // TOTP Settings
-    totp_issuer: 'Magic Link',
-    totp_algorithm: 'SHA1',
-    totp_digits: 6,
-    totp_period: 30,
-    // Frontend URL Settings
-    frontend_url: '',
-    frontend_login_path: '/auth/magic-link',
-  });
-  
-  const [rateLimitStats, setRateLimitStats] = useState(null);
-  const [emailDesignerInstalled, setEmailDesignerInstalled] = useState(false);
-  const [magicMailInstalled, setMagicMailInstalled] = useState(false);
-  const [emailProviderConfigured, setEmailProviderConfigured] = useState(false);
-  const [emailProviderName, setEmailProviderName] = useState(null);
-  const [otpCodes, setOtpCodes] = useState([]);
-  const [selectedEmailTemplate, setSelectedEmailTemplate] = useState(null);
-  const [textEditorHeight, setTextEditorHeight] = useState(300);
-  const [licenseInfo, setLicenseInfo] = useState(null);
+  const { get, put, post } = useFetchClient();
+  const {
+    canReadSettings,
+    canUpdateSettings,
+    isLoading: isPermissionLoading,
+    error: permissionError,
+  } = useMagicLinkRBAC();
+  const canWriteSettings = canUpdateSettings;
+  const { language } = usePluginLanguage();
+
+  const [loadState, setLoadState] = useState('loading');
+  const [settings, setSettings] = useState(null);
+  const [initialSettings, setInitialSettings] = useState(null);
+  const [integrations, setIntegrations] = useState(NO_INTEGRATIONS);
+  const [emailDesignerTemplates, setEmailDesignerTemplates] = useState([]);
   const [magicMailTemplates, setMagicMailTemplates] = useState([]);
-  // Templates from the optional 3rd-party `strapi-plugin-email-designer-5`.
-  // Kept separate from `magicMailTemplates` because the API shapes differ.
-  // Was missing in a previous refactor and crashed the entire Settings page
-  // on render whenever both `Compatibility → Designer` and
-  // `Email Settings → Use Email Templates` were enabled
-  // (ReferenceError: emailTemplates is not defined). See issue #17.
-  // Always defaulted to [] so .map/.length on the JSX side are safe even
-  // if the fetch fails or the plugin is not installed.
-  const [emailTemplates, setEmailTemplates] = useState([]);
+  const [rateLimitStats, setRateLimitStats] = useState({ status: 'idle', data: null });
+  const [enrollment, setEnrollment] = useState({ status: 'loading', summary: null });
+  const [serverErrors, setServerErrors] = useState({});
+  const [openSection, setOpenSection] = useState('general');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const focusRequest = useRef(null);
+  const [, setFocusTick] = useState(0);
+  const formRef = useRef(null);
+  const focusBeforeSave = useRef(null);
 
-  const placeholderList = useMemo(() => ([
-    {
-      code: formatMessage({ id: getTrad('settings.email.placeholders.url') }),
-      desc: formatMessage({ id: getTrad('settings.email.placeholders.url.description') }),
-      example: formatMessage({ id: getTrad('settings.email.placeholders.url.example') })
-    },
-    {
-      code: formatMessage({ id: getTrad('settings.email.placeholders.code') }),
-      desc: formatMessage({ id: getTrad('settings.email.placeholders.code.description') }),
-      example: formatMessage({ id: getTrad('settings.email.placeholders.code.example') })
-    },
-    {
-      code: formatMessage({ id: getTrad('settings.email.placeholders.expiry') }),
-      desc: formatMessage({ id: getTrad('settings.email.placeholders.expiry.description') }),
-      example: formatMessage({ id: getTrad('settings.email.placeholders.expiry.example') })
-    },
-    {
-      code: formatMessage({ id: getTrad('settings.email.placeholders.link') }),
-      desc: formatMessage({ id: getTrad('settings.email.placeholders.link.description') }),
-      example: formatMessage({ id: getTrad('settings.email.placeholders.link.example') })
-    },
-    {
-      code: formatMessage({ id: getTrad('settings.email.placeholders.username') }),
-      desc: formatMessage({ id: getTrad('settings.email.placeholders.username.description') }),
-      example: formatMessage({ id: getTrad('settings.email.placeholders.username.example') })
-    },
-    {
-      code: formatMessage({ id: getTrad('settings.email.placeholders.email') }),
-      desc: formatMessage({ id: getTrad('settings.email.placeholders.email.description') }),
-      example: formatMessage({ id: getTrad('settings.email.placeholders.email.example') })
-    }
-  ]), [formatMessage]);
+  /**
+   * Focus target after a dialog closes when its opener left the DOM (the
+   * Discard button disappears once the form is clean): the open section
+   * header, else the first one.
+   */
+  const getSectionFocusTarget = useCallback(
+    () =>
+      formRef.current?.querySelector('h3 button[aria-expanded="true"]') ??
+      formRef.current?.querySelector('h3 button'),
+    []
+  );
 
-  const [selectedTemplateKey, setSelectedTemplateKey] = useState(null);
+  const isReady = loadState === 'ready' && settings !== null;
+  const isDirty = isReady && isSettingsDirty(initialSettings, settings);
+  const guard = useUnsavedChangesGuard(isDirty);
+  const formDisabled = !canWriteSettings || isSaving;
 
-  const loadSettings = useCallback(async () => {
-    setIsLoading(true);
+  const clientErrors = useMemo(() => (settings ? validateSettings(settings) : {}), [settings]);
+  const errorKeys = useMemo(
+    () => orderedErrorKeys({ ...clientErrors, ...serverErrors }),
+    [clientErrors, serverErrors]
+  );
+  const settingsFormValid = Object.keys(clientErrors).length === 0;
+
+  /** Translated message for an invalid field, or undefined. */
+  const errorFor = useCallback(
+    (key) => {
+      const error = clientErrors[key];
+      if (!error) {
+        switch (serverErrors[key]) {
+          case undefined:
+            return undefined;
+          case 'securityForbidden':
+            return t(
+              'settings.validation.securityForbidden',
+              'Changing this value needs the "Settings: Security" permission.'
+            );
+          case 'linkOrigin':
+            return t(
+              'settings.validation.linkOrigin',
+              'This origin is not in the allowed link origins of the server configuration.'
+            );
+          case 'mfaNoEnrolled':
+            return t(
+              'settings.validation.mfaNoEnrolled',
+              'No user has an authenticator app yet, so "Every user" cannot be saved.'
+            );
+          default:
+            return t(
+              'settings.validation.server',
+              'The server rejected this value. Check it and save again.'
+            );
+        }
+      }
+      switch (error.code) {
+        case 'url':
+          return t(
+            'settings.validation.url',
+            'Enter an https URL. http is only allowed for localhost.'
+          );
+        case 'path':
+          return t(
+            'settings.validation.path',
+            'Enter a path that starts with / and contains only URL characters.'
+          );
+        case 'jwtExpiry':
+          return t(
+            'settings.auth.jwtExpiration.invalid',
+            'Enter a number followed by m, h or d, such as 15m, 1h or 30d.'
+          );
+        case 'email':
+          return t(
+            'settings.email.invalidEmail',
+            'Enter a valid email address or leave this field blank.'
+          );
+        case 'range':
+          return t('settings.validation.range', 'Enter a whole number from {min} to {max}.', {
+            min: formatNumber(error.min),
+            max: formatNumber(error.max),
+          });
+        case 'length':
+          return t('settings.validation.length', 'Use at most {max} characters.', {
+            max: formatNumber(error.max),
+          });
+        case 'list':
+          return t(
+            'settings.validation.list',
+            'Use at most {max} fields with up to 128 characters each.',
+            {
+              max: error.max,
+            }
+          );
+        case 'digits':
+          return t('settings.validation.digits', 'Choose 6 or 8 digits.');
+        default:
+          return t(
+            'settings.validation.server',
+            'The server rejected this value. Check it and save again.'
+          );
+      }
+    },
+    [clientErrors, serverErrors, t, formatNumber]
+  );
+
+  /* ---------------- Data loading ---------------- */
+
+  // The fetchers below set state only after the request settles, so the mount
+  // effect does not cascade renders. The initial state is already "loading";
+  // retries and refreshes set it in their handlers.
+  const fetchSettings = useCallback(async () => {
     try {
       const res = await get('/magic-link/settings');
-      console.log('🔍 Settings Response:', res.data);
-      const settingsData = res.data.settings || res.data.data || res.data;
-      setSettings(prev => ({ ...prev, ...settingsData }));
-      
-      // Check if Email Designer is installed
-      if (res.data.emailDesignerInstalled !== undefined) {
-        setEmailDesignerInstalled(res.data.emailDesignerInstalled);
-        console.log('📧 Email Designer:', res.data.emailDesignerInstalled);
-      }
-      
-      // Check if MagicMail is installed
-      if (res.data.magicMailInstalled !== undefined) {
-        setMagicMailInstalled(res.data.magicMailInstalled);
-        console.log('📬 MagicMail:', res.data.magicMailInstalled);
-      }
-      
-      // Check if email provider is configured
-      if (res.data.emailProviderConfigured !== undefined) {
-        setEmailProviderConfigured(res.data.emailProviderConfigured);
-        console.log('✉️ Email Provider Configured:', res.data.emailProviderConfigured);
-      }
-      if (res.data.emailProviderName !== undefined) {
-        setEmailProviderName(res.data.emailProviderName);
-        console.log('📮 Email Provider Name:', res.data.emailProviderName);
-      }
-      
-      // Load rate limit stats
-      try {
-        const statsRes = await get('/magic-link/rate-limit/stats');
-        if (statsRes?.data?.data) {
-          setRateLimitStats(statsRes.data.data);
-        }
-      } catch (error) {
-        console.error('Error loading rate limit stats:', error);
-      }
-      
-      // Load license info — purely for the License Status card. The
-      // marketplace build does not gate any feature; the tier is hard-
-      // pinned to 'enterprise' so every UI-side `[…].includes(tier)`
-      // check resolves true and no "LOCKED" badge / "Premium Required"
-      // banner ever renders. The data block (key, email, etc.) is still
-      // shown on the License page if the admin activated a key.
-      try {
-        const licenseRes = await get('/magic-link/license/status');
-        if (licenseRes?.data) {
-          const licenseData = licenseRes.data.data || {};
-          const enrichedLicenseInfo = {
-            ...licenseData,
-            tier: 'enterprise',
-            valid: licenseRes.data.valid !== false,
-            hasKey: licenseRes.data.hasKey === true,
-          };
-          setLicenseInfo(enrichedLicenseInfo);
-        }
-      } catch (error) {
-        console.error('Error loading license info:', error);
-        // Even on a status-fetch error, treat the plugin as fully unlocked.
-        setLicenseInfo({ tier: 'enterprise', valid: true, hasKey: false });
-      }
-    } catch (error) {
-      if (error.name !== 'AbortError') {
-        console.error('Error loading settings:', error);
-        toggleNotification({
-          type: 'warning',
-          message: formatMessage({ id: getTrad('settings.load.error') })
-        });
-      }
-    } finally {
-      setIsLoading(false);
+      const payload = res?.data ?? {};
+      const formState = toFormState(payload.settings ?? payload.data ?? payload);
+      setSettings(formState);
+      setInitialSettings(formState);
+      setServerErrors({});
+      setIntegrations({
+        emailDesignerInstalled: payload.emailDesignerInstalled === true,
+        magicMailInstalled: payload.magicMailInstalled === true,
+        emailProviderConfigured: payload.emailProviderConfigured === true,
+        emailProviderName:
+          typeof payload.emailProviderName === 'string' ? payload.emailProviderName : null,
+      });
+      setLoadState('ready');
+    } catch {
+      setLoadState('error');
     }
-  }, [get, toggleNotification, formatMessage]);
-  
-  // Load email templates when Email Designer 5 is installed.
-  // The /email-designer-5/templates endpoint may return either a raw array or a wrapped
-  // { data: [...] } / { templates: [...] } payload depending on the installed version,
-  // so we normalise defensively and always fall back to [] on any error.
+  }, [get]);
+
+  /** Retry after a failed load: shows the loader, then fetches again. */
+  const retrySettings = useCallback(() => {
+    setLoadState('loading');
+    return fetchSettings();
+  }, [fetchSettings]);
+
+  /** Fetches only the rate-limit statistics (never the form). */
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await get('/magic-link/rate-limit/stats');
+      setRateLimitStats({ status: 'ready', data: res?.data?.data ?? {} });
+    } catch {
+      setRateLimitStats({ status: 'error', data: null });
+    }
+  }, [get]);
+
+  /** Refreshes the rate-limit statistics and shows their loader meanwhile. */
+  const loadStats = useCallback(() => {
+    setRateLimitStats((current) => ({ status: 'loading', data: current.data }));
+    return fetchStats();
+  }, [fetchStats]);
+
+  /** Number of users with an authenticator app (optional server feature). */
+  const fetchEnrollment = useCallback(async () => {
+    try {
+      const res = await get('/magic-link/totp/enrollment-summary');
+      const summary = parseEnrollmentSummary(res?.data);
+      setEnrollment(
+        summary ? { status: 'ready', summary } : { status: 'unavailable', summary: null }
+      );
+    } catch {
+      setEnrollment({ status: 'unavailable', summary: null });
+    }
+  }, [get]);
+
   useEffect(() => {
-    const fetchEmailTemplates = async () => {
-      if (!emailDesignerInstalled) return;
-
-      try {
-        const response = await get('/email-designer-5/templates');
-        // Different versions of strapi-plugin-email-designer-5 return
-        // either a bare array, a Strapi v4-style `{ data: [...] }`, or a
-        // wrapped `{ templates: [...] }`. Be defensive against all three
-        // so a schema drift in the upstream plugin can't crash the
-        // Settings page (which then locks the admin out of every other
-        // setting in this UI).
-        const payload = response?.data;
-        const templates = Array.isArray(payload)
-          ? payload
-          : payload?.data || payload?.templates || [];
-
-        setEmailTemplates(templates);
-        console.log(`✅ Email Designer templates loaded: ${templates.length}`);
-      } catch (error) {
-        console.error('❌ Error fetching email templates:', error);
-        setEmailTemplates([]);
-      }
+    if (!canReadSettings) return;
+    // The fetchers set state only after their requests settle.
+    const load = async () => {
+      await Promise.all([fetchSettings(), fetchStats(), fetchEnrollment()]);
     };
+    load();
+  }, [canReadSettings, fetchSettings, fetchStats, fetchEnrollment]);
 
-    fetchEmailTemplates();
-  }, [emailDesignerInstalled, get]);
-
-  // Load MagicMail templates when MagicMail is installed
   useEffect(() => {
-    const fetchMagicMailTemplates = async () => {
-      if (magicMailInstalled) {
-        try {
-          const response = await get('/magic-mail/designer/templates');
-          const payload = response?.data;
-          const templates = Array.isArray(payload)
-            ? payload
-            : payload?.data || payload?.templates || [];
-
-          setMagicMailTemplates(templates);
-          console.log(`✅ MagicMail templates loaded: ${templates.length}`);
-        } catch (error) {
-          console.error('❌ Error fetching MagicMail templates:', error);
-          setMagicMailTemplates([]);
-        }
-      }
+    if (!integrations.emailDesignerInstalled) return undefined;
+    let active = true;
+    get('/email-designer-5/templates')
+      .then((res) => active && setEmailDesignerTemplates(listFrom(res?.data)))
+      .catch(() => active && setEmailDesignerTemplates([]));
+    return () => {
+      active = false;
     };
-    
-    fetchMagicMailTemplates();
-  }, [magicMailInstalled, get]);
+  }, [integrations.emailDesignerInstalled, get]);
 
   useEffect(() => {
-    loadSettings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!integrations.magicMailInstalled) return undefined;
+    let active = true;
+    get('/magic-mail/designer/templates')
+      .then((res) => active && setMagicMailTemplates(listFrom(res?.data)))
+      .catch(() => active && setMagicMailTemplates([]));
+    return () => {
+      active = false;
+    };
+  }, [integrations.magicMailInstalled, get]);
+
+  /* ---------------- Form state ---------------- */
+
+  /** Updates one field without dropping sibling changes from batched controls. */
+  const updateSetting = useCallback((key, value) => {
+    setSettings((current) => ({ ...current, [key]: value }));
+    setServerErrors((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
   }, []);
 
-  // Detect if current HTML/Text matches one of the built-in templates
+  /** Updates several fields at once (mode switches, template loads). */
+  const patchSettings = useCallback((values) => {
+    setSettings((current) => ({ ...current, ...values }));
+  }, []);
+
+  /** Opens the section of a field and moves focus to it. */
+  const focusField = useCallback((key) => {
+    const section = FIELD_SECTIONS[key];
+    if (section) setOpenSection(section);
+    focusRequest.current = key;
+    // When the section is already open nothing else changes; this render
+    // runs the focus effect anyway.
+    setFocusTick((tick) => tick + 1);
+  }, []);
+
   useEffect(() => {
-    const templateEntry = getTemplateList().find(({ value }) => {
-      const tpl = getTemplate(value);
-      return tpl.html === settings.message_html && tpl.text === settings.message_text;
+    const key = focusRequest.current;
+    if (!key) return undefined;
+    // Wait for the accordion content to mount before focusing.
+    const frame = window.requestAnimationFrame(() => {
+      const element = document.getElementById(fieldId(key));
+      if (element) {
+        element.focus();
+        element.scrollIntoView?.({ block: 'center' });
+      }
+      focusRequest.current = null;
     });
+    return () => window.cancelAnimationFrame(frame);
+  });
 
-    if (templateEntry && templateEntry.value !== selectedTemplateKey) {
-      setSelectedTemplateKey(templateEntry.value);
+  // After a save, return focus to the control that submitted (a field when
+  // Enter was pressed). The Save button stays disabled once the form is
+  // clean, so it falls back to the open section header. A field focus
+  // request (server rejection) runs later, in the next frame, and wins.
+  useEffect(() => {
+    if (isSaving || !focusBeforeSave.current) return;
+    const previous = focusBeforeSave.current;
+    focusBeforeSave.current = null;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    if (previous.isConnected && !previous.disabled) previous.focus();
+    else getSectionFocusTarget()?.focus();
+  }, [isSaving, getSectionFocusTarget]);
+
+  const discardChanges = () => {
+    setSettings(initialSettings);
+    setServerErrors({});
+  };
+
+  /* ---------------- Save ---------------- */
+
+  /** Validates, sends only the changed fields and adopts the server's response. */
+  const handleSave = async (event) => {
+    event.preventDefault();
+    if (!canWriteSettings || isPermissionLoading) return;
+    if (!isDirty || isSaving) return;
+    if (!settingsFormValid) {
+      focusField(errorKeys[0]);
+      toggleNotification({
+        type: 'warning',
+        message: t(
+          'settings.save.invalid',
+          'Some fields need attention. Fix them before you save.'
+        ),
+      });
+      return;
     }
-  }, [settings.message_html, settings.message_text, selectedTemplateKey]);
 
-  // Auto-disable-by-tier removed in the marketplace refactor: the
-  // plugin no longer downgrades the user's saved settings based on a
-  // license tier. All toggles remain in the state the admin saved them.
+    // Controls are disabled while saving, so the browser drops focus to <body>.
+    focusBeforeSave.current = document.activeElement;
+    const payload = buildSavePayload(initialSettings, settings);
+    if (language && language !== initialSettings.ui_language) payload.ui_language = language;
 
-  const handleSave = async (e) => {
-    e.preventDefault();
     setIsSaving(true);
     try {
-      // Convert comma-separated strings to arrays before saving
-      const toSave = { ...settings, ui_language: language };
-      if (typeof toSave.context_whitelist === 'string') {
-        toSave.context_whitelist = toSave.context_whitelist.split(',').map(s => s.trim()).filter(Boolean);
-      }
-      if (typeof toSave.context_blacklist === 'string') {
-        toSave.context_blacklist = toSave.context_blacklist.split(',').map(s => s.trim()).filter(Boolean);
-      }
-      await put('/magic-link/settings', toSave);
+      const response = await put('/magic-link/settings', payload);
+      const saved = toFormState(response?.data?.settings ?? { ...initialSettings, ...payload });
+      setSettings(saved);
+      setInitialSettings(saved);
+      setServerErrors({});
       toggleNotification({
         type: 'success',
-        message: formatMessage({ id: getTrad('settings.save.success') })
+        message: t('settings.save.success', 'Settings saved'),
       });
     } catch (error) {
-      if (error.name !== 'AbortError') {
-        console.error('Error saving settings:', error);
+      const field = getServerErrorField(error);
+      const rejected = getServerErrorFields(error);
+      if (rejected) {
+        // Highlight and focus the fields the server named.
+        if (rejected.fields.length > 0) {
+          const named = Object.fromEntries(rejected.fields.map((name) => [name, rejected.code]));
+          setServerErrors(named);
+          focusField(orderedErrorKeys(named)[0]);
+        }
         toggleNotification({
           type: 'danger',
-          message: formatMessage({ id: getTrad('settings.save.error') })
+          message: {
+            securityForbidden: t(
+              'settings.save.securityForbidden',
+              'Changing link targets, templates, sender, account, MFA, code or rate-limit rules needs the "Settings: Security" permission.'
+            ),
+            linkOrigin: t(
+              'settings.save.linkOriginNotAllowed',
+              'Login link URLs must use an origin allowed in the server configuration.'
+            ),
+            mfaNoEnrolled: t(
+              'settings.save.mfaNoEnrolled',
+              'No user has an authenticator app yet. Choose "Users who set up an app" first so users can set one up, then require it for every user.'
+            ),
+          }[rejected.code],
+        });
+      } else if (field) {
+        setServerErrors({ [field]: 'server' });
+        focusField(field);
+        toggleNotification({
+          type: 'danger',
+          message: t(
+            'settings.save.rejected',
+            'The server rejected a value. Check the highlighted field.'
+          ),
+        });
+      } else {
+        toggleNotification({
+          type: 'danger',
+          message: t('settings.save.error', 'Settings could not be saved. Please try again.'),
         });
       }
     } finally {
@@ -494,2430 +617,341 @@ const SettingsModern = () => {
     }
   };
 
-  const updateSetting = (key, value) => {
-    setSettings({ ...settings, [key]: value });
-  };
-  
-  // Tier-gating helper retained for backward compatibility with existing
-  // call sites in the JSX below. In the marketplace build it always
-  // permits — every feature is available without a license.
-  // eslint-disable-next-line no-unused-vars
-  const checkLicenseAndSetMode = (_mode) => true;
+  /* ---------------- Rate limit actions ---------------- */
 
-  const handleLanguageChange = (newLang) => {
-    changeLanguage(newLang);
-  };
-  
+  /** Cleans expired rate-limit entries; refreshes only the statistics. */
   const handleRateLimitCleanup = async () => {
+    if (!canWriteSettings || isPermissionLoading) return;
+    setIsCleaning(true);
     try {
-      await get('/magic-link/rate-limit/cleanup');
+      await post('/magic-link/rate-limit/cleanup');
       toggleNotification({
         type: 'success',
-        message: formatMessage({ id: getTrad('settings.rateLimit.cleanupSuccess') })
+        message: t('settings.rateLimit.cleanupSuccess', 'Expired entries removed'),
       });
-      loadSettings();
-    } catch (error) {
+      await loadStats();
+    } catch {
       toggleNotification({
         type: 'danger',
-        message: formatMessage({ id: getTrad('settings.rateLimit.cleanupError') })
+        message: t('settings.rateLimit.cleanupError', 'Expired entries could not be removed'),
       });
-    }
-  };
-  
-  const handleRateLimitReset = async () => {
-    if (window.confirm(formatMessage({ id: getTrad('settings.rateLimit.resetConfirm') }))) {
-      try {
-        await get('/magic-link/rate-limit/reset');
-        toggleNotification({
-          type: 'success',
-          message: formatMessage({ id: getTrad('settings.rateLimit.resetSuccess') })
-        });
-        loadSettings();
-      } catch (error) {
-        toggleNotification({
-          type: 'danger',
-          message: formatMessage({ id: getTrad('settings.rateLimit.resetError') })
-        });
-      }
+    } finally {
+      setIsCleaning(false);
     }
   };
 
-  if (isLoading) {
+  /** Clears every rate-limit entry after confirmation; refreshes only the statistics. */
+  const handleRateLimitReset = async () => {
+    if (!canWriteSettings || isPermissionLoading) return;
+    try {
+      await post('/magic-link/rate-limit/reset');
+      toggleNotification({
+        type: 'success',
+        message: t('settings.rateLimit.resetSuccess', 'All rate limits reset'),
+      });
+      setConfirmReset(false);
+      await loadStats();
+    } catch {
+      toggleNotification({
+        type: 'danger',
+        message: t('settings.rateLimit.resetError', 'Rate limits could not be reset'),
+      });
+    }
+  };
+
+  /* ---------------- Render ---------------- */
+
+  const pageTitle = <PluginPageTitle>{t('settings.pageTitle', 'Settings')}</PluginPageTitle>;
+
+  if (isPermissionLoading) {
     return (
-      <Box padding={8}>
-        <Typography>{formatMessage({ id: getTrad('settings.load.loading') })}</Typography>
-      </Box>
+      <>
+        {pageTitle}
+        <Page.Loading />
+      </>
     );
   }
 
-  const statusActive = formatMessage({ id: getTrad('status.active') });
-  const statusInactive = formatMessage({ id: getTrad('status.inactive') });
+  if (permissionError) {
+    return (
+      <Page.Main>
+        {pageTitle}
+        <Page.Error
+          content={t(
+            'common.permissions.loadError',
+            'Your permissions could not be loaded. Reload the page to try again.'
+          )}
+        />
+      </Page.Main>
+    );
+  }
+
+  if (!canReadSettings) {
+    return (
+      <Page.Main>
+        {pageTitle}
+        <Page.NoPermissions />
+      </Page.Main>
+    );
+  }
+
+  if (loadState === 'error') {
+    return (
+      <Page.Main>
+        {pageTitle}
+        <Page.Error
+          content={t('settings.load.error', 'Settings could not be loaded.')}
+          action={
+            <Button variant="secondary" startIcon={<ArrowClockwise />} onClick={retrySettings}>
+              {t('settings.retry', 'Try again')}
+            </Button>
+          }
+        />
+      </Page.Main>
+    );
+  }
+
+  if (!isReady) {
+    return (
+      <>
+        {pageTitle}
+        <Page.Loading>{t('settings.load.loading', 'Loading settings...')}</Page.Loading>
+      </>
+    );
+  }
+
+  const statusOn = t('status.active', 'ACTIVE');
+  const statusOff = t('status.inactive', 'INACTIVE');
+  const sectionProps = {
+    settings,
+    update: updateSetting,
+    patch: patchSettings,
+    disabled: formDisabled,
+    errorFor,
+    statusOn,
+    statusOff,
+  };
+  const sections = [
+    {
+      value: 'general',
+      icon: Cog,
+      title: t('settings.section.general', 'General'),
+      content: <GeneralSection {...sectionProps} />,
+    },
+    {
+      value: 'auth',
+      icon: Key,
+      title: t('settings.section.auth', 'Authentication'),
+      content: <AuthSection {...sectionProps} />,
+    },
+    {
+      value: 'mfa',
+      icon: Lock,
+      title: t('settings.section.mfa', 'Sign-in modes and MFA'),
+      content: (
+        <MfaSection
+          {...sectionProps}
+          enrollment={enrollment}
+          savedMfaMode={resolveMfaMode(initialSettings)}
+        />
+      ),
+    },
+    {
+      value: 'email',
+      icon: Mail,
+      title: t('settings.section.email', 'Email'),
+      content: (
+        <EmailSection
+          {...sectionProps}
+          integrations={integrations}
+          emailDesignerTemplates={emailDesignerTemplates}
+          magicMailTemplates={magicMailTemplates}
+        />
+      ),
+    },
+    {
+      value: 'ratelimit',
+      icon: Clock,
+      title: t('settings.section.rateLimit', 'Rate limiting'),
+      content: (
+        <RateLimitSection
+          {...sectionProps}
+          canManage={canWriteSettings}
+          stats={rateLimitStats}
+          onRetryStats={loadStats}
+          onCleanup={handleRateLimitCleanup}
+          onRequestReset={() => setConfirmReset(true)}
+          isCleaning={isCleaning}
+        />
+      ),
+    },
+    {
+      value: 'advanced',
+      icon: Code,
+      title: t('settings.section.advanced', 'Advanced'),
+      content: <AdvancedSection {...sectionProps} />,
+    },
+  ];
+  const invalidSections = new Set(errorKeys.map((key) => FIELD_SECTIONS[key]).filter(Boolean));
 
   return (
-    <Container as="form" onSubmit={handleSave}>
-      {/* Sticky Save Bar */}
-      <StickySaveBar background="neutral0" paddingTop={5} paddingBottom={5} paddingLeft={6} paddingRight={6}>
-        <Flex justifyContent="space-between" alignItems="center">
-          <Flex direction="column" gap={1} alignItems="flex-start">
-            <Typography variant="alpha" fontWeight="bold" textColor="neutral800" tag="h1" style={{ fontSize: '24px' }}>
-              {formatMessage({ id: getTrad('settings.page.title') })}
+    <Page.Main>
+      {pageTitle}
+      <Container ref={formRef} onSubmit={handleSave} noValidate aria-busy={isSaving}>
+        <StickySaveBar>
+          <Flex direction="column" gap={1} alignItems="flex-start" style={{ minWidth: 0 }}>
+            <Typography variant="alpha" tag="h1" textColor="neutral800">
+              {t('settings.page.title', 'Magic Link Settings')}
             </Typography>
             <Typography variant="epsilon" textColor="neutral600" tag="p">
-              {formatMessage({ id: getTrad('settings.page.subtitle') })}
+              {t('settings.page.subtitle', 'Configure passwordless authentication for your users')}
             </Typography>
           </Flex>
-          <Button
-            type="submit"
-            loading={isSaving}
-            startIcon={<Check />}
-            disabled={isSaving}
-            size="L"
-            style={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white',
-              fontWeight: '600',
-              padding: '12px 24px',
-              border: 'none',
-              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            }}
-            onMouseEnter={(e) => {
-              if (!isSaving) {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 8px 20px rgba(102, 126, 234, 0.5)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
-            }}
-          >
-            {isSaving ? formatMessage({ id: getTrad('settings.save.saving') }) : formatMessage({ id: getTrad('settings.save.button') })}
-          </Button>
-        </Flex>
-      </StickySaveBar>
+          <HeaderActions>
+            {errorKeys.length > 0 ? (
+              <Button
+                variant="danger-light"
+                size="M"
+                startIcon={<WarningCircle />}
+                onClick={() => focusField(errorKeys[0])}
+              >
+                {t(
+                  'settings.errors.summary',
+                  '{count, plural, one {# field needs attention} other {# fields need attention}}',
+                  { count: errorKeys.length }
+                )}
+              </Button>
+            ) : null}
+            {isDirty ? (
+              <>
+                <UnsavedBadge role="status">
+                  {t('common.unsaved.badge', 'Unsaved changes')}
+                </UnsavedBadge>
+                <Button
+                  variant="tertiary"
+                  size="M"
+                  onClick={() => guard.runGuarded(discardChanges)}
+                  disabled={isSaving}
+                >
+                  {t('settings.discard', 'Discard')}
+                </Button>
+              </>
+            ) : null}
+            {canWriteSettings ? (
+              <SaveButton
+                type="submit"
+                size="M"
+                loading={isSaving}
+                startIcon={<Check />}
+                disabled={isSaving || isPermissionLoading || !canWriteSettings || !isDirty}
+              >
+                {isSaving
+                  ? t('settings.save.saving', 'Saving...')
+                  : t('settings.save.button', 'Save Changes')}
+              </SaveButton>
+            ) : null}
+          </HeaderActions>
+        </StickySaveBar>
 
-      {/* Content */}
-      <Box paddingTop={6} paddingLeft={6} paddingRight={6} paddingBottom={10}>
-        {/* Info Banner */}
-        <Box
-          padding={5}
-          style={{ borderRadius: theme.borderRadius.lg, border: '2px solid rgba(2, 132, 199, 0.3)', marginBottom: '24px', background: 'rgba(2, 132, 199, 0.06)' }}
-        >
-          <Flex gap={3} alignItems="flex-start">
-            <Box
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '50%',
-                background: 'var(--colors-primary600, #0284C7)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
+        <Content>
+          {!canWriteSettings ? (
+            <Alert
+              variant="default"
+              closeLabel={t('common.close', 'Close')}
+              title={t('settings.permission.readOnlyTitle', 'Read-only')}
             >
-              <Cog style={{ width: '20px', height: '20px', color: 'white' }} />
-            </Box>
-            <Box>
-              <Typography variant="pi" fontWeight="bold" textColor="neutral800" style={{ fontSize: '14px', marginBottom: '4px', display: 'block' }}>
-                {formatMessage({ id: getTrad('settings.info.header') })}
+              {t(
+                'settings.permission.readOnly',
+                'You have read-only access. Changes cannot be saved.'
+              )}
+            </Alert>
+          ) : null}
+
+          <InfoBanner>
+            <BannerIcon aria-hidden="true">
+              <Cog />
+            </BannerIcon>
+            <Flex direction="column" gap={1} alignItems="flex-start" style={{ minWidth: 0 }}>
+              <Typography variant="omega" fontWeight="bold" textColor="neutral800" tag="p">
+                {t('settings.info.header', 'Important Configuration Notes')}
               </Typography>
-              <Typography variant="pi" textColor="neutral600" style={{ lineHeight: '1.6', fontSize: '13px' }}>
-                • {formatMessage({ id: getTrad('settings.info.line1') })}<br/>
-                • {formatMessage({ id: getTrad('settings.info.line2') })}<br/>
-                • {formatMessage({ id: getTrad('settings.info.line3') })}<br/>
-                • {formatMessage({ id: getTrad('settings.info.line4') })}
+              <Typography variant="pi" textColor="neutral700" tag="div">
+                <BulletList>
+                  <li>{t('settings.info.line1', 'Changes take effect after you save.')}</li>
+                  <li>{t('settings.info.line2', 'Make sure all URLs are correctly configured')}</li>
+                  <li>
+                    {t(
+                      'settings.info.line3',
+                      'Test the configuration after saving with a test token'
+                    )}
+                  </li>
+                  <li>
+                    {t(
+                      'settings.info.line4',
+                      'Green cards are active features, grey cards are inactive.'
+                    )}
+                  </li>
+                </BulletList>
               </Typography>
-            </Box>
-          </Flex>
-        </Box>
+            </Flex>
+          </InfoBanner>
 
-        <Accordion.Root defaultValue="general">
-          {/* General Settings */}
-          <Accordion.Item value="general">
-            <Accordion.Header>
-              <Accordion.Trigger
-                icon={Cog}
-                description={formatMessage({ id: getTrad('settings.section.general.description') })}
-              >
-                {formatMessage({ id: getTrad('settings.section.general') })}
-              </Accordion.Trigger>
-            </Accordion.Header>
-            <Accordion.Content>
-              <Box padding={6}>
-                {/* Language Selector - Compact */}
-                <Box background="neutral50" padding={4} style={{ borderRadius: theme.borderRadius.md, border: '2px solid rgba(128, 128, 128, 0.2)', marginBottom: '24px' }}>
-                  <Flex gap={4} alignItems="center">
-                    <Typography variant="pi" fontWeight="bold" style={{ minWidth: '150px' }}>
-                      {formatMessage({ id: getTrad('settings.language.label') })}
-                    </Typography>
-                    <Box style={{ width: '200px' }}>
-                      <SingleSelect
-                        value={language}
-                        onChange={handleLanguageChange}
-                        size="S"
-                      >
-                        <SingleSelectOption value="en">{formatMessage({ id: getTrad('settings.language.en') })}</SingleSelectOption>
-                        <SingleSelectOption value="de">{formatMessage({ id: getTrad('settings.language.de') })}</SingleSelectOption>
-                        <SingleSelectOption value="fr">{formatMessage({ id: getTrad('settings.language.fr') })}</SingleSelectOption>
-                        <SingleSelectOption value="es">{formatMessage({ id: getTrad('settings.language.es') })}</SingleSelectOption>
-                        <SingleSelectOption value="pt">{formatMessage({ id: getTrad('settings.language.pt') })}</SingleSelectOption>
-                      </SingleSelect>
-                    </Box>
-                    <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', flex: 1 }}>
-                      {formatMessage({ id: getTrad('settings.language.hint') })}
-                    </Typography>
-                  </Flex>
-                </Box>
+          <Box>
+            <Accordion.Root value={openSection} onValueChange={setOpenSection}>
+              {sections.map((section) => (
+                <Accordion.Item key={section.value} value={section.value}>
+                  <Accordion.Header>
+                    {/* DS 2.2.4 renders a trigger description only at size M, which drops
+                        the icon; the error marker is part of the title (and its name). */}
+                    <Accordion.Trigger icon={section.icon}>
+                      {section.title}
+                      {invalidSections.has(section.value) ? (
+                        // The space keeps "General Fields to fix" apart in the accessible name.
+                        <>
+                          {' '}
+                          <SectionErrorMark>
+                            {t('settings.section.fieldsToFix', 'Fields to fix')}
+                          </SectionErrorMark>
+                        </>
+                      ) : null}
+                    </Accordion.Trigger>
+                  </Accordion.Header>
+                  <Accordion.Content>{section.content}</Accordion.Content>
+                </Accordion.Item>
+              ))}
+            </Accordion.Root>
+          </Box>
 
-                {/* Feature Toggles */}
-                <Box background="neutral100" padding={5} style={{ borderRadius: theme.borderRadius.md, marginBottom: '24px' }}>
-                  <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', textAlign: 'center', color: 'var(--colors-neutral700)' }}>
-                    {formatMessage({ id: getTrad('settings.features.title') })}
-                  </Typography>
-                  <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '20px', display: 'block', textAlign: 'center', fontSize: '12px' }}>
-                    {formatMessage({ id: getTrad('settings.features.subtitle') })}
-                  </Typography>
-                  <Grid.Root gap={4}>
-                    {/*
-                      The "Enable Magic Link plugin" toggle was removed in
-                      the marketplace build. Allowing an admin to flip a
-                      single switch and silently turn every public auth
-                      route into a 400 was a foot-gun: if it gets toggled
-                      off by mistake nobody can log in until somebody
-                      finds the toggle again. The plugin is now always-on
-                      once installed; uninstall is the supported off
-                      switch.
-                    */}
-                    <Grid.Item col={4} s={6} xs={12}>
-                      <ToggleCard $active={settings.createUserIfNotExists} $statusLabel={settings.createUserIfNotExists ? statusActive : statusInactive}>
-                        <Flex direction="column" gap={3}>
-                          <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                            <Switch
-                              checked={settings.createUserIfNotExists}
-                              onCheckedChange={(checked) => updateSetting('createUserIfNotExists', checked)}
-                            />
-                          </Flex>
-                          <Box>
-                            <Typography variant="pi" fontWeight="bold" style={{ fontSize: '14px', marginBottom: '6px', display: 'block', textAlign: 'center' }}>
-                              {formatMessage({ id: getTrad('settings.feature.createUser.title') })}
-                            </Typography>
-                            <Typography variant="omega" textColor="neutral600" style={{ fontSize: '12px', lineHeight: '1.4', textAlign: 'center' }}>
-                              {formatMessage({ id: getTrad('settings.feature.createUser.description') })}
-                            </Typography>
-                          </Box>
-                        </Flex>
-                      </ToggleCard>
-                    </Grid.Item>
-                    <Grid.Item col={4} s={6} xs={12}>
-                      <ToggleCard $active={settings.stays_valid} $statusLabel={settings.stays_valid ? statusActive : statusInactive}>
-                        <Flex direction="column" gap={3}>
-                          <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                            <Switch
-                              checked={settings.stays_valid}
-                              onCheckedChange={(checked) => updateSetting('stays_valid', checked)}
-                            />
-                          </Flex>
-                          <Box>
-                            <Typography variant="pi" fontWeight="bold" style={{ fontSize: '14px', marginBottom: '6px', display: 'block', textAlign: 'center' }}>
-                              {formatMessage({ id: getTrad('settings.feature.staysValid.title') })}
-                            </Typography>
-                            <Typography variant="omega" textColor="neutral600" style={{ fontSize: '12px', lineHeight: '1.4', textAlign: 'center' }}>
-                              {formatMessage({ id: getTrad('settings.feature.staysValid.description') })}
-                            </Typography>
-                          </Box>
-                        </Flex>
-                      </ToggleCard>
-                    </Grid.Item>
-                  </Grid.Root>
-                </Box>
-
-                {/* Basic Settings */}
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
-                  {formatMessage({ id: getTrad('settings.time.title') })}
-                </Typography>
-                <Grid.Root gap={6} style={{ marginBottom: '32px' }}>
-                  <Grid.Item col={6} s={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.expire.label') })}
-                      </Typography>
-                      <NumberInput
-                        hint={formatMessage({ id: getTrad('settings.expire.hint') })}
-                        value={settings.expire_period}
-                        onValueChange={val => updateSetting('expire_period', val)}
-                        placeholder={formatMessage({ id: getTrad('settings.expire.placeholder') })}
-                      />
-                      <Box padding={2} background="primary50" style={{ borderRadius: '4px', marginTop: '8px' }}>
-                        <Typography variant="pi" textColor="primary700" style={{ fontSize: '11px' }}>
-                          {formatMessage({ id: getTrad('settings.expire.recommendation') })}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Grid.Item>
-                  <Grid.Item col={6} s={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.tokenLength.label') })}
-                      </Typography>
-                      <NumberInput
-                        hint={formatMessage({ id: getTrad('settings.tokenLength.hint') })}
-                        value={settings.token_length}
-                        onValueChange={val => updateSetting('token_length', val)}
-                        placeholder={formatMessage({ id: getTrad('settings.tokenLength.placeholder') })}
-                      />
-                      <Box padding={2} background="success50" style={{ borderRadius: '4px', marginTop: '8px' }}>
-                        <Typography variant="pi" textColor="success700" style={{ fontSize: '11px' }}>
-                          {formatMessage({ id: getTrad('settings.tokenLength.recommendation') }, { length: settings.token_length })}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Grid.Item>
-                </Grid.Root>
-
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
-                  {formatMessage({ id: getTrad('settings.security.title') })}
-                </Typography>
-                <Grid.Root gap={6} style={{ marginBottom: '32px' }}>
-                  <Grid.Item col={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.maxAttempts.label') })}
-                      </Typography>
-                      <NumberInput
-                        hint={formatMessage({ id: getTrad('settings.maxAttempts.hint') })}
-                        value={settings.max_login_attempts}
-                        onValueChange={val => updateSetting('max_login_attempts', val)}
-                        placeholder={formatMessage({ id: getTrad('settings.maxAttempts.placeholder') })}
-                      />
-                      <Box padding={2} background="warning50" style={{ borderRadius: '4px', marginTop: '8px' }}>
-                        <Typography variant="pi" textColor="warning700" style={{ fontSize: '11px' }}>
-                          {formatMessage({ id: getTrad('settings.maxAttempts.warning') })}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Grid.Item>
-                </Grid.Root>
-
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
-                  {formatMessage({ id: getTrad('settings.context.title') })}
-                </Typography>
-                <Grid.Root gap={6} style={{ marginBottom: '32px' }}>
-                  <Grid.Item col={6} s={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.context.whitelist.label') })}
-                      </Typography>
-                      <TextInput
-                        hint={formatMessage({ id: getTrad('settings.context.whitelist.hint') })}
-                        value={typeof settings.context_whitelist === 'string' ? settings.context_whitelist : (settings.context_whitelist || []).join(', ')}
-                        onChange={(e) => {
-                          updateSetting('context_whitelist', e.target.value);
-                        }}
-                        onBlur={(e) => {
-                          const value = typeof settings.context_whitelist === 'string' ? settings.context_whitelist : '';
-                          const list = value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
-                          updateSetting('context_whitelist', list);
-                        }}
-                        placeholder={formatMessage({ id: getTrad('settings.context.whitelist.placeholder') })}
-                      />
-                      <Box padding={2} background="primary50" style={{ borderRadius: '4px', marginTop: '8px' }}>
-                        <Typography variant="pi" textColor="primary700" style={{ fontSize: '11px' }}>
-                          {formatMessage({ id: getTrad('settings.context.whitelist.info') })}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Grid.Item>
-                  <Grid.Item col={6} s={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.context.blacklist.label') })}
-                      </Typography>
-                      <TextInput
-                        hint={formatMessage({ id: getTrad('settings.context.blacklist.hint') })}
-                        value={typeof settings.context_blacklist === 'string' ? settings.context_blacklist : (settings.context_blacklist || []).join(', ')}
-                        onChange={(e) => {
-                          updateSetting('context_blacklist', e.target.value);
-                        }}
-                        onBlur={(e) => {
-                          const value = typeof settings.context_blacklist === 'string' ? settings.context_blacklist : '';
-                          const list = value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
-                          updateSetting('context_blacklist', list);
-                        }}
-                        placeholder={formatMessage({ id: getTrad('settings.context.blacklist.placeholder') })}
-                      />
-                      <Box padding={2} background="danger50" style={{ borderRadius: '4px', marginTop: '8px' }}>
-                        <Typography variant="pi" textColor="danger700" style={{ fontSize: '11px' }}>
-                          {formatMessage({ id: getTrad('settings.context.blacklist.info') })}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Grid.Item>
-                </Grid.Root>
-
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
-                  {formatMessage({ id: getTrad('settings.api.title') })}
-                </Typography>
-                <Grid.Root gap={6}>
-                  <Grid.Item col={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.loginPath.label') })}
-                      </Typography>
-                      <TextInput
-                        hint={formatMessage({ id: getTrad('settings.loginPath.hint') })}
-                        value={settings.login_path}
-                        onChange={(e) => updateSetting('login_path', e.target.value)}
-                        placeholder={formatMessage({ id: getTrad('settings.loginPath.placeholder') })}
-                      />
-                      <Box padding={2} background="neutral100" style={{ borderRadius: '4px', marginTop: '8px', border: '1px solid rgba(128, 128, 128, 0.2)' }}>
-                        <Typography variant="pi" textColor="neutral700" style={{ fontSize: '11px', fontFamily: 'monospace' }}>
-                          {formatMessage({ id: getTrad('settings.loginPath.fullPath') }, { path: settings.login_path })}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Grid.Item>
-                  <Grid.Item col={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.confirmationUrl.label') })}
-                      </Typography>
-                      <TextInput
-                        hint={formatMessage({ id: getTrad('settings.confirmationUrl.hint') })}
-                        value={settings.confirmationUrl}
-                        onChange={(e) => updateSetting('confirmationUrl', e.target.value)}
-                        placeholder={formatMessage({ id: getTrad('settings.confirmationUrl.placeholder') })}
-                      />
-                      <Box padding={2} background="primary50" style={{ borderRadius: '4px', marginTop: '8px' }}>
-                        <Typography variant="pi" textColor="primary700" style={{ fontSize: '11px' }}>
-                          {formatMessage({ id: getTrad('settings.confirmationUrl.example') }, { url: settings.confirmationUrl || 'https://yourapp.com' })}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Grid.Item>
-                  <Grid.Item col={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.callbackUrl.label') })}
-                      </Typography>
-                      <TextInput
-                        hint={formatMessage({ id: getTrad('settings.callbackUrl.hint') })}
-                        value={settings.callback_url}
-                        onChange={(e) => updateSetting('callback_url', e.target.value)}
-                        placeholder={formatMessage({ id: getTrad('settings.callbackUrl.placeholder') })}
-                      />
-                      <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '8px' }}>
-                        {formatMessage({ id: getTrad('settings.callbackUrl.note') })}
-                      </Typography>
-                    </Box>
-                  </Grid.Item>
-                  
-                  {/* Frontend URL Settings */}
-                  <Grid.Item col={12}>
-                    <Divider style={{ margin: '16px 0' }} />
-                    <Typography variant="delta" fontWeight="bold" style={{ marginBottom: '16px', display: 'block' }}>
-                      Frontend URL (for SPA/Mobile Apps)
-                    </Typography>
-                  </Grid.Item>
-                  <Grid.Item col={6} s={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        Frontend Base URL
-                      </Typography>
-                      <TextInput
-                        value={settings.frontend_url || ''}
-                        onChange={(e) => updateSetting('frontend_url', e.target.value)}
-                        placeholder="https://myapp.com"
-                      />
-                      <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '8px' }}>
-                        Base URL deiner Frontend-App (React, Vue, etc.). Wenn leer, wird confirmationUrl verwendet.
-                      </Typography>
-                    </Box>
-                  </Grid.Item>
-                  <Grid.Item col={6} s={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        Login Path
-                      </Typography>
-                      <TextInput
-                        value={settings.frontend_login_path || '/auth/magic-link'}
-                        onChange={(e) => updateSetting('frontend_login_path', e.target.value)}
-                        placeholder="/auth/magic-link"
-                      />
-                      <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '8px' }}>
-                        Pfad der an die Frontend URL angehaengt wird.
-                      </Typography>
-                    </Box>
-                  </Grid.Item>
-                  <Grid.Item col={12}>
-                    <Box padding={3} background="primary50" style={{ borderRadius: '8px', marginTop: '8px' }}>
-                      <Typography variant="pi" fontWeight="bold" style={{ display: 'block', marginBottom: '4px' }}>
-                        Resultierende Magic Link URL:
-                      </Typography>
-                      <Typography variant="pi" textColor="primary700" style={{ fontFamily: 'monospace', fontSize: '12px' }}>
-                        {settings.frontend_url 
-                          ? `${settings.frontend_url.replace(/\/$/, '')}${settings.frontend_login_path || '/auth/magic-link'}?loginToken=ABC123`
-                          : `${settings.confirmationUrl || 'http://localhost:1337/api/magic-link/login'}?loginToken=ABC123`
-                        }
-                      </Typography>
-                    </Box>
-                  </Grid.Item>
-                </Grid.Root>
-              </Box>
-            </Accordion.Content>
-          </Accordion.Item>
-
-          {/* Authentication Settings */}
-          <Accordion.Item value="auth">
-            <Accordion.Header>
-              <Accordion.Trigger
-                icon={Shield}
-                description={formatMessage({ id: getTrad('settings.section.auth.description') })}
-              >
-                {formatMessage({ id: getTrad('settings.section.auth') })}
-              </Accordion.Trigger>
-            </Accordion.Header>
-            <Accordion.Content>
-              <Box padding={6}>
-                {/* Auth Toggles */}
-                <Box background="neutral100" padding={5} style={{ borderRadius: theme.borderRadius.md, marginBottom: '24px' }}>
-                  <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', textAlign: 'center', color: 'var(--colors-neutral700)' }}>
-                    {formatMessage({ id: getTrad('settings.auth.options.title') })}
-                  </Typography>
-                  <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '20px', display: 'block', textAlign: 'center', fontSize: '12px' }}>
-                    {formatMessage({ id: getTrad('settings.auth.options.subtitle') })}
-                  </Typography>
-                  <Grid.Root gap={4}>
-                    <Grid.Item col={3} s={6} xs={12}>
-                      <ToggleCard $active={settings.verify_email} $statusLabel={settings.verify_email ? statusActive : statusInactive}>
-                        <Flex direction="column" gap={3}>
-                          <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                            <Switch
-                              checked={settings.verify_email}
-                              onCheckedChange={(checked) => updateSetting('verify_email', checked)}
-                              size="L"
-                            />
-                          </Flex>
-                          <Box>
-                            <Typography variant="pi" fontWeight="bold" style={{ fontSize: '14px', marginBottom: '6px', display: 'block', textAlign: 'center' }}>
-                              {formatMessage({ id: getTrad('settings.auth.verifyEmail.title') })}
-                            </Typography>
-                            <Typography variant="omega" textColor="neutral600" style={{ fontSize: '12px', lineHeight: '1.4', textAlign: 'center' }}>
-                              {formatMessage({ id: getTrad('settings.auth.verifyEmail.description') })}
-                            </Typography>
-                          </Box>
-                        </Flex>
-                      </ToggleCard>
-                    </Grid.Item>
-                    <Grid.Item col={3} s={6} xs={12}>
-                      <ToggleCard $active={settings.welcome_email} $statusLabel={settings.welcome_email ? statusActive : statusInactive}>
-                        <Flex direction="column" gap={3}>
-                          <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                            <Switch
-                              checked={settings.welcome_email}
-                              onCheckedChange={(checked) => updateSetting('welcome_email', checked)}
-                              size="L"
-                            />
-                          </Flex>
-                          <Box>
-                            <Typography variant="pi" fontWeight="bold" style={{ fontSize: '14px', marginBottom: '6px', display: 'block', textAlign: 'center' }}>
-                              {formatMessage({ id: getTrad('settings.auth.welcomeEmail.title') })}
-                            </Typography>
-                            <Typography variant="omega" textColor="neutral600" style={{ fontSize: '12px', lineHeight: '1.4', textAlign: 'center' }}>
-                              {formatMessage({ id: getTrad('settings.auth.welcomeEmail.description') })}
-                            </Typography>
-                          </Box>
-                        </Flex>
-                      </ToggleCard>
-                    </Grid.Item>
-                    <Grid.Item col={3} s={6} xs={12}>
-                      <ToggleCard $active={settings.use_jwt_token} $statusLabel={settings.use_jwt_token ? statusActive : statusInactive}>
-                        <Flex direction="column" gap={3}>
-                          <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                            <Switch
-                              checked={settings.use_jwt_token}
-                              onCheckedChange={(checked) => updateSetting('use_jwt_token', checked)}
-                              size="L"
-                            />
-                          </Flex>
-                          <Box>
-                            <Typography variant="pi" fontWeight="bold" style={{ fontSize: '14px', marginBottom: '6px', display: 'block', textAlign: 'center' }}>
-                              {formatMessage({ id: getTrad('settings.auth.useJwt.title') })}
-                            </Typography>
-                            <Typography variant="omega" textColor="neutral600" style={{ fontSize: '12px', lineHeight: '1.4', textAlign: 'center' }}>
-                              {formatMessage({ id: getTrad('settings.auth.useJwt.description') })}
-                            </Typography>
-                          </Box>
-                        </Flex>
-                      </ToggleCard>
-                    </Grid.Item>
-                    <Grid.Item col={3} s={6} xs={12}>
-                      <ToggleCard $active={settings.store_login_info} $statusLabel={settings.store_login_info ? statusActive : statusInactive}>
-                        <Flex direction="column" gap={3}>
-                          <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                            <Switch
-                              checked={settings.store_login_info}
-                              onCheckedChange={(checked) => updateSetting('store_login_info', checked)}
-                              size="L"
-                            />
-                          </Flex>
-                          <Box>
-                            <Typography variant="pi" fontWeight="bold" style={{ fontSize: '14px', marginBottom: '6px', display: 'block', textAlign: 'center' }}>
-                              {formatMessage({ id: getTrad('settings.auth.storeLoginInfo.title') })}
-                            </Typography>
-                            <Typography variant="omega" textColor="neutral600" style={{ fontSize: '12px', lineHeight: '1.4', textAlign: 'center' }}>
-                              {formatMessage({ id: getTrad('settings.auth.storeLoginInfo.description') })}
-                            </Typography>
-                          </Box>
-                        </Flex>
-                      </ToggleCard>
-                    </Grid.Item>
-                  </Grid.Root>
-                </Box>
-
-                {/* Auth Settings */}
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
-                  {formatMessage({ id: getTrad('settings.auth.management.title') })}
-                </Typography>
-                <Grid.Root gap={6}>
-                  <Grid.Item col={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.auth.strategy.label') })}
-                      </Typography>
-                      <SingleSelect
-                        value={settings.user_creation_strategy}
-                        onChange={(val) => updateSetting('user_creation_strategy', val)}
-                      >
-                        <SingleSelectOption value="email">{formatMessage({ id: getTrad('settings.auth.strategy.email') })}</SingleSelectOption>
-                        <SingleSelectOption value="emailUsername">{formatMessage({ id: getTrad('settings.auth.strategy.emailUsername') })}</SingleSelectOption>
-                        <SingleSelectOption value="manual">{formatMessage({ id: getTrad('settings.auth.strategy.manual') })}</SingleSelectOption>
-                      </SingleSelect>
-                      <Box padding={2} background="neutral100" style={{ borderRadius: '4px', marginTop: '8px', border: '1px solid rgba(128, 128, 128, 0.2)' }}>
-                        <Typography variant="pi" textColor="neutral700" style={{ fontSize: '11px' }}>
-                          {formatMessage({ id: getTrad('settings.auth.strategy.current') }, { 
-                            strategy: settings.user_creation_strategy === 'email' ? formatMessage({ id: getTrad('settings.auth.strategy.email') }) :
-                                     settings.user_creation_strategy === 'emailUsername' ? formatMessage({ id: getTrad('settings.auth.strategy.emailUsername') }) :
-                                     formatMessage({ id: getTrad('settings.auth.strategy.manual') })
-                          })}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Grid.Item>
-                  <Grid.Item col={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.auth.jwtExpiration.label') })}
-                      </Typography>
-                      <TextInput
-                        hint={formatMessage({ id: getTrad('settings.auth.jwtExpiration.hint') })}
-                        value={settings.jwt_token_expires_in}
-                        onChange={(e) => updateSetting('jwt_token_expires_in', e.target.value)}
-                        placeholder={formatMessage({ id: getTrad('settings.auth.jwtExpiration.placeholder') })}
-                      />
-                      <Box padding={2} background="success50" style={{ borderRadius: '4px', marginTop: '8px' }}>
-                        <Typography variant="pi" textColor="success700" style={{ fontSize: '11px' }}>
-                          {formatMessage({ id: getTrad('settings.auth.jwtExpiration.examples') })}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Grid.Item>
-                </Grid.Root>
-              </Box>
-            </Accordion.Content>
-          </Accordion.Item>
-
-          {/* Email Settings */}
-          <Accordion.Item value="email">
-            <Accordion.Header>
-              <Accordion.Trigger
-                icon={Mail}
-                description={formatMessage({ id: getTrad('settings.section.email.description') })}
-              >
-                {formatMessage({ id: getTrad('settings.section.email') })}
-              </Accordion.Trigger>
-            </Accordion.Header>
-            <Accordion.Content>
-              <Box padding={6}>
-                {/* Email Provider Warning */}
-                {!emailProviderConfigured && !magicMailInstalled && (
-                  <Box 
-                    background="danger100" 
-                    padding={5} 
-                    style={{ 
-                      borderRadius: theme.borderRadius.md, 
-                      marginBottom: '32px', 
-                      border: '2px solid rgba(239, 68, 68, 0.4)',
-                      boxShadow: '0 4px 12px rgba(220, 38, 38, 0.15)'
-                    }}
-                  >
-                    <Flex direction="column" gap={3}>
-                      <Flex alignItems="center" gap={2}>
-                        <Mail style={{ color: 'var(--colors-danger600, #DC2626)', width: '24px', height: '24px' }} />
-                        <Typography variant="delta" fontWeight="bold" style={{ color: 'var(--colors-danger600, #B91C1C)' }}>
-                          ⚠️ No Email Provider Configured
-                        </Typography>
-                      </Flex>
-                      <Typography variant="pi" style={{ fontSize: '13px', color: 'var(--colors-danger600, #B91C1C)', lineHeight: '1.6' }}>
-                        <strong>Magic Link cannot send emails!</strong> You need to configure an email provider for the plugin to work.
-                      </Typography>
-                      <Divider style={{ backgroundColor: 'rgba(220, 38, 38, 0.3)' }} />
-                      <Typography variant="pi" fontWeight="semiBold" style={{ fontSize: '13px', color: 'var(--colors-danger600, #991B1B)', marginBottom: '8px' }}>
-                        📋 Choose one of these options:
-                      </Typography>
-                      <Box paddingLeft={3}>
-                        <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-danger600, #B91C1C)', lineHeight: '1.8' }}>
-                          <strong>1. Install Nodemailer (Recommended)</strong><br/>
-                          <code style={{ 
-                            backgroundColor: 'rgba(255,255,255,0.8)', 
-                            padding: '2px 6px', 
-                            borderRadius: '4px',
-                            fontFamily: 'monospace',
-                            fontSize: '11px'
-                          }}>npm install @strapi/provider-email-nodemailer</code>
-                          <br/>Then configure in <code>config/plugins.js</code>
-                        </Typography>
-                        <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-danger600, #B91C1C)', lineHeight: '1.8', marginTop: '12px', display: 'block' }}>
-                          <strong>2. Install MagicMail Plugin</strong><br/>
-                          Advanced email routing with OAuth2, multi-account support, and analytics
-                        </Typography>
-                        <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-danger600, #B91C1C)', lineHeight: '1.8', marginTop: '12px', display: 'block' }}>
-                          <strong>3. Use other providers</strong><br/>
-                          SendGrid, Mailgun, Amazon SES, or any Strapi email provider
-                        </Typography>
-                      </Box>
-                    </Flex>
-                  </Box>
-                )}
-                
-                {/* Email Provider Success */}
-                {(emailProviderConfigured || magicMailInstalled) && (
-                  <Box 
-                    background="success100" 
-                    padding={4} 
-                    style={{ borderRadius: theme.borderRadius.md, marginBottom: '24px', border: '2px solid rgba(34, 197, 94, 0.4)' }}
-                  >
-                    <Flex alignItems="center" gap={2}>
-                      <Check style={{ color: 'var(--colors-success600, #16A34A)' }} />
-                      <Typography variant="pi" fontWeight="semiBold" style={{ color: 'var(--colors-success600, #15803D)' }}>
-                        {magicMailInstalled 
-                          ? '✅ Email Provider: MagicMail (Advanced Routing)' 
-                          : `✅ Email Provider: ${emailProviderName || 'Configured'}`}
-                      </Typography>
-                    </Flex>
-                  </Box>
-                )}
-                
-                {/* Email From Settings */}
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', color: 'var(--colors-neutral700)' }}>
-                  {formatMessage({ id: getTrad('settings.email.sender.title') })}
-                </Typography>
-                <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '20px', display: 'block', fontSize: '12px' }}>
-                  {formatMessage({ id: getTrad('settings.email.sender.subtitle') })}
-                </Typography>
-                <Grid.Root gap={6} style={{ marginBottom: '32px' }}>
-                  <Grid.Item col={4} s={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.email.fromName.label') })}
-                      </Typography>
-                      <TextInput
-                        hint={formatMessage({ id: getTrad('settings.email.fromName.hint') })}
-                        value={settings.from_name}
-                        onChange={(e) => updateSetting('from_name', e.target.value)}
-                        placeholder={formatMessage({ id: getTrad('settings.email.fromName.placeholder') })}
-                      />
-                      <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '6px' }}>
-                        {formatMessage({ id: getTrad('settings.email.fromName.example') })}
-                      </Typography>
-                    </Box>
-                  </Grid.Item>
-                  <Grid.Item col={4} s={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.email.fromEmail.label') })}
-                      </Typography>
-                      <TextInput
-                        type="email"
-                        hint={formatMessage({ id: getTrad('settings.email.fromEmail.hint') })}
-                        value={settings.from_email}
-                        onChange={(e) => updateSetting('from_email', e.target.value)}
-                        placeholder={formatMessage({ id: getTrad('settings.email.fromEmail.placeholder') })}
-                      />
-                      <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '6px' }}>
-                        {formatMessage({ id: getTrad('settings.email.fromEmail.note') })}
-                      </Typography>
-                    </Box>
-                  </Grid.Item>
-                  <Grid.Item col={4} s={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.email.responseEmail.label') })}
-                      </Typography>
-                      <TextInput
-                        type="email"
-                        hint={formatMessage({ id: getTrad('settings.email.responseEmail.hint') })}
-                        value={settings.response_email}
-                        onChange={(e) => updateSetting('response_email', e.target.value)}
-                        placeholder={formatMessage({ id: getTrad('settings.email.responseEmail.placeholder') })}
-                      />
-                      <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '6px' }}>
-                        {formatMessage({ id: getTrad('settings.email.responseEmail.note') })}
-                      </Typography>
-                    </Box>
-                  </Grid.Item>
-                  <Grid.Item col={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.email.subject.label') })}
-                      </Typography>
-                      <TextInput
-                        hint={formatMessage({ id: getTrad('settings.email.subject.hint') })}
-                        value={settings.object}
-                        onChange={(e) => updateSetting('object', e.target.value)}
-                        placeholder={formatMessage({ id: getTrad('settings.email.subject.placeholder') })}
-                      />
-                      <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '6px' }}>
-                        {formatMessage({ id: getTrad('settings.email.subject.note') })}
-                      </Typography>
-                    </Box>
-                  </Grid.Item>
-                </Grid.Root>
-
-                {/* Email Designer Integration (Optional) */}
-                {emailDesignerInstalled && (
-                  <>
-                    <Divider style={{ marginBottom: '24px' }} />
-                    
-                    {/* Header Section */}
-                    <Box 
-                      padding={5} 
-                      style={{ 
-                        borderRadius: theme.borderRadius.lg, 
-                        border: '2px solid rgba(16, 185, 129, 0.4)', 
-                        marginBottom: '24px',
-                        background: 'rgba(16, 185, 129, 0.06)'
-                      }}
-                    >
-                      <Flex alignItems="center" gap={3} style={{ marginBottom: '12px' }}>
-                        <Check width="24px" height="24px" style={{ color: '#10b981' }} />
-                        <Typography variant="delta" fontWeight="bold" textColor="success600">
-                          Email Designer Integration
-                        </Typography>
-                        <Badge style={{ backgroundColor: '#10b981', color: 'white' }}>Active</Badge>
-                      </Flex>
-                      <Typography variant="pi" textColor="success600" style={{ fontSize: '13px' }}>
-                        Use your beautiful Email Designer 5 templates for Magic Link emails!
-                      </Typography>
-                    </Box>
-
-                    {/* Toggle & Template Selection */}
-                    <Box 
-                      background="neutral0" 
-                      padding={5} 
-                      style={{ 
-                        borderRadius: theme.borderRadius.lg, 
-                        border: '2px solid rgba(128, 128, 128, 0.2)',
-                        marginBottom: '24px'
-                      }}
-                    >
-                      <Grid.Root gap={6}>
-                        <Grid.Item col={12}>
-                          <Flex alignItems="center" gap={3} style={{ marginBottom: '8px' }}>
-                            <Typography variant="pi" fontWeight="bold" style={{ fontSize: '15px' }}>
-                              Use Email Designer Template
-                            </Typography>
-                            <GreenToggle $isActive={settings.use_email_designer || false}>
-                              <Switch
-                                checked={settings.use_email_designer || false}
-                                onCheckedChange={(checked) => updateSetting('use_email_designer', checked)}
-                              />
-                            </GreenToggle>
-                          </Flex>
-                          <Typography variant="pi" textColor="neutral600" style={{ fontSize: '12px' }}>
-                            Enable to use a professionally designed template from Email Designer 5
-                          </Typography>
-                        </Grid.Item>
-                        
-                        {settings.use_email_designer && (
-                          <Grid.Item col={12}>
-                            <Divider style={{ marginBottom: '16px', marginTop: '8px' }} />
-                            <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '12px', display: 'block', fontSize: '14px' }}>
-                              📋 Select Your Template
-                            </Typography>
-                            <Box 
-                              padding={4} 
-                              background="primary50" 
-                              style={{ 
-                                borderRadius: '8px', 
-                                border: '2px solid rgba(14, 165, 233, 0.3)',
-                                marginBottom: '16px'
-                              }}
-                            >
-                              <SingleSelect
-                                value={settings.email_designer_template_id}
-                                onChange={(value) => {
-                                  updateSetting('email_designer_template_id', value);
-                                  toggleNotification({ 
-                                    type: 'success', 
-                                    message: '✅ Email Designer template selected!' 
-                                  });
-                                }}
-                                placeholder="Choose a template from Email Designer..."
-                                size="L"
-                              >
-                                {emailTemplates.map((template) => (
-                                  <SingleSelectOption key={template.id} value={template.id.toString()}>
-                                    📄 {template.name || template.subject || `Template #${template.id}`}
-                                  </SingleSelectOption>
-                                ))}
-                              </SingleSelect>
-                            </Box>
-                            {emailTemplates.length > 0 ? (
-                              <Box 
-                                background="success100" 
-                                padding={3} 
-                                style={{ borderRadius: '6px', border: '1px solid rgba(34, 197, 94, 0.4)' }}
-                              >
-                                <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-success600, #15803D)' }}>
-                                  ✨ {emailTemplates.length} template{emailTemplates.length !== 1 ? 's' : ''} available
-                                </Typography>
-                              </Box>
-                            ) : (
-                              <Box 
-                                background="warning100" 
-                                padding={3} 
-                                style={{ borderRadius: '6px', border: '1px solid rgba(234, 179, 8, 0.4)' }}
-                              >
-                                <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-warning600, #A16207)' }}>
-                                  ⚠️ No templates found. Create one in Email Designer 5 first!
-                                </Typography>
-                              </Box>
-                            )}
-                          </Grid.Item>
-                        )}
-                      </Grid.Root>
-                    </Box>
-                    
-                    <Box 
-                      background="warning100" 
-                      padding={3} 
-                      style={{ borderRadius: theme.borderRadius.md, marginBottom: '24px', border: '1px solid rgba(234, 179, 8, 0.4)' }}
-                    >
-                      <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-warning600, #A16207)' }}>
-                        {formatMessage({ id: getTrad('settings.email.designer.variables') })}
-                      </Typography>
-                    </Box>
-                  </>
-                )}
-
-                {/* MagicMail Integration (Optional) */}
-                {magicMailInstalled && (
-                  <>
-                    <Divider style={{ marginBottom: '24px' }} />
-                    
-                    {/* Header Section */}
-                    <Box 
-                      padding={6} 
-                      style={{ 
-                        borderRadius: '16px', 
-                        border: 'none',
-                        marginBottom: '24px',
-                        background: 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)',
-                        boxShadow: '0 10px 25px rgba(124, 58, 237, 0.3)'
-                      }}
-                    >
-                      <Flex alignItems="center" gap={3} style={{ marginBottom: '12px' }}>
-                        <div style={{ 
-                          background: 'rgba(255, 255, 255, 0.2)', 
-                          padding: '10px', 
-                          borderRadius: '12px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}>
-                          <Mail width="24px" height="24px" style={{ color: 'white' }} />
-                        </div>
-                        <Typography variant="delta" fontWeight="bold" style={{ color: 'white', fontSize: '20px' }}>
-                          MagicMail Integration
-                        </Typography>
-                        <Box
-                          style={{
-                            backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                            color: '#FFFFFF',
-                            border: '1px solid rgba(255, 255, 255, 0.5)',
-                            borderRadius: '999px',
-                            padding: '4px 14px',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.8px'
-                          }}
-                        >
-                          Active
-                        </Box>
-                      </Flex>
-                      <Typography variant="pi" style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '14px', lineHeight: '1.6' }}>
-                        Advanced email routing with OAuth2 accounts, automatic failover, and comprehensive analytics
-                      </Typography>
-                    </Box>
-
-                    {/* Toggle & Template Selection */}
-                    <Box 
-                      background="neutral0" 
-                      padding={5} 
-                      style={{ 
-                        borderRadius: theme.borderRadius.lg, 
-                        border: '2px solid rgba(128, 128, 128, 0.2)',
-                        marginBottom: '24px'
-                      }}
-                    >
-                      <Grid.Root gap={6}>
-                        <Grid.Item col={12}>
-                          <Flex alignItems="center" gap={3} style={{ marginBottom: '8px' }}>
-                            <Typography variant="pi" fontWeight="bold" style={{ fontSize: '15px' }}>
-                              Use MagicMail for Sending
-                            </Typography>
-                            <GreenToggle $isActive={settings.use_magic_mail || false}>
-                              <Switch
-                                checked={settings.use_magic_mail || false}
-                                onCheckedChange={(checked) => updateSetting('use_magic_mail', checked)}
-                              />
-                            </GreenToggle>
-                          </Flex>
-                        </Grid.Item>
-                        
-                        {settings.use_magic_mail && (
-                          <Grid.Item col={12}>
-                            <Divider style={{ marginBottom: '20px', marginTop: '16px' }} />
-                            
-                            <Box 
-                              padding={5} 
-                              style={{ 
-                                borderRadius: '12px', 
-                                border: '2px solid rgba(139, 92, 246, 0.3)',
-                                background: 'rgba(124, 58, 237, 0.06)',
-                                marginBottom: '16px'
-                              }}
-                            >
-                              <Flex alignItems="center" gap={2} style={{ marginBottom: '16px' }}>
-                                <div style={{
-                                  background: 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)',
-                                  padding: '8px',
-                                  borderRadius: '8px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center'
-                                }}>
-                                  <Mail width="16px" height="16px" style={{ color: 'white' }} />
-                                </div>
-                                <Typography variant="pi" fontWeight="bold" style={{ fontSize: '15px', color: 'var(--colors-neutral800, #5B21B6)' }}>
-                                  Select Email Template
-                                </Typography>
-                              </Flex>
-                              
-                              <SingleSelect
-                                value={settings.magic_mail_template_id}
-                                onChange={(value) => {
-                                  updateSetting('magic_mail_template_id', value);
-                                  const selectedTemplate = magicMailTemplates.find(t => t.id.toString() === value);
-                                  toggleNotification({ 
-                                    type: 'success', 
-                                    message: `✅ Template "${selectedTemplate?.name || 'Selected'}" is now active!` 
-                                  });
-                                }}
-                                placeholder="🔍 Choose a template from MagicMail..."
-                                size="L"
-                              >
-                                {magicMailTemplates.map((template) => (
-                                  <SingleSelectOption key={template.id} value={template.id.toString()}>
-                                    📧 {template.name || template.subject || `Template #${template.id}`}
-                                  </SingleSelectOption>
-                                ))}
-                              </SingleSelect>
-                              
-                              <Typography variant="omega" textColor="neutral500" style={{ fontSize: '12px', marginTop: '12px', display: 'block' }}>
-                                💡 Templates are managed in your MagicMail settings
-                              </Typography>
-                            </Box>
-                          </Grid.Item>
-                        )}
-                      </Grid.Root>
-                    </Box>
-                    
-                    <Box 
-                      background="warning100" 
-                      padding={3} 
-                      style={{ borderRadius: theme.borderRadius.md, marginBottom: '24px', border: '1px solid rgba(234, 179, 8, 0.4)' }}
-                    >
-                      <Flex gap={2} alignItems="flex-start">
-                        <CheckCircle width="14px" height="14px" style={{ color: 'var(--colors-warning600, #A16207)', flexShrink: 0, marginTop: '2px' }} />
-                        <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-warning600, #A16207)' }}>
-                          <strong>Tip:</strong> MagicMail will use your configured email accounts and routing rules. Make sure you have at least one active account configured in MagicMail settings.
-                        </Typography>
-                      </Flex>
-                    </Box>
-                  </>
-                )}
-
-                {/* Email Templates */}
-                <Divider style={{ marginBottom: '24px' }} />
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', color: 'var(--colors-neutral700)' }}>
-                  {formatMessage({ id: getTrad('settings.email.templates.title') })}
-                  {emailDesignerInstalled && settings.use_email_designer && (
-                    <Badge style={{ marginLeft: '8px', backgroundColor: 'rgba(128, 128, 128, 0.3)' }}>
-                      {formatMessage({ id: getTrad('settings.email.designer.fallbackBadge') })}
-                    </Badge>
-                  )}
-                </Typography>
-                <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '20px', display: 'block', fontSize: '12px' }}>
-                  {emailDesignerInstalled && settings.use_email_designer 
-                    ? formatMessage({ id: getTrad('settings.email.designer.fallbackDescription') })
-                    : formatMessage({ id: getTrad('settings.email.templates.subtitle') })}
-                </Typography>
-                
-                {/* Platzhalter Info Box - Kompakt */}
-                <Box 
-                  background="primary100" 
-                  padding={3} 
-                  style={{ borderRadius: theme.borderRadius.md, marginBottom: '16px', border: '2px solid rgba(14, 165, 233, 0.3)' }}
-                >
-                  <Flex justifyContent="space-between" alignItems="center" style={{ marginBottom: '12px' }}>
-                    <Typography variant="pi" fontWeight="bold" style={{ color: 'var(--colors-primary600, #075985)', fontSize: '13px' }}>
-                      📋 {formatMessage({ id: getTrad('settings.email.placeholders.title') })}
-                    </Typography>
-                    <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px' }}>
-                      {formatMessage({ id: getTrad('settings.email.placeholders.clickToCopy') })}
-                    </Typography>
-                  </Flex>
-                  <PlaceholderGrid>
-                    {placeholderList.map((placeholder) => (
-                      <PlaceholderTile
-                        key={placeholder.code}
-                        onClick={() => {
-                          navigator.clipboard.writeText(placeholder.code);
-                          toggleNotification({ 
-                            type: 'success', 
-                            message: formatMessage({ id: getTrad('settings.email.placeholders.copied') }, { placeholder: placeholder.code })
-                          });
-                        }}
-                      >
-                        <Flex alignItems="center" justifyContent="space-between" style={{ marginBottom: '6px' }}>
-                          <Typography variant="pi" style={{ 
-                            fontFamily: 'monospace', 
-                            fontSize: '13px', 
-                            color: 'var(--colors-primary600, #075985)', 
-                            fontWeight: 'bold',
-                            wordBreak: 'break-all'
-                          }}>
-                            {placeholder.code}
-                          </Typography>
-                          <Badge size="S" style={{ backgroundColor: '#0EA5E9', color: 'white' }}>
-                            {formatMessage({ id: getTrad('settings.email.placeholders.copyLabel') })}
-                          </Badge>
-                        </Flex>
-                        <Typography variant="omega" textColor="neutral600" style={{ fontSize: '11px', lineHeight: '1.4', flexGrow: 1 }}>
-                          {placeholder.desc}
-                        </Typography>
-                        <Typography variant="omega" style={{ fontSize: '9px', color: '#999', fontFamily: 'monospace', marginTop: '6px' }}>
-                          {placeholder.example}
-                        </Typography>
-                      </PlaceholderTile>
-                    ))}
-                  </PlaceholderGrid>
-                </Box>
-
-                {/* Show template gallery + editors whenever MagicMail sending is disabled */}
-                {!settings.use_magic_mail && (
-                  <>
-                    {/* Beautiful Template Selector */}
-                    <Box 
-                      background="neutral0" 
-                      padding={5} 
-                      style={{ borderRadius: theme.borderRadius.lg, border: '2px solid rgba(14, 165, 233, 0.4)', marginBottom: '24px', background: 'rgba(14, 165, 233, 0.06)' }}
-                    >
-                      <Flex alignItems="center" gap={2} style={{ marginBottom: '12px' }}>
-                        <Mail width="20px" height="20px" style={{ color: '#0EA5E9' }} />
-                        <Typography variant="delta" fontWeight="bold" style={{ color: 'var(--colors-primary600, #0369A1)' }}>
-                          Email Template Gallery
-                        </Typography>
-                        <Badge style={{ backgroundColor: '#0EA5E9', color: 'white' }}>New</Badge>
-                      </Flex>
-                      <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '16px', fontSize: '13px' }}>
-                        Choose from our professionally designed templates. Click to instantly load a beautiful template!
-                      </Typography>
-
-                      <Box
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
-                          gap: '12px'
-                        }}
-                      >
-                        {getTemplateList().map((template) => {
-                          const isActive = selectedTemplateKey === template.value;
-                          return (
-                            <Box
-                              key={template.value}
-                              role="button"
-                              tabIndex={0}
-                              background="neutral0"
-                              style={{
-                                borderRadius: '10px',
-                                border: `2px solid ${isActive ? 'rgba(2, 132, 199, 0.6)' : 'rgba(128, 128, 128, 0.2)'}`,
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                padding: '16px',
-                                minHeight: '110px',
-                                boxShadow: isActive ? '0 8px 20px rgba(2, 132, 199, 0.25)' : '0 2px 6px rgba(15, 23, 42, 0.08)',
-                                background: isActive ? 'rgba(14, 165, 233, 0.08)' : 'rgba(128, 128, 128, 0.04)',
-                                outline: 'none',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                justifyContent: 'space-between'
-                              }}
-                              onClick={() => {
-                                const selectedTemplate = getTemplate(template.value);
-                                setSelectedTemplateKey(template.value);
-                                setSettings(prev => ({
-                                  ...prev,
-                                  message_html: selectedTemplate.html,
-                                  message_text: selectedTemplate.text
-                                }));
-                                toggleNotification({ 
-                                  type: 'success', 
-                                  message: `✨ Template "${template.label}" loaded!` 
-                                });
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  const selectedTemplate = getTemplate(template.value);
-                                  setSelectedTemplateKey(template.value);
-                                  setSettings(prev => ({
-                                    ...prev,
-                                    message_html: selectedTemplate.html,
-                                    message_text: selectedTemplate.text
-                                  }));
-                                  toggleNotification({ 
-                                    type: 'success', 
-                                    message: `✨ Template "${template.label}" loaded!` 
-                                  });
-                                }
-                              }}
-                            >
-                              <Typography
-                                variant="pi"
-                                fontWeight="bold"
-                                style={{
-                                  marginBottom: '6px',
-                                  display: 'block',
-                                  fontSize: '14px',
-                                  color: isActive ? '#0F172A' : '#111827'
-                                }}
-                              >
-                                {template.label}
-                              </Typography>
-                              <Typography
-                                variant="omega"
-                                textColor="neutral600"
-                                style={{ fontSize: '12px', lineHeight: '1.4' }}
-                              >
-                                {template.preview}
-                              </Typography>
-                            </Box>
-                          );
-                        })}
-                      </Box>
-                    </Box>
-
-                    <Grid.Root gap={8}>
-                  <Grid.Item col={12}>
-                    <Box 
-                      background="neutral0" 
-                      padding={6} 
-                      style={{ borderRadius: theme.borderRadius.lg, border: '2px solid rgba(128, 128, 128, 0.2)', width: '100%' }}
-                    >
-                      <Flex justifyContent="space-between" alignItems="center" style={{ marginBottom: '16px' }}>
-                        <Flex alignItems="center" gap={2}>
-                          <Typography variant="delta" fontWeight="bold" style={{ fontSize: '18px' }}>
-                            {formatMessage({ id: getTrad('settings.email.html.title') })}
-                          </Typography>
-                          <Badge variant="success">{formatMessage({ id: getTrad('settings.email.html.badge') })}</Badge>
-                        </Flex>
-                        <Button
-                          variant="tertiary"
-                          size="S"
-                          onClick={() => {
-                            const defaultTemplate = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-</head>
-<body style="font-family: Arial, sans-serif; padding: 20px;">
-  <h2>Magic Link Login</h2>
-  <p>${formatMessage({ id: getTrad('settings.email.placeholders.url.description') })}</p>
-  <p><a href="<%= URL %>?loginToken=<%= CODE %>">${language === 'de' ? 'Jetzt anmelden' : 'Sign in now'}</a></p>
-  <p style="color: #666; font-size: 14px;">${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1 hour.'}</p>
-</body>
-</html>`;
-                            updateSetting('message_html', defaultTemplate);
-                            toggleNotification({ type: 'success', message: formatMessage({ id: getTrad('settings.email.html.defaultLoaded') }) });
-                          }}
-                        >
-                          {formatMessage({ id: getTrad('settings.email.html.loadDefault') })}
-                        </Button>
-                      </Flex>
-                      <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '16px', display: 'block', fontSize: '14px' }}>
-                        {formatMessage({ id: getTrad('settings.email.html.description') })}
-                      </Typography>
-                      <Box 
-                        style={{ 
-                          border: '2px solid rgba(128, 128, 128, 0.2)', 
-                          borderRadius: '6px', 
-                          overflow: 'hidden',
-                          background: '#1e1e1e',
-                          height: '700px',
-                          display: 'flex',
-                          flexDirection: 'column'
-                        }}
-                      >
-                        <Box 
-                          padding={2} 
-                          background="neutral700" 
-                          style={{ borderBottom: '1px solid #333', flexShrink: 0 }}
-                        >
-                          <Typography variant="omega" style={{ color: '#888', fontSize: '11px', fontFamily: 'monospace' }}>
-                            {formatMessage({ id: getTrad('settings.email.html.filename') })}
-                          </Typography>
-                        </Box>
-                        <textarea
-                          value={settings.message_html}
-                          onChange={(e) => updateSetting('message_html', e.target.value)}
-                          style={{ 
-                            fontFamily: 'Monaco, Consolas, "Courier New", monospace',
-                            height: '100%',
-                            fontSize: '14px',
-                            lineHeight: '1.8',
-                            background: '#1e1e1e',
-                            color: '#d4d4d4',
-                            border: 'none',
-                            padding: '20px',
-                            resize: 'none',
-                            width: '100%',
-                            boxSizing: 'border-box',
-                            outline: 'none',
-                            margin: 0,
-                            display: 'block',
-                            overflow: 'auto'
-                          }}
-                          placeholder={formatMessage({ id: getTrad('settings.email.html.placeholder') })}
-                        />
-                      </Box>
-                      <Flex gap={2} style={{ marginTop: '12px' }} wrap="wrap">
-                        <Button
-                          variant="secondary"
-                          size="S"
-                          onClick={() => {
-                            navigator.clipboard.writeText(settings.message_html);
-                            toggleNotification({ type: 'success', message: formatMessage({ id: getTrad('settings.email.html.copy') }) + '!' });
-                          }}
-                        >
-                          {formatMessage({ id: getTrad('settings.email.html.copy') })}
-                        </Button>
-                        <Button
-                          variant="tertiary"
-                          size="S"
-                          onClick={() => {
-                            const lines = settings.message_html.split('\n').length;
-                            const chars = settings.message_html.length;
-                            toggleNotification({ 
-                              type: 'info', 
-                              message: formatMessage({ id: getTrad('settings.email.html.stats') }, { lines, chars })
-                            });
-                          }}
-                        >
-                          {formatMessage({ id: getTrad('settings.email.html.info') })}
-                        </Button>
-                      </Flex>
-                    </Box>
-                  </Grid.Item>
-                  
-                  <Grid.Item col={12}>
-                    <Box 
-                      background="neutral0" 
-                      padding={6} 
-                      style={{ borderRadius: theme.borderRadius.lg, border: '2px solid rgba(128, 128, 128, 0.2)', width: '100%' }}
-                    >
-                      <Flex justifyContent="space-between" alignItems="center" style={{ marginBottom: '16px' }}>
-                        <Flex alignItems="center" gap={2}>
-                          <Typography variant="delta" fontWeight="bold" style={{ fontSize: '18px' }}>
-                            {formatMessage({ id: getTrad('settings.email.text.title') })}
-                          </Typography>
-                          <Badge variant="secondary">{formatMessage({ id: getTrad('settings.email.text.badge') })}</Badge>
-                        </Flex>
-                        <Button
-                          variant="tertiary"
-                          size="S"
-                          onClick={() => {
-                            const defaultTemplate = `${language === 'de' ? 'Hallo' : 'Hello'},
-
-${language === 'de' ? 'Klicke auf den folgenden Link, um dich anzumelden' : 'Click the following link to sign in'}:
-
-<%= URL %>?loginToken=<%= CODE %>
-
-${language === 'de' ? 'Der Link läuft in 1 Stunde ab.' : 'The link expires in 1 hour.'}`;
-                            updateSetting('message_text', defaultTemplate);
-                            toggleNotification({ type: 'success', message: formatMessage({ id: getTrad('settings.email.text.defaultLoaded') }) });
-                          }}
-                        >
-                          {formatMessage({ id: getTrad('settings.email.text.loadDefault') })}
-                        </Button>
-                      </Flex>
-                      <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '16px', display: 'block', fontSize: '14px' }}>
-                        {formatMessage({ id: getTrad('settings.email.text.description') })}
-                      </Typography>
-                      <Box 
-                        style={{ 
-                          border: '2px solid rgba(128, 128, 128, 0.2)', 
-                          borderRadius: '6px', 
-                          overflow: 'hidden',
-                          background: 'var(--colors-neutral100, #f5f5f5)',
-                          height: '500px',
-                          display: 'flex',
-                          flexDirection: 'column'
-                        }}
-                      >
-                        <Box 
-                          padding={2} 
-                          background="neutral200" 
-                          style={{ borderBottom: '1px solid rgba(128, 128, 128, 0.2)', flexShrink: 0 }}
-                        >
-                          <Typography variant="omega" style={{ color: '#666', fontSize: '11px', fontFamily: 'monospace' }}>
-                            {formatMessage({ id: getTrad('settings.email.text.filename') })}
-                          </Typography>
-                        </Box>
-                        <textarea
-                          value={settings.message_text}
-                          onChange={(e) => updateSetting('message_text', e.target.value)}
-                          style={{ 
-                            fontFamily: 'Monaco, Consolas, "Courier New", monospace',
-                            height: '100%',
-                            fontSize: '14px',
-                            lineHeight: '1.8',
-                            background: 'var(--colors-neutral100, #f5f5f5)',
-                            color: 'var(--colors-neutral800, #1f2937)',
-                            border: 'none',
-                            padding: '20px',
-                            resize: 'none',
-                            width: '100%',
-                            boxSizing: 'border-box',
-                            outline: 'none',
-                            margin: 0,
-                            display: 'block',
-                            overflow: 'auto'
-                          }}
-                          placeholder={formatMessage({ id: getTrad('settings.email.text.placeholder') })}
-                        />
-                      </Box>
-                      <Flex gap={2} style={{ marginTop: '12px' }} wrap="wrap">
-                        <Button
-                          variant="secondary"
-                          size="S"
-                          onClick={() => {
-                            navigator.clipboard.writeText(settings.message_text);
-                            toggleNotification({ type: 'success', message: formatMessage({ id: getTrad('settings.email.text.copy') }) + '!' });
-                          }}
-                        >
-                          {formatMessage({ id: getTrad('settings.email.text.copy') })}
-                        </Button>
-                      </Flex>
-                    </Box>
-                  </Grid.Item>
-                </Grid.Root>
-                  </>
-                )}
-              </Box>
-            </Accordion.Content>
-          </Accordion.Item>
-
-          {/* Advanced Settings */}
-          <Accordion.Item value="advanced">
-            <Accordion.Header>
-              <Accordion.Trigger
-                icon={Code}
-                description={formatMessage({ id: getTrad('settings.section.advanced.description') })}
-              >
-                {formatMessage({ id: getTrad('settings.section.advanced') })}
-              </Accordion.Trigger>
-            </Accordion.Header>
-            <Accordion.Content>
-              <Box padding={6}>
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', color: 'var(--colors-neutral700)' }}>
-                  {formatMessage({ id: getTrad('settings.advanced.title') })}
-                </Typography>
-                <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '20px', display: 'block', fontSize: '12px' }}>
-                  {formatMessage({ id: getTrad('settings.advanced.subtitle') })}
-                </Typography>
-                <Grid.Root gap={6}>
-                  <Grid.Item col={12}>
-                    <ToggleCard $active={settings.allow_magic_links_on_public_registration} $statusLabel={settings.allow_magic_links_on_public_registration ? statusActive : statusInactive}>
-                      <Flex direction="column" gap={3}>
-                        <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                          <Switch
-                            checked={settings.allow_magic_links_on_public_registration}
-                            onCheckedChange={(checked) => updateSetting('allow_magic_links_on_public_registration', checked)}
-                            size="L"
-                          />
-                        </Flex>
-                        <Box>
-                          <Typography variant="pi" fontWeight="bold" style={{ fontSize: '14px', marginBottom: '6px', display: 'block', textAlign: 'center' }}>
-                            {formatMessage({ id: getTrad('settings.advanced.publicRegistration.title') })}
-                          </Typography>
-                          <Typography variant="omega" textColor="neutral600" style={{ fontSize: '12px', lineHeight: '1.4', textAlign: 'center' }}>
-                            {formatMessage({ id: getTrad('settings.advanced.publicRegistration.description') })}
-                          </Typography>
-                        </Box>
-                      </Flex>
-                    </ToggleCard>
-                  </Grid.Item>
-                </Grid.Root>
-              </Box>
-            </Accordion.Content>
-          </Accordion.Item>
-
-          {/* MFA / Multi-Factor Authentication Settings */}
-          <Accordion.Item value="mfa">
-            <Accordion.Header>
-              <Accordion.Trigger
-                icon={Shield}
-                description="Multi-Factor Authentication & Login Modes (Advanced)"
-              >
-                MFA & Login Modes
-              </Accordion.Trigger>
-            </Accordion.Header>
-            <Accordion.Content>
-              <Box padding={6}>
-                {/* Mode-selection helper. The earlier "Current License /
-                    All Features Unlocked / Premium / Basic" badge was
-                    removed in the marketplace refactor — every mode is
-                    available without a license. */}
-                <Box
-                  background="neutral100"
-                  padding={4}
-                  style={{
-                    borderRadius: theme.borderRadius.md,
-                    marginBottom: '24px',
-                    border: '2px solid rgba(128, 128, 128, 0.2)',
-                  }}
-                >
-                  <Flex alignItems="center" gap={2} style={{ marginBottom: '8px' }}>
-                    <Shield width="20px" height="20px" style={{ color: '#16A34A' }} />
-                    <Typography variant="pi" fontWeight="bold" style={{ fontSize: '14px' }}>
-                      All authentication modes are available
-                    </Typography>
-                  </Flex>
-                  <Typography variant="pi" textColor="neutral600" style={{ fontSize: '12px', lineHeight: '1.5' }}>
-                    💡 <strong>Wähle deinen Login-Modus:</strong> Magic Link (schnell), Email OTP (sicherer) oder TOTP Authenticator (höchste Sicherheit)
-                  </Typography>
-                </Box>
-
-                {/* Authentication Modes */}
-                <Typography variant="delta" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral800)' }}>
-                  Choose Authentication Mode
-                </Typography>
-
-                <Grid.Root gap={4} style={{ marginBottom: '24px' }}>
-                  {/* Mode 1: Magic Link Only */}
-                  <Grid.Item col={4} s={12} style={{ display: 'flex' }}>
-                    <ToggleCard 
-                      $active={
-                        (!settings.otp_enabled && !settings.mfa_require_totp && !settings.totp_as_primary_auth) ||
-                        (settings.otp_enabled && !['premium', 'advanced', 'enterprise'].includes(licenseInfo?.tier)) ||
-                        (settings.mfa_require_totp && !['advanced', 'enterprise'].includes(licenseInfo?.tier))
-                      }
-                      $statusLabel={
-                        (!settings.otp_enabled && !settings.mfa_require_totp && !settings.totp_as_primary_auth) ||
-                        (settings.otp_enabled && !['premium', 'advanced', 'enterprise'].includes(licenseInfo?.tier)) ||
-                        (settings.mfa_require_totp && !['advanced', 'enterprise'].includes(licenseInfo?.tier))
-                          ? 'ACTIVE' : 'OFF'
-                      }
-                      onClick={() => {
-                        updateSetting('otp_enabled', false);
-                        updateSetting('mfa_require_totp', false);
-                        updateSetting('totp_as_primary_auth', false);
-                      }}
-                      style={{ cursor: 'pointer', minHeight: '160px', width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
-                    >
-                      <IconWrapper $bgColor="rgba(2, 132, 199, 0.12)" $iconColor="var(--colors-primary600, #0284C7)">
-                        <Link />
-                      </IconWrapper>
-                      <Box>
-                        <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                          Magic Link Only
-                        </Typography>
-                        <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginBottom: '12px' }}>
-                          Ein-Klick-Login per E-Mail. Schnell und benutzerfreundlich.
-                        </Typography>
-                        <Typography variant="pi" style={{ fontSize: '10px', color: 'var(--colors-primary600, #0284C7)', display: 'block', marginBottom: '8px' }}>
-                          ✓ Keine Passwörter<br/>
-                          ✓ Schneller Login<br/>
-                          ✓ Immer verfügbar
-                        </Typography>
-                      </Box>
-                      <Badge style={{ 
-                        marginTop: '8px', 
-                        backgroundColor: 'var(--colors-primary600, #0284C7)', 
-                        color: 'white',
-                        fontWeight: '600',
-                        fontSize: '11px',
-                        padding: '4px 10px'
-                      }}>
-                        Free
-                      </Badge>
-                      {!(!settings.otp_enabled && !settings.mfa_require_totp && !settings.totp_as_primary_auth) && (
-                        <Button
-                          variant="secondary"
-                          startIcon={<Check />}
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            try {
-                              const newSettings = {
-                                ...settings,
-                                otp_enabled: false,
-                                mfa_require_totp: false,
-                                totp_as_primary_auth: false
-                              };
-                              await put('/magic-link/settings', newSettings);
-                              setSettings(newSettings);
-                              toggleNotification({
-                                type: 'success',
-                                message: '✅ Modus geändert: Magic Link Only'
-                              });
-                            } catch (error) {
-                              console.error('Error saving mode:', error);
-                              toggleNotification({
-                                type: 'danger',
-                                message: '❌ Fehler beim Speichern'
-                              });
-                            }
-                          }}
-                          style={{ marginTop: '12px', width: '100%' }}
-                        >
-                          Aktivieren
-                        </Button>
-                      )}
-                    </ToggleCard>
-                  </Grid.Item>
-
-                  {/* Mode 2: Magic Link + Email OTP */}
-                  <Grid.Item col={4} s={12} style={{ display: 'flex', position: 'relative' }}>
-                    <ToggleCard 
-                      $active={settings.otp_enabled && !settings.mfa_require_totp && ['premium', 'advanced', 'enterprise'].includes(licenseInfo?.tier)}
-                      $statusLabel={settings.otp_enabled && !settings.mfa_require_totp && ['premium', 'advanced', 'enterprise'].includes(licenseInfo?.tier) ? 'ACTIVE' : !['premium', 'advanced', 'enterprise'].includes(licenseInfo?.tier) ? '🔒 LOCKED' : 'OFF'}
-                      onClick={() => {
-                        if (!checkLicenseAndSetMode('otp-email')) return;
-                        updateSetting('otp_enabled', true);
-                        updateSetting('mfa_require_totp', false);
-                        updateSetting('totp_as_primary_auth', false);
-                      }}
-                      style={{ 
-                        cursor: !['premium', 'advanced', 'enterprise'].includes(licenseInfo?.tier) ? 'not-allowed' : 'pointer', 
-                        minHeight: '160px', 
-                        width: '100%', 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        justifyContent: 'space-between',
-                        opacity: !['premium', 'advanced', 'enterprise'].includes(licenseInfo?.tier) ? 0.6 : 1,
-                        position: 'relative'
-                      }}
-                    >
-                      {/* "Premium Required" lock overlay removed in the
-                          marketplace refactor — every mode is available. */}
-                      <IconWrapper $bgColor="rgba(124, 58, 237, 0.1)" $iconColor="#7C3AED">
-                        <Mail />
-                      </IconWrapper>
-                      <Box>
-                        <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                          Magic Link + Email OTP
-                        </Typography>
-                        <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginBottom: '12px' }}>
-                          Extra Sicherheit: 6-stelliger Code nach dem Klicken des Magic Links.
-                        </Typography>
-                        <Typography variant="pi" style={{ fontSize: '10px', color: '#7C3AED', display: 'block', marginBottom: '8px' }}>
-                          ✓ Email-Code Verifikation<br/>
-                          ✓ Konfigurierbare Code-Länge<br/>
-                          ✓ Ablaufzeit einstellbar
-                        </Typography>
-                      </Box>
-                      <Badge style={{ 
-                        marginTop: '8px', 
-                        backgroundColor: '#5B21B6', 
-                        color: '#FAF5FF',
-                        fontWeight: '600',
-                        fontSize: '11px',
-                        padding: '4px 10px',
-                        border: '1px solid #4C1D95'
-                      }}>
-                        Premium
-                      </Badge>
-                      {['premium', 'advanced', 'enterprise'].includes(licenseInfo?.tier) && !(settings.otp_enabled && !settings.mfa_require_totp) && (
-                        <Button
-                          variant="secondary"
-                          startIcon={<Check />}
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (!checkLicenseAndSetMode('otp-email')) return;
-                            try {
-                              const newSettings = {
-                                ...settings,
-                                otp_enabled: true,
-                                mfa_require_totp: false,
-                                totp_as_primary_auth: false
-                              };
-                              await put('/magic-link/settings', newSettings);
-                              setSettings(newSettings);
-                              toggleNotification({
-                                type: 'success',
-                                message: '✅ Modus geändert: Magic Link + Email OTP'
-                              });
-                            } catch (error) {
-                              console.error('Error saving mode:', error);
-                              toggleNotification({
-                                type: 'danger',
-                                message: '❌ Fehler beim Speichern'
-                              });
-                            }
-                          }}
-                          style={{ marginTop: '12px', width: '100%' }}
-                        >
-                          Aktivieren
-                        </Button>
-                      )}
-                    </ToggleCard>
-                  </Grid.Item>
-
-                  {/* Mode 3: Magic Link + TOTP (MFA) */}
-                  <Grid.Item col={4} s={12} style={{ display: 'flex', position: 'relative' }}>
-                    <ToggleCard 
-                      $active={settings.mfa_require_totp && ['advanced', 'enterprise'].includes(licenseInfo?.tier)}
-                      $statusLabel={settings.mfa_require_totp && ['advanced', 'enterprise'].includes(licenseInfo?.tier) ? 'ACTIVE' : !['advanced', 'enterprise'].includes(licenseInfo?.tier) ? '🔒 LOCKED' : 'OFF'}
-                      onClick={() => {
-                        if (!checkLicenseAndSetMode('mfa-totp')) return;
-                        updateSetting('otp_enabled', false);
-                        updateSetting('mfa_require_totp', true);
-                        updateSetting('totp_as_primary_auth', false);
-                      }}
-                      style={{ 
-                        cursor: !['advanced', 'enterprise'].includes(licenseInfo?.tier) ? 'not-allowed' : 'pointer', 
-                        minHeight: '160px', 
-                        width: '100%', 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        justifyContent: 'space-between',
-                        opacity: !['advanced', 'enterprise'].includes(licenseInfo?.tier) ? 0.6 : 1,
-                        position: 'relative'
-                      }}
-                    >
-                      {/* "Advanced Required" lock overlay removed in
-                          the marketplace refactor — every mode is
-                          available. */}
-                      <IconWrapper $bgColor="rgba(217, 119, 6, 0.1)" $iconColor="#D97706">
-                        <Lock />
-                      </IconWrapper>
-                      <Box>
-                        <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                          Magic Link + TOTP (MFA)
-                        </Typography>
-                        <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginBottom: '12px' }}>
-                          Höchste Sicherheit: Magic Link + Authenticator App (Google Authenticator, Authy).
-                        </Typography>
-                        <Typography variant="pi" style={{ fontSize: '10px', color: '#D97706', display: 'block', marginBottom: '8px' }}>
-                          ✓ TOTP Authenticator App<br/>
-                          ✓ QR-Code Setup<br/>
-                          ✓ 30s Code-Rotation
-                        </Typography>
-                      </Box>
-                      <Badge style={{ 
-                        marginTop: '8px', 
-                        backgroundColor: '#92400E', 
-                        color: '#FEFCE8',
-                        fontWeight: '600',
-                        fontSize: '11px',
-                        padding: '4px 10px',
-                        border: '1px solid #78350F'
-                      }}>
-                        Advanced
-                      </Badge>
-                      {['advanced', 'enterprise'].includes(licenseInfo?.tier) && !settings.mfa_require_totp && (
-                        <Button
-                          variant="secondary"
-                          startIcon={<Check />}
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (!checkLicenseAndSetMode('mfa-totp')) return;
-                            try {
-                              const newSettings = {
-                                ...settings,
-                                otp_enabled: false,
-                                mfa_require_totp: true,
-                                totp_as_primary_auth: false
-                              };
-                              await put('/magic-link/settings', newSettings);
-                              setSettings(newSettings);
-                              toggleNotification({
-                                type: 'success',
-                                message: '✅ Modus geändert: Magic Link + TOTP (MFA)'
-                              });
-                            } catch (error) {
-                              console.error('Error saving mode:', error);
-                              toggleNotification({
-                                type: 'danger',
-                                message: '❌ Fehler beim Speichern'
-                              });
-                            }
-                          }}
-                          style={{ marginTop: '12px', width: '100%' }}
-                        >
-                          Aktivieren
-                        </Button>
-                      )}
-                    </ToggleCard>
-                  </Grid.Item>
-                </Grid.Root>
-
-                <Divider style={{ marginBottom: '24px' }} />
-
-                {/* Email OTP Configuration */}
-                {settings.otp_enabled && !settings.mfa_require_totp && ['premium', 'advanced', 'enterprise'].includes(licenseInfo?.tier) && (
-                  <>
-                    <Box 
-                      background="primary100" 
-                      padding={4} 
-                      style={{ 
-                        borderRadius: theme.borderRadius.md, 
-                        marginBottom: '24px',
-                        border: '1px solid rgba(14, 165, 233, 0.3)'
-                      }}
-                    >
-                      <Flex alignItems="center" gap={2} style={{ marginBottom: '8px' }}>
-                        <Mail width="18px" height="18px" style={{ color: 'var(--colors-primary600, #075985)' }} />
-                        <Typography variant="pi" fontWeight="bold" style={{ color: 'var(--colors-primary600, #075985)' }}>
-                          Email OTP Einstellungen
-                        </Typography>
-                      </Flex>
-                      <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-primary600, #075985)', lineHeight: '1.6' }}>
-                        Konfiguriere hier, wie der OTP-Code per E-Mail verschickt wird. Benutzer erhalten nach dem Klick auf den Magic Link einen zusätzlichen Verifikationscode per E-Mail.
-                      </Typography>
-                    </Box>
-                    
-                    <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
-                      Code-Einstellungen
-                    </Typography>
-
-                    <Grid.Root gap={6} style={{ marginBottom: '24px' }}>
-                      <Grid.Item col={6} s={12}>
-                        <Box>
-                          <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                            📧 Versandmethode
-                          </Typography>
-                          <SingleSelect
-                            value={settings.otp_type || 'email'}
-                            onChange={(value) => updateSetting('otp_type', value)}
-                            placeholder="Wähle Versandmethode"
-                          >
-                            <SingleSelectOption value="email">E-Mail OTP (Premium)</SingleSelectOption>
-                            <SingleSelectOption value="sms">SMS OTP (Advanced)</SingleSelectOption>
-                            <SingleSelectOption value="totp">Authenticator App (Advanced)</SingleSelectOption>
-                          </SingleSelect>
-                          <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '6px' }}>
-                            Wie sollen Benutzer den Verifikationscode erhalten?
-                          </Typography>
-                        </Box>
-                      </Grid.Item>
-
-                      <Grid.Item col={3} s={12}>
-                        <Box>
-                          <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                            🔢 Code-Länge
-                          </Typography>
-                          <NumberInput
-                            value={settings.otp_length || 6}
-                            onValueChange={(value) => updateSetting('otp_length', value)}
-                            placeholder="6"
-                            min={4}
-                            max={8}
-                          />
-                          <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '6px' }}>
-                            Anzahl der Ziffern (4-8). Standard: 6 Ziffern
-                          </Typography>
-                        </Box>
-                      </Grid.Item>
-
-                      <Grid.Item col={3} s={12}>
-                        <Box>
-                          <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                            ⏱️ Gültigkeit (Sekunden)
-                          </Typography>
-                          <NumberInput
-                            value={settings.otp_expiry || 300}
-                            onValueChange={(value) => updateSetting('otp_expiry', value)}
-                            placeholder="300"
-                          />
-                          <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '6px' }}>
-                            Wie lange ist der Code gültig? Standard: 300s (5 Min)
-                          </Typography>
-                        </Box>
-                      </Grid.Item>
-                    </Grid.Root>
-
-                    {/* Security Settings */}
-                    <Grid.Root gap={6} style={{ marginBottom: '24px' }}>
-                      <Grid.Item col={6} s={12}>
-                        <Box>
-                          <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                            ⚠️ Max. Fehlversuche
-                          </Typography>
-                          <NumberInput
-                            value={settings.otp_max_attempts || 3}
-                            onValueChange={(value) => updateSetting('otp_max_attempts', value)}
-                            placeholder="3"
-                          />
-                          <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '6px' }}>
-                            Nach wie vielen Fehlversuchen wird der Code ungültig? Standard: 3
-                          </Typography>
-                        </Box>
-                      </Grid.Item>
-
-                      <Grid.Item col={6} s={12}>
-                        <Box>
-                          <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                            🔄 Wartezeit für neuen Code
-                          </Typography>
-                          <NumberInput
-                            value={settings.otp_resend_cooldown || 60}
-                            onValueChange={(value) => updateSetting('otp_resend_cooldown', value)}
-                            placeholder="60"
-                          />
-                          <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '6px' }}>
-                            Wie lange muss der Benutzer warten, bevor ein neuer Code angefordert werden kann? Standard: 60s
-                          </Typography>
-                        </Box>
-                      </Grid.Item>
-                    </Grid.Root>
-
-                    {/* Info Box */}
-                    <Box 
-                      background="success100" 
-                      padding={4} 
-                      style={{ borderRadius: theme.borderRadius.md, border: '1px solid rgba(34, 197, 94, 0.3)', marginBottom: '24px' }}
-                    >
-                      <Flex gap={2} alignItems="flex-start" style={{ marginBottom: '12px' }}>
-                        <CheckCircle width="16px" height="16px" style={{ color: 'var(--colors-success600, #15803D)', flexShrink: 0, marginTop: '2px' }} />
-                        <Box>
-                          <Typography variant="pi" fontWeight="bold" style={{ fontSize: '13px', color: 'var(--colors-success600, #15803D)', marginBottom: '6px', display: 'block' }}>
-                            So funktioniert's:
-                          </Typography>
-                          <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-success600, #15803D)', lineHeight: '1.6' }}>
-                            1. Benutzer klickt auf Magic Link in der E-Mail<br/>
-                            2. Wird zu OTP-Verifikationsseite weitergeleitet<br/>
-                            3. Gibt den {settings.otp_length || 6}-stelligen Code ein, der an {settings.otp_type === 'sms' ? 'sein Telefon' : 'seine E-Mail'} gesendet wurde<br/>
-                            4. Nach erfolgreicher Verifikation ist der Benutzer eingeloggt
-                          </Typography>
-                        </Box>
-                      </Flex>
-                    </Box>
-
-                    <Divider style={{ marginBottom: '24px' }} />
-                  </>
-                )}
-
-                {/* Alternative Login Method */}
-                <Box background="neutral100" padding={5} style={{ borderRadius: theme.borderRadius.md, marginBottom: '24px' }}>
-                  <Flex alignItems="flex-start" gap={4}>
-                    <Box flex="1">
-                      <Flex alignItems="center" gap={2} style={{ marginBottom: '8px' }}>
-                        <Lightning width="16px" height="16px" style={{ color: '#D97706' }} />
-                        <Typography variant="pi" fontWeight="bold">
-                          Enable TOTP-Only Login
-                        </Typography>
-                        <Badge style={{ 
-                          backgroundColor: '#92400E', 
-                          color: '#FEFCE8',
-                          fontWeight: '600',
-                          fontSize: '11px',
-                          padding: '3px 8px',
-                          border: '1px solid #78350F'
-                        }}>
-                          Advanced
-                        </Badge>
-                      </Flex>
-                      <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginBottom: '12px' }}>
-                        Allow users to login with Email + TOTP code directly, without waiting for magic link email.
-                      </Typography>
-                      <Flex gap={2} alignItems="flex-start">
-                        <Lightning width="14px" height="14px" style={{ color: 'var(--colors-warning600, #A16207)', flexShrink: 0, marginTop: '2px' }} />
-                        <Typography variant="pi" style={{ fontSize: '11px', color: 'var(--colors-warning600, #A16207)' }}>
-                          <strong>Fast login:</strong> Users open authenticator app, enter code → instant login (no email needed)
-                        </Typography>
-                      </Flex>
-                    </Box>
-                    <GreenToggle $isActive={settings.totp_as_primary_auth}>
-                      <Switch
-                        checked={settings.totp_as_primary_auth || false}
-                        onCheckedChange={(checked) => {
-                          if (checked && !checkLicenseAndSetMode('totp-primary')) {
-                            return;
-                          }
-                          updateSetting('totp_as_primary_auth', checked);
-                        }}
-                      />
-                    </GreenToggle>
-                  </Flex>
-                </Box>
-
-                {/* TOTP Configuration */}
-                {(settings.mfa_require_totp || settings.totp_as_primary_auth) && (
-                  <>
-                    <Divider style={{ marginBottom: '24px' }} />
-                    
-                    <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
-                      TOTP Configuration
-                    </Typography>
-
-                    <Grid.Root gap={6}>
-                      <Grid.Item col={6} s={12}>
-                        <Box>
-                          <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                            Issuer Name
-                          </Typography>
-                          <TextInput
-                            value={settings.totp_issuer || 'Magic Link'}
-                            onChange={(e) => updateSetting('totp_issuer', e.target.value)}
-                            placeholder="Magic Link"
-                          />
-                          <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '6px' }}>
-                            Displayed in authenticator apps (e.g., "MyApp")
-                          </Typography>
-                        </Box>
-                      </Grid.Item>
-
-                      <Grid.Item col={3} s={12}>
-                        <Box>
-                          <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                            Code Digits
-                          </Typography>
-                          <SingleSelect
-                            value={settings.totp_digits?.toString() || '6'}
-                            onChange={(value) => updateSetting('totp_digits', parseInt(value))}
-                          >
-                            <SingleSelectOption value="6">6 digits</SingleSelectOption>
-                            <SingleSelectOption value="8">8 digits</SingleSelectOption>
-                          </SingleSelect>
-                        </Box>
-                      </Grid.Item>
-
-                      <Grid.Item col={3} s={12}>
-                        <Box>
-                          <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                            Time Period (s)
-                          </Typography>
-                          <NumberInput
-                            value={settings.totp_period || 30}
-                            onValueChange={(value) => updateSetting('totp_period', value)}
-                            placeholder="30"
-                          />
-                          <Typography variant="pi" textColor="neutral600" style={{ fontSize: '11px', marginTop: '6px' }}>
-                            Default: 30 seconds
-                          </Typography>
-                        </Box>
-                      </Grid.Item>
-                    </Grid.Root>
-
-                    {/* Info Box */}
-                    <Box 
-                      background="success100" 
-                      padding={4} 
-                      style={{ borderRadius: theme.borderRadius.md, border: '1px solid rgba(34, 197, 94, 0.3)', marginTop: '16px' }}
-                    >
-                      <Flex gap={2} alignItems="flex-start">
-                        <Key width="14px" height="14px" style={{ color: 'var(--colors-success600, #15803D)', flexShrink: 0, marginTop: '2px' }} />
-                        <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-success600, #15803D)' }}>
-                          <strong>How it works:</strong> Users scan QR code with Google Authenticator, Authy, or any TOTP app. They'll get a new 6-digit code every 30 seconds.
-                        </Typography>
-                      </Flex>
-                    </Box>
-                  </>
-                )}
-
-                {/* Current Mode Summary */}
-                <Divider style={{ marginTop: '24px', marginBottom: '24px' }} />
-                
-                <Box 
-                  background="primary100" 
-                  padding={4} 
-                  style={{ borderRadius: theme.borderRadius.md, border: '2px solid rgba(14, 165, 233, 0.3)' }}
-                >
-                  <Flex gap={2} alignItems="center" style={{ marginBottom: '8px' }}>
-                    <CheckCircle width="16px" height="16px" style={{ color: 'var(--colors-primary600, #075985)' }} />
-                    <Typography variant="pi" fontWeight="bold" style={{ color: 'var(--colors-primary600, #075985)' }}>
-                      Current Configuration:
-                    </Typography>
-                  </Flex>
-                  {!settings.otp_enabled && !settings.mfa_require_totp && !settings.totp_as_primary_auth && (
-                    <Flex gap={2} alignItems="flex-start">
-                      <Link width="14px" height="14px" style={{ color: 'var(--colors-neutral700)', flexShrink: 0, marginTop: '2px' }} />
-                      <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-neutral700)' }}>
-                        Users login with Magic Link only (one-click email login)
-                      </Typography>
-                    </Flex>
-                  )}
-                  {settings.otp_enabled && !settings.mfa_require_totp && (
-                    <Flex gap={2} alignItems="flex-start">
-                      <Mail width="14px" height="14px" style={{ color: 'var(--colors-neutral700)', flexShrink: 0, marginTop: '2px' }} />
-                      <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-neutral700)' }}>
-                        Users click Magic Link → Enter 6-digit code from email
-                      </Typography>
-                    </Flex>
-                  )}
-                  {settings.mfa_require_totp && (
-                    <Flex gap={2} alignItems="flex-start">
-                      <Lock width="14px" height="14px" style={{ color: 'var(--colors-neutral700)', flexShrink: 0, marginTop: '2px' }} />
-                      <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-neutral700)' }}>
-                        Users click Magic Link → Enter code from authenticator app (MFA)
-                      </Typography>
-                    </Flex>
-                  )}
-                  {settings.totp_as_primary_auth && (
-                    <Flex gap={2} alignItems="flex-start" style={{ marginTop: settings.mfa_require_totp ? '8px' : '0' }}>
-                      <Lightning width="14px" height="14px" style={{ color: 'var(--colors-neutral700)', flexShrink: 0, marginTop: '2px' }} />
-                      <Typography variant="pi" style={{ fontSize: '12px', color: 'var(--colors-neutral700)' }}>
-                        + TOTP-only login enabled (users can skip email and login with code directly)
-                      </Typography>
-                    </Flex>
-                  )}
-                </Box>
-              </Box>
-            </Accordion.Content>
-          </Accordion.Item>
-
-          {/* Rate Limiting */}
-          <Accordion.Item value="ratelimit">
-            <Accordion.Header>
-              <Accordion.Trigger
-                icon={Shield}
-                description={formatMessage({ id: getTrad('settings.section.rateLimit.description') })}
-              >
-                {formatMessage({ id: getTrad('settings.section.rateLimit') })}
-              </Accordion.Trigger>
-            </Accordion.Header>
-            <Accordion.Content>
-              <Box padding={6}>
-                {/* Rate Limit Toggle */}
-                <Box background="neutral100" padding={5} style={{ borderRadius: theme.borderRadius.md, marginBottom: '24px' }}>
-                  <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', textAlign: 'center', color: 'var(--colors-neutral700)' }}>
-                    {formatMessage({ id: getTrad('settings.rateLimit.title') })}
-                  </Typography>
-                  <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '20px', display: 'block', textAlign: 'center', fontSize: '12px' }}>
-                    {formatMessage({ id: getTrad('settings.rateLimit.subtitle') })}
-                  </Typography>
-                  <Grid.Root gap={4}>
-                    <Grid.Item col={12}>
-                      <ToggleCard $active={settings.rate_limit_enabled} $statusLabel={settings.rate_limit_enabled ? statusActive : statusInactive}>
-                        <Flex direction="column" gap={3}>
-                          <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                            <Switch
-                              checked={settings.rate_limit_enabled}
-                              onCheckedChange={(checked) => updateSetting('rate_limit_enabled', checked)}
-                              size="L"
-                            />
-                          </Flex>
-                          <Box>
-                            <Typography variant="pi" fontWeight="bold" style={{ fontSize: '14px', marginBottom: '6px', display: 'block', textAlign: 'center' }}>
-                              {formatMessage({ id: getTrad('settings.rateLimit.enable.title') })}
-                            </Typography>
-                            <Typography variant="omega" textColor="neutral600" style={{ fontSize: '12px', lineHeight: '1.4', textAlign: 'center' }}>
-                              {formatMessage({ id: getTrad('settings.rateLimit.enable.description') })}
-                            </Typography>
-                          </Box>
-                        </Flex>
-                      </ToggleCard>
-                    </Grid.Item>
-                  </Grid.Root>
-                </Box>
-
-                {/* Rate Limit Configuration */}
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
-                  {formatMessage({ id: getTrad('settings.rateLimit.config.title') })}
-                </Typography>
-                <Grid.Root gap={6} style={{ marginBottom: '32px' }}>
-                  <Grid.Item col={6} s={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.rateLimit.maxAttempts.label') })}
-                      </Typography>
-                      <NumberInput
-                        name="rate_limit_max_attempts"
-                        hint={formatMessage({ id: getTrad('settings.rateLimit.maxAttempts.hint') })}
-                        value={settings.rate_limit_max_attempts}
-                        onValueChange={val => updateSetting('rate_limit_max_attempts', val)}
-                        min={1}
-                        max={100}
-                      />
-                    </Box>
-                  </Grid.Item>
-                  <Grid.Item col={6} s={12}>
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.rateLimit.windowMinutes.label') })}
-                      </Typography>
-                      <NumberInput
-                        name="rate_limit_window_minutes"
-                        hint={formatMessage({ id: getTrad('settings.rateLimit.windowMinutes.hint') })}
-                        value={settings.rate_limit_window_minutes}
-                        onValueChange={val => updateSetting('rate_limit_window_minutes', val)}
-                        min={1}
-                        max={1440}
-                      />
-                    </Box>
-                  </Grid.Item>
-                </Grid.Root>
-
-                {/* Rate Limit Stats */}
-                {rateLimitStats && (
-                  <>
-                    <Divider style={{ marginBottom: '24px' }} />
-                    <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '16px', display: 'block', color: 'var(--colors-neutral700)' }}>
-                      {formatMessage({ id: getTrad('settings.rateLimit.stats.title') })}
-                    </Typography>
-                    <Flex gap={4} wrap="wrap" justifyContent="center" style={{ marginBottom: '24px' }}>
-                      <Box padding={4} background="neutral100" style={{ borderRadius: '8px', textAlign: 'center', minWidth: '140px', flex: '1' }}>
-                        <Typography variant="beta" style={{ color: 'var(--colors-primary600, #0284C7)', fontWeight: '700' }}>
-                          {rateLimitStats.totalEntries || 0}
-                        </Typography>
-                        <Typography variant="omega" textColor="neutral600" style={{ fontSize: '11px', marginTop: '4px', display: 'block' }}>
-                          {formatMessage({ id: getTrad('settings.rateLimit.stats.total') })}
-                        </Typography>
-                      </Box>
-                      <Box padding={4} background="danger100" style={{ borderRadius: '8px', textAlign: 'center', minWidth: '140px', flex: '1' }}>
-                        <Typography variant="beta" style={{ color: 'var(--colors-danger600, #DC2626)', fontWeight: '700' }}>
-                          {rateLimitStats.blocked || 0}
-                        </Typography>
-                        <Typography variant="omega" textColor="neutral600" style={{ fontSize: '11px', marginTop: '4px', display: 'block' }}>
-                          {formatMessage({ id: getTrad('settings.rateLimit.stats.blocked') })}
-                        </Typography>
-                      </Box>
-                      <Box padding={4} background="primary100" style={{ borderRadius: '8px', textAlign: 'center', minWidth: '140px', flex: '1' }}>
-                        <Typography variant="beta" style={{ color: 'var(--colors-primary600, #0284C7)', fontWeight: '700' }}>
-                          {rateLimitStats.ipLimits || 0}
-                        </Typography>
-                        <Typography variant="omega" textColor="neutral600" style={{ fontSize: '11px', marginTop: '4px', display: 'block' }}>
-                          {formatMessage({ id: getTrad('settings.rateLimit.stats.ipLimits') })}
-                        </Typography>
-                      </Box>
-                      <Box padding={4} background="success100" style={{ borderRadius: '8px', textAlign: 'center', minWidth: '140px', flex: '1' }}>
-                        <Typography variant="beta" style={{ color: 'var(--colors-success600, #16A34A)', fontWeight: '700' }}>
-                          {rateLimitStats.emailLimits || 0}
-                        </Typography>
-                        <Typography variant="omega" textColor="neutral600" style={{ fontSize: '11px', marginTop: '4px', display: 'block' }}>
-                          {formatMessage({ id: getTrad('settings.rateLimit.stats.emailLimits') })}
-                        </Typography>
-                      </Box>
-                    </Flex>
-                    
-                    {/* Management Buttons */}
-                    <Flex gap={3} justifyContent="center">
-                      <Button
-                        onClick={handleRateLimitCleanup}
-                        variant="secondary"
-                        size="M"
-                      >
-                        {formatMessage({ id: getTrad('settings.rateLimit.cleanup') })}
-                      </Button>
-                      <Button
-                        onClick={handleRateLimitReset}
-                        variant="danger"
-                        size="M"
-                      >
-                        {formatMessage({ id: getTrad('settings.rateLimit.reset') })}
-                      </Button>
-                    </Flex>
-                  </>
-                )}
-              </Box>
-            </Accordion.Content>
-          </Accordion.Item>
-
-          {/* Compatibility Settings */}
-          <Accordion.Item value="compatibility">
-            <Accordion.Header>
-              <Accordion.Trigger
-                icon={Link}
-                description={formatMessage({ id: getTrad('settings.section.compatibility.description') })}
-              >
-                {formatMessage({ id: getTrad('settings.section.compatibility') })}
-              </Accordion.Trigger>
-            </Accordion.Header>
-            <Accordion.Content>
-              <Box padding={6}>
-                <Typography variant="sigma" fontWeight="bold" style={{ marginBottom: '8px', display: 'block', color: 'var(--colors-neutral700)' }}>
-                  {formatMessage({ id: getTrad('settings.compatibility.title') })}
-                </Typography>
-                <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '20px', display: 'block', fontSize: '12px' }}>
-                  {formatMessage({ id: getTrad('settings.compatibility.subtitle') })}
-                </Typography>
-                
-                {/* Info Box */}
-                <Box 
-                  background="primary100" 
-                  padding={4} 
-                  style={{ 
-                    borderRadius: theme.borderRadius.md, 
-                    marginBottom: '24px', 
-                    border: '2px solid rgba(14, 165, 233, 0.3)'
-                  }}
-                >
-                  <Flex alignItems="flex-start" gap={3}>
-                    <Link width="20px" height="20px" style={{ color: 'var(--colors-primary600, #0284C7)', flexShrink: 0, marginTop: '2px' }} />
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '6px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.compatibility.info.title') })}
-                      </Typography>
-                      <Typography variant="pi" textColor="neutral600" style={{ fontSize: '12px', lineHeight: '1.5' }}>
-                        {formatMessage({ id: getTrad('settings.compatibility.info.description') })}
-                      </Typography>
-                    </Box>
-                  </Flex>
-                </Box>
-
-                <Grid.Root gap={6}>
-                  {/* Passwordless Compatibility */}
-                  <Grid.Item col={6} s={12}>
-                    <ToggleCard $active={settings.passwordlessCompatibility} $statusLabel={settings.passwordlessCompatibility ? statusActive : statusInactive}>
-                      <Flex direction="column" gap={3}>
-                        <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                          <Switch
-                            checked={settings.passwordlessCompatibility}
-                            onCheckedChange={(checked) => updateSetting('passwordlessCompatibility', checked)}
-                            size="L"
-                          />
-                        </Flex>
-                        <Box>
-                          <Typography variant="pi" fontWeight="bold" style={{ fontSize: '14px', marginBottom: '6px', display: 'block', textAlign: 'center' }}>
-                            {formatMessage({ id: getTrad('settings.compatibility.passwordless.title') })}
-                          </Typography>
-                          <Typography variant="omega" textColor="neutral600" style={{ fontSize: '12px', lineHeight: '1.4', textAlign: 'center' }}>
-                            {formatMessage({ id: getTrad('settings.compatibility.passwordless.description') })}
-                          </Typography>
-                        </Box>
-                        {settings.passwordlessCompatibility && (
-                          <Box 
-                            background="success100" 
-                            padding={3} 
-                            style={{ 
-                              borderRadius: theme.borderRadius.md, 
-                              marginTop: '8px',
-                              border: '1px solid rgba(34, 197, 94, 0.3)'
-                            }}
-                          >
-                            <Typography variant="pi" style={{ fontSize: '11px', fontFamily: 'monospace' }}>
-                              POST /api/passwordless/send-link<br/>
-                              GET /api/passwordless/login
-                            </Typography>
-                          </Box>
-                        )}
-                      </Flex>
-                    </ToggleCard>
-                  </Grid.Item>
-
-                  {/* Email Designer Compatibility */}
-                  <Grid.Item col={6} s={12}>
-                    <ToggleCard $active={settings.emailDesignerCompatibility} $statusLabel={settings.emailDesignerCompatibility ? statusActive : statusInactive}>
-                      <Flex direction="column" gap={3}>
-                        <Flex justifyContent="center" alignItems="center" style={{ marginBottom: '8px' }}>
-                          <Switch
-                            checked={settings.emailDesignerCompatibility}
-                            onCheckedChange={(checked) => updateSetting('emailDesignerCompatibility', checked)}
-                            size="L"
-                          />
-                        </Flex>
-                        <Box>
-                          <Typography variant="pi" fontWeight="bold" style={{ fontSize: '14px', marginBottom: '6px', display: 'block', textAlign: 'center' }}>
-                            {formatMessage({ id: getTrad('settings.compatibility.emailDesigner.title') })}
-                          </Typography>
-                          <Typography variant="omega" textColor="neutral600" style={{ fontSize: '12px', lineHeight: '1.4', textAlign: 'center' }}>
-                            {formatMessage({ id: getTrad('settings.compatibility.emailDesigner.description') })}
-                          </Typography>
-                        </Box>
-                        {settings.emailDesignerCompatibility && (
-                          <Box 
-                            background="success100" 
-                            padding={3} 
-                            style={{ 
-                              borderRadius: theme.borderRadius.md, 
-                              marginTop: '8px',
-                              border: '1px solid rgba(34, 197, 94, 0.3)'
-                            }}
-                          >
-                            <Typography variant="pi" style={{ fontSize: '11px' }}>
-                              ✓ Email Designer 5 Integration<br/>
-                              ✓ sendTemplatedEmail() Support
-                            </Typography>
-                          </Box>
-                        )}
-                      </Flex>
-                    </ToggleCard>
-                  </Grid.Item>
-                </Grid.Root>
-
-                {/* Migration Note */}
-                <Box 
-                  background="warning100" 
-                  padding={4} 
-                  style={{ 
-                    borderRadius: theme.borderRadius.md, 
-                    marginTop: '24px',
-                    border: '2px solid rgba(234, 179, 8, 0.4)'
-                  }}
-                >
-                  <Flex alignItems="flex-start" gap={3}>
-                    <Code width="20px" height="20px" style={{ color: 'var(--colors-warning600, #D97706)', flexShrink: 0, marginTop: '2px' }} />
-                    <Box>
-                      <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '6px', display: 'block' }}>
-                        {formatMessage({ id: getTrad('settings.compatibility.migration.title') })}
-                      </Typography>
-                      <Typography variant="pi" textColor="neutral600" style={{ fontSize: '12px', lineHeight: '1.5' }}>
-                        {formatMessage({ id: getTrad('settings.compatibility.migration.description') })}
-                      </Typography>
-                    </Box>
-                  </Flex>
-                </Box>
-              </Box>
-            </Accordion.Content>
-          </Accordion.Item>
-        </Accordion.Root>
-
-        {/* Info Footer */}
-        <Box
-          background="success50"
-          padding={5}
-          style={{ borderRadius: theme.borderRadius.lg, marginTop: '32px', border: '2px solid rgba(34, 197, 94, 0.3)' }}
-        >
-          <Flex gap={3} alignItems="center" justifyContent="center">
-            <Check style={{ width: '24px', height: '24px', color: 'var(--colors-success600, #16A34A)' }} />
-            <Box>
-              <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '4px', display: 'block' }}>
-                {formatMessage({ id: getTrad('settings.footer.quickhelp') })}
+          <FooterBox>
+            <Check aria-hidden="true" />
+            <Flex direction="column" gap={1} alignItems="flex-start">
+              <Typography variant="omega" fontWeight="bold" textColor="neutral800">
+                {t('settings.footer.quickhelp', 'Quick Help')}
               </Typography>
-              <Typography variant="pi" textColor="neutral700" style={{ fontSize: '13px' }}>
-                <strong>{formatMessage({ id: getTrad('settings.footer.reminder') })}</strong>
+              <Typography variant="pi" textColor="neutral700">
+                {t(
+                  'settings.footer.reminder',
+                  'After saving, create a test token and try the magic link.'
+                )}
               </Typography>
-            </Box>
-          </Flex>
-        </Box>
-      </Box>
-    </Container>
+            </Flex>
+          </FooterBox>
+        </Content>
+      </Container>
+
+      <ConfirmDialog
+        isOpen={canWriteSettings && confirmReset}
+        title={t('settings.rateLimit.resetTitle', 'Reset all rate limits?')}
+        description={t(
+          'settings.rateLimit.resetConfirm',
+          'All blocked IP addresses and email addresses can send requests again immediately.'
+        )}
+        confirmLabel={t('settings.rateLimit.reset', 'Reset All Limits')}
+        onConfirm={handleRateLimitReset}
+        onClose={() => setConfirmReset(false)}
+      />
+      <UnsavedChangesDialog guard={guard} getReturnFocusFallback={getSectionFocusTarget} />
+    </Page.Main>
   );
 };
 

@@ -7,92 +7,155 @@
  * ---------------
  * Two secrets are required at runtime:
  *
- *   MAGIC_LINK_ENCRYPTION_KEY  — AES-256 key for reversible secrets (TOTP)
- *   MAGIC_LINK_OTP_PEPPER      — pepper mixed into OTP code hashes
+ *   MAGIC_LINK_ENCRYPTION_KEY  - AES-256-GCM key material for reversible
+ *                                secrets (TOTP). At least 32 characters, e.g.
+ *                                64 hex characters from 32 random bytes.
+ *   MAGIC_LINK_OTP_PEPPER      - pepper for OTP code hashes and backup-code
+ *                                HMACs. At least 32 characters.
  *
- * In production NODE_ENV these MUST be set via env (or the plugin refuses
- * to boot). In non-production they fall back to a derived value so local
- * dev setups keep working — but a prominent WARN is emitted once.
+ * Both are checked eagerly in bootstrap: a missing or too short value stops
+ * the plugin from starting. The only escape hatch is
+ * MAGIC_LINK_ALLOW_DEV_SECRETS=true outside NODE_ENV=production, which uses a
+ * derived development fallback and logs a warning. NODE_ENV alone is not
+ * trusted, because staging hosts often run without NODE_ENV=production.
  *
- * NEVER rotate the encryption key: it is NOT `APP_KEYS`, because Strapi's
- * APP_KEYS are meant to be rotatable. Rotating the encryption key would
- * make every existing TOTP secret undecryptable.
+ * Rotating the encryption key: set the new key in MAGIC_LINK_ENCRYPTION_KEY
+ * and the old one in MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS. Decryption falls
+ * back to the previous key and bootstrap re-encrypts stored TOTP secrets
+ * with the new key. Remove the previous key afterwards.
  */
 
 const crypto = require('crypto');
 
-let warnedMissingKey = false;
-let warnedMissingPepper = false;
+const MIN_SECRET_LENGTH = 32;
+const GCM_IV_BYTES = 16;
+const GCM_TAG_BYTES = 16;
+const DEV_PEPPER = 'magic-link-otp-dev-pepper-DO-NOT-USE-IN-PRODUCTION';
+
+let warnedDevKey = false;
+let warnedDevPepper = false;
 
 const isProduction = () => process.env.NODE_ENV === 'production';
+const devSecretsAllowed = () =>
+  !isProduction() && process.env.MAGIC_LINK_ALLOW_DEV_SECRETS === 'true';
+
+const GENERATE_HINT =
+  "Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"";
 
 /**
- * Derives a dev-mode fallback value from the strongest available secret.
+ * Derives a development fallback value from the strongest available secret.
  * Order matches what Strapi guarantees: ADMIN_JWT_SECRET > APP_KEYS > none.
+ * Kept identical to 5.x so development data stays decryptable.
+ *
+ * @returns {string} Fallback material.
  */
 const devFallbackMaterial = () =>
   process.env.ADMIN_JWT_SECRET ||
-  (Array.isArray(process.env.APP_KEYS) ? process.env.APP_KEYS[0] : process.env.APP_KEYS) ||
+  String(process.env.APP_KEYS || '').split(',')[0] ||
   'magic-link-dev-fallback-DO-NOT-USE-IN-PRODUCTION';
+
+/**
+ * Derives the 32-byte AES key from key material (SHA-256, as in 5.x).
+ *
+ * @param {string} material - Key material.
+ * @returns {Buffer} Key.
+ */
+const deriveKey = (material) => crypto.createHash('sha256').update(material).digest();
 
 /**
  * Returns the 32-byte AES-256 key derived from MAGIC_LINK_ENCRYPTION_KEY.
  *
- * @throws {Error} When the env var is missing in production
+ * @returns {Buffer} Key.
+ * @throws {Error} When the key is missing or too short and development
+ *   secrets are not explicitly allowed.
  */
 const getEncryptionKey = () => {
   const raw = process.env.MAGIC_LINK_ENCRYPTION_KEY;
-  if (raw && raw.length > 0) {
-    return crypto.createHash('sha256').update(raw).digest();
+  if (raw && raw.length >= MIN_SECRET_LENGTH) {
+    return deriveKey(raw);
   }
 
-  if (isProduction()) {
+  if (!devSecretsAllowed()) {
     throw new Error(
-      '[magic-link] MAGIC_LINK_ENCRYPTION_KEY env var is required in production. ' +
-      'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+      raw
+        ? `[magic-link] MAGIC_LINK_ENCRYPTION_KEY must be at least ${MIN_SECRET_LENGTH} characters. ` +
+            'Set the new key and move the old one to MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS. ' +
+            GENERATE_HINT
+        : '[magic-link] MAGIC_LINK_ENCRYPTION_KEY is required (it is NOT rotatable without ' +
+            'MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS). ' +
+            GENERATE_HINT
     );
   }
 
-  if (!warnedMissingKey) {
-    warnedMissingKey = true;
-    // eslint-disable-next-line no-console
+  if (!warnedDevKey) {
+    warnedDevKey = true;
     console.warn(
-      '[magic-link] MAGIC_LINK_ENCRYPTION_KEY not set — using dev fallback. ' +
-      'Set this env var before going to production (it is NOT rotatable).'
+      '[magic-link] MAGIC_LINK_ALLOW_DEV_SECRETS=true: using a development encryption key.'
     );
   }
-  return crypto.createHash('sha256').update(devFallbackMaterial()).digest();
+  return deriveKey(raw || devFallbackMaterial());
 };
 
 /**
- * Returns the pepper used to salt OTP code hashes.
- * The pepper is public-by-design among plugin users, but must not be
- * the published default, otherwise anyone who dumps the DB can rainbow-
- * attack the 10^6 OTP space in seconds.
+ * Returns the previous encryption key used during key rotation, if any.
+ *
+ * @returns {Buffer|null} Key or null.
+ */
+const getPreviousEncryptionKey = () => {
+  const raw = process.env.MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS;
+  return raw ? deriveKey(raw) : null;
+};
+
+/**
+ * Returns the pepper used for OTP code hashes and backup-code HMACs.
+ *
+ * @returns {string} Pepper.
+ * @throws {Error} When the pepper is missing or too short and development
+ *   secrets are not explicitly allowed.
  */
 const getOtpPepper = () => {
   const raw = process.env.MAGIC_LINK_OTP_PEPPER || process.env.OTP_PEPPER;
-  if (raw && raw.length >= 16) {
+  if (raw && raw.length >= MIN_SECRET_LENGTH) {
     return raw;
   }
 
-  if (isProduction()) {
+  if (!devSecretsAllowed()) {
     throw new Error(
-      '[magic-link] MAGIC_LINK_OTP_PEPPER env var is required in production ' +
-      '(min 16 characters). Generate one with: ' +
-      'node -e "console.log(require(\'crypto\').randomBytes(24).toString(\'hex\'))"'
+      `[magic-link] MAGIC_LINK_OTP_PEPPER is required (min ${MIN_SECRET_LENGTH} characters). ` +
+        GENERATE_HINT
     );
   }
 
-  if (!warnedMissingPepper) {
-    warnedMissingPepper = true;
-    // eslint-disable-next-line no-console
-    console.warn(
-      '[magic-link] MAGIC_LINK_OTP_PEPPER not set — using dev fallback. ' +
-      'Set this before deploying to production.'
-    );
+  if (!warnedDevPepper) {
+    warnedDevPepper = true;
+    console.warn('[magic-link] MAGIC_LINK_ALLOW_DEV_SECRETS=true: using a development OTP pepper.');
   }
-  return 'magic-link-otp-dev-pepper-DO-NOT-USE-IN-PRODUCTION';
+  return raw || DEV_PEPPER;
+};
+
+/**
+ * Checks both secrets once. Called from bootstrap so a misconfiguration
+ * stops the start instead of failing on the first login.
+ *
+ * @throws {Error} When a secret is missing or too weak.
+ */
+const assertSecretsConfigured = () => {
+  getEncryptionKey();
+  getOtpPepper();
+};
+
+/**
+ * HMAC-SHA256 keyed with a purpose-specific key derived from the pepper.
+ *
+ * @param {string} purpose - Domain separation label.
+ * @param {string} value - Value to hash.
+ * @returns {string} Hex digest.
+ */
+const keyedHash = (purpose, value) => {
+  const key = Buffer.from(
+    crypto.hkdfSync('sha256', getOtpPepper(), Buffer.alloc(0), `magic-link:${purpose}`, 32)
+  );
+  return crypto.createHmac('sha256', key).update(String(value)).digest('hex');
 };
 
 /**
@@ -114,7 +177,8 @@ const hash = (value) => {
 const hashToken = (token, salt = null) => {
   if (!token) return { hash: null, salt: null };
   const tokenSalt = salt || crypto.randomBytes(16).toString('hex');
-  const hashedToken = crypto.createHash('sha256')
+  const hashedToken = crypto
+    .createHash('sha256')
     .update(token + tokenSalt)
     .digest('hex');
   return { hash: hashedToken, salt: tokenSalt };
@@ -130,10 +194,7 @@ const hashToken = (token, salt = null) => {
 const verifyToken = (token, storedHash, salt) => {
   if (!token || !storedHash) return false;
   const { hash: computedHash } = hashToken(token, salt);
-  return crypto.timingSafeEqual(
-    Buffer.from(computedHash, 'hex'),
-    Buffer.from(storedHash, 'hex')
-  );
+  return crypto.timingSafeEqual(Buffer.from(computedHash, 'hex'), Buffer.from(storedHash, 'hex'));
 };
 
 /**
@@ -144,20 +205,20 @@ const verifyToken = (token, storedHash, salt) => {
  */
 const encrypt = (value) => {
   if (!value) return null;
-  
+
   const key = getEncryptionKey();
   const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-  
+
   let encrypted = cipher.update(String(value), 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  
+
   const authTag = cipher.getAuthTag();
-  
+
   // Return iv:authTag:encryptedData as base64
-  return Buffer.from(
-    iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted
-  ).toString('base64');
+  return Buffer.from(iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted).toString(
+    'base64'
+  );
 };
 
 /**
@@ -170,14 +231,12 @@ const encrypt = (value) => {
  * corrupting the base64 wrapper.
  *
  * @param {string} encryptedValue - Encrypted value (base64 from encrypt())
- * @returns {string|null} Decrypted UTF-8 string, or null if input was null
+ * @param {Buffer} key - AES-256 key.
+ * @returns {string} Decrypted UTF-8 string
  * @throws {Error} If the value is not in the expected iv:tag:ct format
  *                 or if authenticated decryption fails.
  */
-const decrypt = (encryptedValue) => {
-  if (!encryptedValue) return null;
-
-  const key = getEncryptionKey();
+const decryptWithKey = (encryptedValue, key) => {
   const data = Buffer.from(encryptedValue, 'base64').toString('utf8');
   const parts = data.split(':');
 
@@ -192,8 +251,17 @@ const decrypt = (encryptedValue) => {
 
   const iv = Buffer.from(ivHex, 'hex');
   const authTag = Buffer.from(authTagHex, 'hex');
+  // encrypt() always writes a 16-byte IV and a full 128-bit tag. Without an
+  // explicit authTagLength Node accepts truncated GCM tags (down to 4 bytes,
+  // deprecated since Node 22), which would let someone with database write
+  // access forge ciphertexts with far fewer attempts.
+  if (iv.length !== GCM_IV_BYTES || authTag.length !== GCM_TAG_BYTES) {
+    throw new Error('[Crypto] decrypt: invalid IV or authentication tag length');
+  }
 
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv, {
+    authTagLength: GCM_TAG_BYTES,
+  });
   decipher.setAuthTag(authTag);
 
   let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
@@ -203,24 +271,48 @@ const decrypt = (encryptedValue) => {
 };
 
 /**
+ * Decrypts and reports whether the previous (rotation) key was needed.
+ *
+ * @param {string} encryptedValue - Encrypted value (base64 from encrypt()).
+ * @returns {{value: string|null, usedPreviousKey: boolean}} Result.
+ * @throws {Error} When neither key authenticates the ciphertext.
+ */
+const decryptWithInfo = (encryptedValue) => {
+  if (!encryptedValue) return { value: null, usedPreviousKey: false };
+  try {
+    return { value: decryptWithKey(encryptedValue, getEncryptionKey()), usedPreviousKey: false };
+  } catch (error) {
+    const previous = getPreviousEncryptionKey();
+    if (!previous) throw error;
+    return { value: decryptWithKey(encryptedValue, previous), usedPreviousKey: true };
+  }
+};
+
+const decrypt = (encryptedValue) => decryptWithInfo(encryptedValue).value;
+
+/**
  * Generate a cryptographically secure random string
  * @param {number} length - Length of the string
  * @returns {string} - Random string (hex)
  */
 const generateSecureRandom = (length = 32) => {
-  return crypto.randomBytes(Math.ceil(length / 2)).toString('hex').slice(0, length);
+  return crypto
+    .randomBytes(Math.ceil(length / 2))
+    .toString('hex')
+    .slice(0, length);
 };
 
 /**
  * Hash OTP code for secure storage (with timing-safe comparison).
- * Uses getOtpPepper() which enforces env presence in production.
+ * Uses getOtpPepper(), which requires a configured pepper.
  * @param {string} code - OTP code to hash
  * @returns {string|null} - Hex SHA-256 digest, or null if code is empty
  */
 const hashOTP = (code) => {
   if (!code) return null;
   const pepper = getOtpPepper();
-  return crypto.createHash('sha256')
+  return crypto
+    .createHash('sha256')
     .update(code + pepper)
     .digest('hex');
 };
@@ -235,10 +327,7 @@ const verifyOTP = (code, storedHash) => {
   if (!code || !storedHash) return false;
   const computedHash = hashOTP(code);
   try {
-    return crypto.timingSafeEqual(
-      Buffer.from(computedHash, 'hex'),
-      Buffer.from(storedHash, 'hex')
-    );
+    return crypto.timingSafeEqual(Buffer.from(computedHash, 'hex'), Buffer.from(storedHash, 'hex'));
   } catch {
     return false;
   }
@@ -272,6 +361,10 @@ const hashJwt = (jwt) => {
 };
 
 module.exports = {
+  MIN_SECRET_LENGTH,
+  assertSecretsConfigured,
+  decryptWithInfo,
+  keyedHash,
   hash,
   hashToken,
   verifyToken,
@@ -283,4 +376,3 @@ module.exports = {
   isEncrypted,
   hashJwt,
 };
-

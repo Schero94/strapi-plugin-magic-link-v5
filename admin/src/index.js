@@ -2,15 +2,13 @@ import pluginPkg from '../../package.json';
 import pluginId from './pluginId';
 import { Initializer } from './components/Initializer';
 import { PluginIcon } from './components/PluginIcon';
-import { Key } from '@strapi/icons';
 import pluginPermissions from './permissions';
-import getTrad from './utils/getTrad';
+import { getTranslation } from './utils/getTranslation';
 
 const name = pluginPkg.strapi.name;
 
 export default {
   register(app) {
-    // Zuerst das Plugin registrieren (WICHTIG in Strapi v5!)
     app.registerPlugin({
       id: pluginId,
       initializer: Initializer,
@@ -18,77 +16,69 @@ export default {
       name,
     });
 
-    // Menu Link für Token-Verwaltung hinzufügen
+    // Tokens, OTP codes, JWT sessions and IP bans. Needs the read action.
     app.addMenuLink({
       to: `plugins/${pluginId}/tokens`,
       icon: PluginIcon,
       intlLabel: {
-        id: getTrad('tokens.title'),
+        id: getTranslation('tokens.title'),
         defaultMessage: 'Magic Link Tokens',
       },
-      Component: () => import(/* webpackChunkName: "magic-link-tokens" */ './pages/Tokens'),
-      permissions: pluginPermissions.access,
+      Component: () => import('./pages/Tokens'),
+      permissions: pluginPermissions.main,
     });
 
-    // Settings Section erstellen
     app.createSettingSection(
       {
         id: pluginId,
         intlLabel: {
-          id: getTrad('Header.Settings'),
+          id: getTranslation('Header.Settings'),
           defaultMessage: 'Magic Link',
         },
       },
       [
         {
           intlLabel: {
-            id: getTrad('Form.title.Settings'),
+            id: getTranslation('Form.title.Settings'),
             defaultMessage: 'Settings',
           },
           id: 'magic-link-settings',
           to: `${pluginId}/config`,
-          Component: () => import(/* webpackChunkName: "magic-link-settings" */ './pages/Settings'),
-          permissions: pluginPermissions.readSettings,
+          Component: () => import('./pages/Settings'),
+          permissions: pluginPermissions.settingsRead,
         },
         {
           intlLabel: {
-            id: getTrad('Form.title.License'),
+            id: getTranslation('Form.title.License'),
             defaultMessage: 'License',
           },
           id: 'magic-link-license',
           to: `${pluginId}/license`,
-          Component: () => import(/* webpackChunkName: "magic-link-license" */ './pages/License'),
-          permissions: pluginPermissions.access,
+          Component: () => import('./pages/License'),
+          // The license key is plugin configuration, so it shares the settings actions.
+          permissions: pluginPermissions.settingsRead,
         },
       ]
     );
   },
 
-  bootstrap() {
-    // Nothing to do here
-  },
+  bootstrap() {},
 
+  /**
+   * Loads the plugin messages for the admin locales. The JSON files already
+   * use the full "magic-link.*" ids. Locales without a file get an empty set
+   * and fall back to each message's English defaultMessage.
+   */
   async registerTrads({ locales }) {
-    const importedTrads = await Promise.all(
-      locales.map((locale) => {
-        return import(
-          /* webpackChunkName: "magic-link-translation-[request]" */ `./translations/${locale}.json`
-        )
-          .then(({ default: data }) => {
-            return {
-              data: data,
-              locale,
-            };
-          })
-          .catch(() => {
-            return {
-              data: {},
-              locale,
-            };
-          });
-      })
+    return Promise.all(
+      locales.map((locale) =>
+        // Wrapped so a bundler that throws synchronously for an unknown
+        // locale file still resolves to the empty fallback.
+        Promise.resolve()
+          .then(() => import(`./translations/${locale}.json`))
+          .then(({ default: data }) => ({ data, locale }))
+          .catch(() => ({ data: {}, locale }))
+      )
     );
-
-    return Promise.resolve(importedTrads);
   },
 };

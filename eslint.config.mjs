@@ -1,104 +1,87 @@
 /**
- * Minimal ESLint flat config for strapi-plugin-magic-link-v5.
+ * ESLint flat config for strapi-plugin-magic-link-v5 (ESLint 10).
  *
- * Goal: catch *correctness* bugs at build time without drowning the codebase
- * in style noise. The most important rule is `no-undef` — that single rule
- * would have prevented issue #17 (`emailTemplates is not defined`) from ever
- * shipping.
+ * - @eslint/js recommended rules for every file.
+ * - Admin (React, browser, ESM): JSX parsing and the eslint-plugin-react-hooks
+ *   recommended preset (rules-of-hooks, exhaustive-deps and the React Compiler
+ *   rules shipped in 7.x).
+ * - Server (Node, CommonJS): node globals and `strapi` as a readonly global.
+ * - Tests and scripts: node globals.
+ * - eslint-config-prettier last, so ESLint never fights Prettier.
  *
- * If you ever want to expand this (recommended set, hooks deps, etc.),
- * just enable more rules below; this config is intentionally conservative
- * so it stays green on the existing codebase.
+ * eslint-plugin-jsx-a11y is not used: its latest release (6.10.2, 2024-10)
+ * declares peer support only up to ESLint 9, so it is not compatible with the
+ * ESLint 10 toolchain. Accessibility is covered by the admin source-guard
+ * tests in tests/admin-*.test.cjs instead.
  */
 
-import reactHooksPlugin from 'eslint-plugin-react-hooks';
+import js from '@eslint/js';
+import eslintConfigPrettier from 'eslint-config-prettier/flat';
+import reactHooks from 'eslint-plugin-react-hooks';
+import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
 
-const correctnessRules = {
-  // The bug class issue #17 belongs to: referencing a variable / state hook
-  // that was never declared. Catching this once is worth the entire setup.
-  'no-undef': 'error',
-
-  // Other "you almost certainly meant something else" bugs.
-  'no-dupe-keys': 'error',
-  'no-dupe-args': 'error',
-  'no-dupe-class-members': 'error',
-  'no-dupe-else-if': 'error',
-  'no-duplicate-case': 'error',
-  'no-unreachable': 'error',
-  'no-redeclare': 'error',
-  'no-self-assign': 'error',
-  'no-cond-assign': 'error',
-  'no-constant-condition': ['error', { checkLoops: false }],
-  'use-isnan': 'error',
-  'valid-typeof': 'error',
-  'no-empty': ['error', { allowEmptyCatch: true }],
-  // Warn on unused vars but don't block the build — too noisy for legacy code.
-  'no-unused-vars': [
-    'warn',
-    {
-      argsIgnorePattern: '^_',
-      varsIgnorePattern: '^_',
-      caughtErrorsIgnorePattern: '^_',
-    },
-  ],
-};
-
-export default [
-  // ---------------------------------------------------------------------------
-  // Global ignores (must be a config object containing ONLY `ignores`)
-  // ---------------------------------------------------------------------------
+const unusedVars = [
+  'error',
   {
-    ignores: [
-      'dist/**',
-      'node_modules/**',
-      'pics/**',
-      // Legacy backup file kept for reference, not part of the build:
-      'admin/src/pages/Settings/index.jsx.old',
-      // Local dev helper, not shipped:
-      'test-magic-link.js',
-    ],
+    argsIgnorePattern: '^_',
+    varsIgnorePattern: '^_',
+    caughtErrorsIgnorePattern: '^_',
+  },
+];
+
+export default defineConfig([
+  globalIgnores(['dist/**', 'node_modules/**', 'pics/**', 'coverage/**', '.strapi/**']),
+
+  {
+    name: 'magic-link/recommended',
+    files: ['**/*.{js,jsx,mjs,cjs}'],
+    extends: [js.configs.recommended],
+    rules: {
+      'no-unused-vars': unusedVars,
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      // No dynamic code execution anywhere (e-mail templates used to run
+      // through lodash _.template).
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'no-new-func': 'error',
+    },
   },
 
-  // ---------------------------------------------------------------------------
-  // Admin panel (React, browser, ESM)
-  // ---------------------------------------------------------------------------
   {
-    files: ['admin/**/*.{js,jsx}'],
+    name: 'magic-link/admin',
+    files: ['admin/**/*.{js,jsx,mjs}'],
+    extends: [reactHooks.configs.flat.recommended],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
-      parserOptions: {
-        ecmaFeatures: { jsx: true },
-      },
-      globals: {
-        ...globals.browser,
-        ...globals.es2022,
-      },
-    },
-    plugins: {
-      'react-hooks': reactHooksPlugin,
-    },
-    rules: {
-      ...correctnessRules,
+      parserOptions: { ecmaFeatures: { jsx: true } },
+      globals: { ...globals.browser },
     },
   },
 
-  // ---------------------------------------------------------------------------
-  // Server (Node.js, CommonJS)
-  // ---------------------------------------------------------------------------
   {
+    name: 'magic-link/server',
     files: ['server/**/*.js', 'strapi-server.js', 'strapi-admin.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',
       globals: {
         ...globals.node,
-        ...globals.es2022,
-        // Strapi injects this global into every plugin module at runtime.
+        // Strapi provides this global to every plugin module at runtime.
         strapi: 'readonly',
       },
     },
-    rules: correctnessRules,
   },
-];
+
+  {
+    name: 'magic-link/node-tooling',
+    files: ['tests/**/*.{js,cjs,mjs}', 'scripts/**/*.{js,cjs,mjs}', '*.config.{js,mjs,cjs}'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      globals: { ...globals.node },
+    },
+  },
+
+  eslintConfigPrettier,
+]);

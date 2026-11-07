@@ -1,573 +1,234 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import styled, { keyframes } from 'styled-components';
-import { useIntl } from 'react-intl';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Typography,
+  Alert,
   Box,
-  Flex,
   Button,
-  Loader,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Td,
-  Th,
-  Badge,
+  Checkbox,
+  Flex,
+  IconButton,
   Searchbar,
   SingleSelect,
   SingleSelectOption,
-  Pagination,
-  PreviousLink,
-  PageLink,
-  NextLink,
-  Checkbox,
-  IconButton,
+  Tbody,
+  Td,
+  Th,
+  Thead,
+  Tr,
+  Typography,
+  VisuallyHidden,
 } from '@strapi/design-system';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import {
   ArrowClockwise,
-  Shield,
-  User,
   Calendar,
-  Clock,
-  Trash,
-  Eye,
-  Lock,
-  Check,
-  Cross,
   CaretDown,
+  CaretUp,
+  Check,
+  Clock,
+  Lock,
   Monitor,
+  Shield,
+  Trash,
+  User,
 } from '@strapi/icons';
-import getTrad from '../../utils/getTrad';
+import { ConfirmDialog } from '../../components/shared/ConfirmDialog';
+import { useMagicLinkIntl } from '../../hooks/useMagicLinkIntl';
+import { useMagicLinkRBAC } from '../../hooks/useMagicLinkRBAC';
+import { useFormatters } from '../../hooks/useFormatters';
+import { brand } from '../../utils/theme';
+import {
+  ActionBar,
+  Avatar,
+  DataTable,
+  EmptyState,
+  FilterActions,
+  FilterBar,
+  FilterSearch,
+  FilterSelect,
+  LoadErrorState,
+  LoadingState,
+  PageSizeSelect,
+  SortHeader,
+  StatsRow,
+  StyledTable,
+  TablePagination,
+} from './securityTabs.shared';
+import {
+  clampPage,
+  filterSessions,
+  getPageCount,
+  getRestoreBlock,
+  getSelectAllState,
+  getSessionStats,
+  getSessionStatus,
+  paginate,
+  sortSessions,
+  summarizeSettled,
+} from './securityTabs.utils';
+import { StatusBadge } from './components/tokenStyles';
 
-// ================ DESIGN TOKENS ================
-const theme = {
-  colors: {
-    primary: { 600: '#0284C7', 500: '#0EA5E9', 100: '#E0F2FE', 50: '#F0F9FF' },
-    success: { 600: '#16A34A', 500: '#22C55E', 100: '#DCFCE7', 50: '#F0FDF4' },
-    warning: { 600: '#D97706', 500: '#F59E0B', 100: '#FEF3C7', 50: '#FFFBEB' },
-    danger: { 600: '#DC2626', 500: '#EF4444', 100: '#FEE2E2', 50: '#FEF2F2' },
-    neutral: {
-      0: '#FFFFFF',
-      50: '#F9FAFB',
-      100: '#F3F4F6',
-      200: '#E5E7EB',
-      500: '#6B7280',
-      600: '#4B5563',
-      700: '#374151',
-      800: '#1F2937',
-      900: '#111827',
-    }
-  },
-  shadows: {
-    sm: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-    md: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-    xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-  },
-  transitions: {
-    fast: '150ms cubic-bezier(0.4, 0, 0.2, 1)',
-    normal: '300ms cubic-bezier(0.4, 0, 0.2, 1)',
-  },
-  spacing: {
-    md: '16px',
-    lg: '24px',
-    xl: '32px',
-  },
-  borderRadius: {
-    md: '8px',
-    lg: '12px',
-    xl: '16px',
-    full: '9999px',
-  }
-};
+/**
+ * Focus target when a confirm dialog closes and its opener left the DOM (the
+ * row disappeared after the action or a refresh): the tab's search field.
+ */
+const getSearchField = () => document.querySelector('input[name="jwt-session-search"]');
 
-// ================ ANIMATIONEN ================
-const fadeIn = keyframes`
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-`;
+/**
+ * Status badge tones. DS 2.2.4 Badge variants pair the 200 background with the
+ * 700 text (3.6:1 warning, 3.9:1 danger); the shared Magic Link StatusBadge
+ * tints keep every state at >= 4.5:1 in light and dark mode.
+ */
+const STATUS_TONE = Object.freeze({ active: 'success', expired: 'warning', revoked: 'danger' });
 
-const rotate = keyframes`
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-`;
-
-const float = keyframes`
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-5px); }
-`;
-
-// ================ STYLED COMPONENTS ================
-const Container = styled(Box)`
-  animation: ${fadeIn} 0.5s;
-  min-height: calc(100vh - 200px);
-  background: transparent;
-`;
-
-const StatsGrid = styled(Box)`
-  margin-bottom: ${theme.spacing.xl};
-  display: flex;
-  gap: ${theme.spacing.md};
-  justify-content: center;
-  flex-wrap: wrap;
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
-
-  @media screen and (max-width: 768px) {
-    display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 12px !important;
-    max-width: 100% !important;
-    margin-bottom: 24px !important;
-    padding: 0 12px !important;
-  }
-`;
-
-const StatCard = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.lg};
-  transition: all ${theme.transitions.normal};
-  animation: ${fadeIn} 0.5s backwards;
-  animation-delay: ${props => props.$delay || '0s'};
-  box-shadow: ${theme.shadows.sm};
-  border: 1px solid ${props => props.theme.colors.neutral200};
-  min-width: 220px;
-  max-width: 260px;
-  flex: 1;
-  
-  &:hover {
-    transform: translateY(-4px);
-    box-shadow: ${theme.shadows.xl};
-    border-color: ${props => props.$color || theme.colors.primary[500]};
-    
-    .stat-icon {
-      transform: rotate(10deg) scale(1.1);
-    }
-  }
-
-  @media screen and (max-width: 768px) {
-    min-width: unset !important;
-    max-width: unset !important;
-    width: 100% !important;
-    padding: 16px !important;
-    
-    &:hover {
-      transform: none !important;
-    }
-  }
-`;
-
-const StatIcon = styled(Box)`
-  width: 48px;
-  height: 48px;
-  border-radius: ${theme.borderRadius.md};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: ${props => props.$bg};
-  transition: all ${theme.transitions.normal};
-  
-  svg {
-    width: 24px;
-    height: 24px;
-    color: ${props => props.$color};
-  }
-`;
-
-const StatValue = styled(Typography)`
-  font-size: 2rem;
-  font-weight: 700;
-  color: ${props => props.theme.colors.neutral800};
-  margin: ${theme.spacing.md} 0 4px;
-`;
-
-const StatLabel = styled(Typography)`
-  font-size: 0.875rem;
-  color: ${props => props.theme.colors.neutral600};
-  font-weight: 500;
-`;
-
-const DataTable = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
-  border-radius: ${theme.borderRadius.xl};
-  overflow: hidden;
-  box-shadow: ${theme.shadows.sm};
-  border: 1px solid ${props => props.theme.colors.neutral200};
-`;
-
-const StyledTable = styled(Table)`
-  thead {
-    background: ${props => props.theme.colors.neutral50};
-    border-bottom: 1px solid ${props => props.theme.colors.neutral200};
-    
-    th {
-      font-weight: 600;
-      color: ${props => props.theme.colors.neutral800};
-      font-size: 0.875rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      padding: ${theme.spacing.md};
-    }
-  }
-  
-  tbody tr {
-    transition: all ${theme.transitions.fast};
-    border-bottom: 1px solid ${props => props.theme.colors.neutral100};
-    
-    &:hover {
-      background: ${props => props.theme.colors.primary100};
-    }
-    
-    td {
-      padding: ${theme.spacing.md};
-      color: ${props => props.theme.colors.neutral800};
-    }
-  }
-
-  /* Mobile Card Layout */
-  @media screen and (max-width: 768px) {
-    display: block !important;
-    
-    thead {
-      display: none !important;
-    }
-    
-    tbody {
-      display: block !important;
-    }
-    
-    tr {
-      display: block !important;
-      margin-bottom: 16px !important;
-      border: 2px solid #E5E7EB !important;
-      border-radius: 12px !important;
-      padding: 16px !important;
-      background: white !important;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
-    }
-    
-    td {
-      display: flex !important;
-      justify-content: space-between !important;
-      align-items: center !important;
-      padding: 8px 0 !important;
-      border: none !important;
-      
-      &:not(:last-child) {
-        border-bottom: 1px solid #E5E7EB !important;
-        padding-bottom: 8px !important;
-        margin-bottom: 8px !important;
-      }
-      
-      &::before {
-        content: attr(data-label) !important;
-        font-weight: 600 !important;
-        color: #6B7280 !important;
-        font-size: 11px !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.5px !important;
-        flex-shrink: 0 !important;
-      }
-      
-      &[data-label=""]::before {
-        display: none !important;
-      }
-    }
-  }
-`;
-
-const AnimatedBadge = styled(Badge)`
-  font-weight: 600;
-  padding: 4px 8px;
-  transition: transform ${theme.transitions.fast};
-  
-  &:hover {
-    transform: scale(1.05);
-  }
-`;
-
-const EmptyState = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
-  border-radius: ${theme.borderRadius.xl};
-  padding: 64px;
-  text-align: center;
-  border: 2px dashed ${props => props.theme.colors.neutral300};
-  min-height: 400px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  
-  &::after {
-    content: '🔐';
-    position: absolute;
-    bottom: 40px;
-    right: 40px;
-    font-size: 72px;
-    opacity: 0.08;
-    animation: ${float} 4s ease-in-out infinite;
-  }
-`;
-
-const FilterBar = styled(Flex)`
-  background: ${props => props.theme.colors.neutral0};
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.md};
-  margin-bottom: ${theme.spacing.lg};
-  box-shadow: ${theme.shadows.sm};
-  border: 1px solid ${props => props.theme.colors.neutral200};
-`;
-
-const ActionBar = styled(Flex)`
-  padding: ${theme.spacing.md};
-  background: ${props => props.theme.colors.primary100};
-  border-radius: ${theme.borderRadius.lg};
-  margin-bottom: ${theme.spacing.md};
-`;
-
-const LoadingOverlay = styled(Flex)`
-  min-height: 400px;
-  justify-content: center;
-  align-items: center;
-  
-  .loader-icon {
-    animation: ${rotate} 1s linear infinite;
-  }
-`;
-
-// ================ HELPER FUNKTIONEN ================
-const formatDate = (dateString) => {
-  if (!dateString) return '—';
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '—';
-  
-  return new Intl.DateTimeFormat('de-DE', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(date);
-};
-
-// ================ HAUPTKOMPONENTE ================
+/**
+ * JWT sessions tab: lists the sessions issued by Magic Link logins and lets
+ * managers revoke, restore and clean them up. Read access lists, manage access
+ * changes (plugin::magic-link.read / .manage, enforced by the server).
+ */
 const JWTSessions = () => {
-  const { formatMessage } = useIntl();
+  const { t } = useMagicLinkIntl();
+  const { formatDateTime } = useFormatters();
   const { get, post } = useFetchClient();
   const { toggleNotification } = useNotification();
-  
-  // States
+  const {
+    canRead,
+    canManage,
+    isLoading: isLoadingPermissions,
+    error: permissionError,
+  } = useMagicLinkRBAC();
+
   const [sessions, setSessions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedSessions, setSelectedSessions] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
-  
-  // Stats berechnen
-  const stats = useMemo(() => ({
-    total: sessions.length,
-    active: sessions.filter(s => !s.revoked && !s.isExpired).length,
-    expired: sessions.filter(s => s.isExpired).length,
-    revoked: sessions.filter(s => s.revoked).length,
-  }), [sessions]);
-  
-  // Gefilterte und sortierte Sessions
-  const filteredAndSortedSessions = useMemo(() => {
-    let filtered = sessions;
-    
-    // Search Filter
-    if (searchQuery) {
-      filtered = filtered.filter(session =>
-        session.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        session.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        session.ipAddress?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-    
-    // Status Filter
-    if (filterStatus !== 'all') {
-      filtered = filtered.filter(session => {
-        switch (filterStatus) {
-          case 'active':
-            return !session.revoked && !session.isExpired;
-          case 'expired':
-            return session.isExpired;
-          case 'revoked':
-            return session.revoked;
-          default:
-            return true;
-        }
-      });
-    }
-    
-    // Sortierung
-    filtered.sort((a, b) => {
-      const aValue = a[sortBy];
-      const bValue = b[sortBy];
-      
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
-    
-    return filtered;
-  }, [sessions, searchQuery, filterStatus, sortBy, sortOrder]);
-  
-  // Pagination
-  const paginatedSessions = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    const end = start + pageSize;
-    return filteredAndSortedSessions.slice(start, end);
-  }, [filteredAndSortedSessions, currentPage, pageSize]);
-  
-  const totalPages = Math.ceil(filteredAndSortedSessions.length / pageSize);
-  
-  // Stat Cards Konfiguration
-  const statCards = [
-    {
-      title: formatMessage({ id: getTrad('jwt.stats.total') }),
-      value: stats.total,
-      icon: Shield,
-      color: theme.colors.primary[600],
-      bg: theme.colors.primary[100],
-      delay: '0s'
-    },
-    {
-      title: formatMessage({ id: getTrad('jwt.stats.active') }),
-      value: stats.active,
-      icon: Check,
-      color: theme.colors.success[600],
-      bg: theme.colors.success[100],
-      delay: '0.1s'
-    },
-    {
-      title: formatMessage({ id: getTrad('jwt.stats.expired') }),
-      value: stats.expired,
-      icon: Clock,
-      color: theme.colors.warning[600],
-      bg: theme.colors.warning[100],
-      delay: '0.2s'
-    },
-    {
-      title: formatMessage({ id: getTrad('jwt.stats.revoked') }),
-      value: stats.revoked,
-      icon: Lock,
-      color: theme.colors.danger[600],
-      bg: theme.colors.danger[100],
-      delay: '0.3s'
-    }
-  ];
-  
-  // Fetch Functions
+  // { type: 'revoke'|'unrevoke'|'cleanup'|'bulkRevoke', session?: object }
+  const [pendingAction, setPendingAction] = useState(null);
+
+  const notifyError = useCallback(
+    (message) =>
+      toggleNotification({
+        type: 'danger',
+        title: t('jwt.notifications.errorTitle', 'Error'),
+        message,
+      }),
+    [t, toggleNotification]
+  );
+
+  const notifySuccess = useCallback(
+    (message) =>
+      toggleNotification({
+        type: 'success',
+        title: t('jwt.notifications.successTitle', 'Success'),
+        message,
+      }),
+    [t, toggleNotification]
+  );
+
+  /** Loads the sessions. Returns true on success. */
   const fetchSessions = useCallback(async () => {
-    setIsLoading(true);
     try {
       const response = await get('/magic-link/jwt-sessions');
-      setSessions(response?.data || []);
-    } catch (error) {
-      console.error('Error fetching JWT sessions:', error);
-      toggleNotification({
-        type: 'warning',
-        message: 'Fehler beim Laden der JWT Sessions',
-        title: 'Fehler'
-      });
-    } finally {
-      setIsLoading(false);
+      setSessions(Array.isArray(response?.data) ? response.data : []);
+      setLoadError(false);
+      return true;
+    } catch {
+      setLoadError(true);
+      return false;
     }
-  }, [get, toggleNotification]);
-  
+  }, [get]);
+
   useEffect(() => {
-    fetchSessions();
-  }, [fetchSessions]);
-  
-  // Handlers
-  const handleRefresh = () => {
-    fetchSessions();
-    toggleNotification({
-      type: 'success',
-      message: formatMessage({ id: getTrad('jwt.notifications.refreshSuccess') }),
-      title: formatMessage({ id: getTrad('tokens.notifications.success') })
-    });
+    if (isLoadingPermissions) return undefined;
+    // Without read access nothing is fetched; the loader is derived below.
+    if (!canRead) return undefined;
+    let active = true;
+    // State is set only after the request settles (no cascading render).
+    const load = async () => {
+      const ok = await fetchSessions();
+      if (!active) return;
+      setIsLoading(false);
+      if (!ok) notifyError(t('jwt.notifications.loadError', 'JWT sessions could not be loaded.'));
+    };
+    load();
+    return () => {
+      active = false;
+    };
+  }, [canRead, isLoadingPermissions, fetchSessions, notifyError, t]);
+
+  const stats = useMemo(() => getSessionStats(sessions), [sessions]);
+
+  const filteredSessions = useMemo(
+    () =>
+      sortSessions(
+        filterSessions(sessions, { query: searchQuery, status: filterStatus }),
+        sortBy,
+        sortOrder
+      ),
+    [sessions, searchQuery, filterStatus, sortBy, sortOrder]
+  );
+
+  const pageCount = getPageCount(filteredSessions.length, pageSize);
+  const safePage = clampPage(currentPage, pageCount);
+  const pageSessions = useMemo(
+    () => paginate(filteredSessions, safePage, pageSize),
+    [filteredSessions, safePage, pageSize]
+  );
+
+  // Only sessions that are still revocable can be selected for bulk revoke.
+  const selectableIds = useMemo(
+    () => pageSessions.filter((s) => getSessionStatus(s) === 'active').map((s) => s.id),
+    [pageSessions]
+  );
+  const selectedSessions = useMemo(
+    () => sessions.filter((s) => selectedIds.includes(s.id) && getSessionStatus(s) === 'active'),
+    [sessions, selectedIds]
+  );
+  const filtersActive = Boolean(searchQuery.trim()) || filterStatus !== 'all';
+
+  const resetView = () => {
+    setCurrentPage(1);
+    setSelectedIds([]);
   };
-  
-  const handleRevoke = async (sessionId) => {
-    try {
-      await post('/magic-link/revoke-jwt', { sessionId });
-      await fetchSessions();
-      toggleNotification({
-        type: 'success',
-        message: 'Session wurde gesperrt',
-        title: 'Erfolg'
-      });
-    } catch (error) {
-      toggleNotification({
-        type: 'warning',
-        message: formatMessage({ id: getTrad('jwt.notifications.revokeError') }),
-        title: formatMessage({ id: getTrad('tokens.notifications.error') })
-      });
-    }
+
+  const handleSearch = (value) => {
+    setSearchQuery(value);
+    resetView();
   };
-  
-  const handleUnrevoke = async (sessionId, userId) => {
-    try {
-      await post('/magic-link/unrevoke-jwt', { sessionId, userId });
-      await fetchSessions();
-      toggleNotification({
-        type: 'success',
-        message: formatMessage({ id: getTrad('jwt.notifications.unrevokeSuccess') }),
-        title: formatMessage({ id: getTrad('tokens.notifications.success') })
-      });
-    } catch (error) {
-      toggleNotification({
-        type: 'warning',
-        message: formatMessage({ id: getTrad('jwt.notifications.unrevokeError') }),
-        title: formatMessage({ id: getTrad('tokens.notifications.error') })
-      });
-    }
+
+  const handleStatusFilter = (value) => {
+    setFilterStatus(value);
+    resetView();
   };
-  
-  const handleCleanup = async () => {
-    try {
-      const response = await post('/magic-link/cleanup-sessions');
-      await fetchSessions();
-      toggleNotification({
-        type: 'success',
-        message: response?.data?.message || formatMessage({ id: getTrad('jwt.notifications.cleanupSuccess') }),
-        title: formatMessage({ id: getTrad('tokens.notifications.success') })
-      });
-    } catch (error) {
-      toggleNotification({
-        type: 'warning',
-        message: formatMessage({ id: getTrad('jwt.notifications.cleanupError') }),
-        title: formatMessage({ id: getTrad('tokens.notifications.error') })
-      });
-    }
+
+  const handlePageSize = (value) => {
+    setPageSize(value);
+    resetView();
   };
-  
-  const handleSelectAll = (checked) => {
-    if (checked) {
-      setSelectedSessions(paginatedSessions.map(session => session.id));
+
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setFilterStatus('all');
+    resetView();
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    const ok = await fetchSessions();
+    setIsRefreshing(false);
+    if (ok) {
+      notifySuccess(t('jwt.notifications.refreshSuccess', 'Data has been refreshed'));
     } else {
-      setSelectedSessions([]);
+      notifyError(t('jwt.notifications.loadError', 'JWT sessions could not be loaded.'));
     }
   };
-  
-  const handleSelectSession = (sessionId, checked) => {
-    if (checked) {
-      setSelectedSessions([...selectedSessions, sessionId]);
-    } else {
-      setSelectedSessions(selectedSessions.filter(id => id !== sessionId));
-    }
-  };
-  
+
   const handleSort = (field) => {
     if (sortBy === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -575,350 +236,630 @@ const JWTSessions = () => {
       setSortBy(field);
       setSortOrder('asc');
     }
+    setCurrentPage(1);
   };
-  
-  const getStatusBadge = (session) => {
-    if (session.revoked) {
-      return <AnimatedBadge variant="danger">{formatMessage({ id: getTrad('jwt.status.revoked') })}</AnimatedBadge>;
+
+  /** Revokes one session after the ConfirmDialog. */
+  const handleRevoke = async (session) => {
+    if (!canManage) return;
+    try {
+      await post('/magic-link/revoke-jwt', { sessionId: session.id });
+      setSelectedIds((ids) => ids.filter((id) => id !== session.id));
+      notifySuccess(t('jwt.notifications.revokeSuccess', 'Session revoked successfully'));
+      await fetchSessions();
+      // Close after the refresh, so a removed row's dialog returns focus
+      // to the search field instead of <body>.
+      setPendingAction(null);
+    } catch {
+      notifyError(t('jwt.notifications.revokeError', 'Error revoking session'));
     }
-    if (session.isExpired) {
-      return <AnimatedBadge variant="warning">{formatMessage({ id: getTrad('jwt.status.expired') })}</AnimatedBadge>;
-    }
-    return <AnimatedBadge variant="success">{formatMessage({ id: getTrad('jwt.status.active') })}</AnimatedBadge>;
   };
-  
-  // Loading State
-  if (isLoading) {
+
+  /** Restores one revoked, unexpired session after the ConfirmDialog. */
+  const handleUnrevoke = async (session) => {
+    if (!canManage) return;
+    try {
+      await post('/magic-link/unrevoke-jwt', { sessionId: session.id, userId: session.userId });
+      notifySuccess(t('jwt.notifications.unrevokeSuccess', 'Session restored successfully'));
+      await fetchSessions();
+      setPendingAction(null);
+    } catch {
+      notifyError(t('jwt.notifications.unrevokeError', 'Error restoring session'));
+    }
+  };
+
+  /** Marks every expired session as revoked after the ConfirmDialog. */
+  const handleCleanup = async () => {
+    if (!canManage) return;
+    try {
+      const response = await post('/magic-link/cleanup-sessions');
+      const count = Number(response?.data?.count);
+      notifySuccess(
+        Number.isFinite(count)
+          ? t(
+              'jwt.notifications.cleanupCount',
+              '{count, plural, one {# expired session cleaned up} other {# expired sessions cleaned up}}',
+              { count }
+            )
+          : t('jwt.notifications.cleanupSuccess', 'Sessions cleaned up successfully')
+      );
+      await fetchSessions();
+      setPendingAction(null);
+    } catch {
+      notifyError(t('jwt.notifications.cleanupError', 'Error cleaning up sessions'));
+    }
+  };
+
+  /** Revokes all selected active sessions; reports partial failures. */
+  const handleBulkRevoke = async () => {
+    if (!canManage) return;
+    const ids = selectedSessions.map((s) => s.id);
+    if (!ids.length) return;
+    const results = await Promise.allSettled(
+      ids.map((sessionId) => post('/magic-link/revoke-jwt', { sessionId }))
+    );
+    const summary = summarizeSettled(ids, results);
+    if (summary.failed === 0) {
+      notifySuccess(
+        t(
+          'jwt.notifications.bulkRevokeSuccess',
+          '{count, plural, one {# session revoked} other {# sessions revoked}}',
+          { count: summary.succeeded }
+        )
+      );
+    } else {
+      notifyError(
+        t(
+          'jwt.notifications.bulkRevokePartial',
+          '{succeeded} of {total} sessions revoked. The rest failed.',
+          {
+            succeeded: summary.succeeded,
+            total: summary.total,
+          }
+        )
+      );
+    }
+    await fetchSessions();
+    // The dialog copy counts the selection, so it changes only after the close.
+    setPendingAction(null);
+    setSelectedIds(summary.failedIds);
+  };
+
+  const handleSelectAll = (checked) => {
+    setSelectedIds((ids) =>
+      checked === true
+        ? Array.from(new Set([...ids, ...selectableIds]))
+        : ids.filter((id) => !selectableIds.includes(id))
+    );
+  };
+
+  const handleSelect = (id, checked) => {
+    setSelectedIds((ids) =>
+      checked === true ? [...ids, id] : ids.filter((value) => value !== id)
+    );
+  };
+
+  const confirmPending = () => {
+    if (!pendingAction) return undefined;
+    switch (pendingAction.type) {
+      case 'revoke':
+        return handleRevoke(pendingAction.session);
+      case 'unrevoke':
+        return handleUnrevoke(pendingAction.session);
+      case 'cleanup':
+        return handleCleanup();
+      case 'bulkRevoke':
+        return handleBulkRevoke();
+      default:
+        return undefined;
+    }
+  };
+
+  const statusLabel = (status) =>
+    ({
+      active: t('jwt.status.active', 'Active'),
+      expired: t('jwt.status.expired', 'Expired'),
+      revoked: t('jwt.status.revoked', 'Revoked'),
+    })[status];
+
+  /** Restore button label: the action, or why the session cannot be restored. */
+  const restoreLabel = (session, name) => {
+    switch (getRestoreBlock(session)) {
+      case 'expired':
+        return t('jwt.actions.unrevokeExpired', 'Expired sessions cannot be restored');
+      case 'refreshMode':
+        return t(
+          'jwt.actions.unrevokeRefresh',
+          'Refresh-mode sessions cannot be restored. The user has to sign in again.'
+        );
+      case 'accountClaim':
+        return t(
+          'jwt.actions.unrevokeClaim',
+          'Sessions ended by an account claim cannot be restored. The user has to sign in again.'
+        );
+      default:
+        return t('jwt.actions.unrevokeFor', 'Restore session of {user}', { user: name });
+    }
+  };
+
+  const sortButton = (field, label) => {
+    const active = sortBy === field;
+    const Icon = active && sortOrder === 'asc' ? CaretUp : CaretDown;
     return (
-      <Container>
-        <LoadingOverlay>
-          <Box className="loader-icon">
-            <Loader>{formatMessage({ id: getTrad('common.loadingSessions') })}</Loader>
-          </Box>
-        </LoadingOverlay>
-      </Container>
+      <IconButton label={label} onClick={() => handleSort(field)} variant="ghost">
+        <Icon aria-hidden="true" />
+      </IconButton>
+    );
+  };
+
+  const ariaSort = (field) => {
+    if (sortBy !== field) return 'none';
+    return sortOrder === 'asc' ? 'ascending' : 'descending';
+  };
+
+  const dialogCopy = () => {
+    const session = pendingAction?.session;
+    const who = session?.email || session?.username || t('jwt.unknownUser', 'Unknown user');
+    switch (pendingAction?.type) {
+      case 'revoke':
+        return {
+          title: t('jwt.dialog.revoke.title', 'Revoke session?'),
+          description: t(
+            'jwt.dialog.revoke.body',
+            'The session of {user} is signed out. Its token stops working immediately.',
+            { user: who }
+          ),
+          confirmLabel: t('jwt.actions.revoke', 'Revoke'),
+          icon: <Lock aria-hidden="true" />,
+          variant: 'danger',
+        };
+      case 'unrevoke':
+        return {
+          title: t('jwt.dialog.unrevoke.title', 'Restore session?'),
+          description: t(
+            'jwt.dialog.unrevoke.body',
+            'The token of {user} works again until it expires.',
+            { user: who }
+          ),
+          confirmLabel: t('jwt.actions.unrevoke', 'Restore'),
+          icon: <Check aria-hidden="true" />,
+          variant: 'default',
+        };
+      case 'cleanup':
+        return {
+          title: t('jwt.dialog.cleanup.title', 'Clean up expired sessions?'),
+          description: t(
+            'jwt.confirm.cleanup',
+            'Mark all expired JWT sessions as revoked? Active sessions will remain unchanged.'
+          ),
+          confirmLabel: t('jwt.actions.cleanup', 'Clean up'),
+          icon: <Trash aria-hidden="true" />,
+          variant: 'danger',
+        };
+      case 'bulkRevoke':
+        return {
+          title: t('jwt.dialog.bulkRevoke.title', 'Revoke selected sessions?'),
+          description: t(
+            'jwt.dialog.bulkRevoke.body',
+            '{count, plural, one {# session is signed out immediately.} other {# sessions are signed out immediately.}}',
+            { count: selectedSessions.length }
+          ),
+          confirmLabel: t('jwt.actions.revokeSelected', 'Revoke selected'),
+          icon: <Lock aria-hidden="true" />,
+          variant: 'danger',
+        };
+      default:
+        return { title: '', description: '', confirmLabel: '', icon: null, variant: 'danger' };
+    }
+  };
+
+  const heading = <VisuallyHidden tag="h2">{t('jwt.title', 'JWT sessions')}</VisuallyHidden>;
+
+  if (isLoadingPermissions || (canRead && isLoading)) {
+    return (
+      <Box>
+        {heading}
+        <LoadingState label={t('common.loadingSessions', 'Loading JWT sessions...')} />
+      </Box>
     );
   }
-  
+
+  if (permissionError || !canRead) {
+    return (
+      <Box>
+        {heading}
+        <Alert variant="danger" closeLabel={t('common.close', 'Close')}>
+          {permissionError
+            ? t(
+                'common.permissions.loadError',
+                'Your permissions could not be loaded. Reload the page to try again.'
+              )
+            : t('jwt.permission.denied', 'You do not have permission to view JWT sessions.')}
+        </Alert>
+      </Box>
+    );
+  }
+
+  const copy = dialogCopy();
+  const selectAllState = getSelectAllState(selectableIds, selectedIds);
+
   return (
-    <Container paddingBottom={10}>
-      {/* Statistik Cards */}
-      <StatsGrid>
-        {statCards.map((stat, index) => {
-          const IconComponent = stat.icon;
-          return (
-            <StatCard 
-              key={index}
-              $color={stat.color}
-              $delay={stat.delay}
-            >
-              <Flex direction="column" alignItems="center">
-                <StatIcon 
-                  className="stat-icon"
-                  $bg={stat.bg}
-                  $color={stat.color}
-                >
-                  <IconComponent />
-                </StatIcon>
-                <StatValue>
-                  {stat.value}
-                </StatValue>
-                <StatLabel>{stat.title}</StatLabel>
-              </Flex>
-            </StatCard>
-          );
-        })}
-      </StatsGrid>
-      
-      {/* Filter Bar */}
-      <FilterBar gap={3} alignItems="center">
-        <Box flex="1">
+    <Box paddingBottom={7}>
+      {heading}
+
+      <StatsRow
+        label={t('jwt.stats.label', 'Session statistics')}
+        items={[
+          {
+            key: 'total',
+            label: t('jwt.stats.total', 'Total'),
+            value: stats.total,
+            icon: Shield,
+            tone: 'primary',
+          },
+          {
+            key: 'active',
+            label: t('jwt.stats.active', 'Active'),
+            value: stats.active,
+            icon: Check,
+            tone: 'success',
+          },
+          {
+            key: 'expired',
+            label: t('jwt.stats.expired', 'Expired'),
+            value: stats.expired,
+            icon: Clock,
+            tone: 'warning',
+          },
+          {
+            key: 'revoked',
+            label: t('jwt.stats.revoked', 'Revoked'),
+            value: stats.revoked,
+            icon: Lock,
+            tone: 'danger',
+          },
+        ]}
+      />
+
+      <FilterBar role="search" aria-label={t('jwt.filters.label', 'Filter sessions')}>
+        <FilterSearch>
           <Searchbar
-            name="session-search"
+            name="jwt-session-search"
+            autoComplete="off"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={formatMessage({ id: getTrad('common.searchPlaceholder') })}
-            clearLabel={formatMessage({ id: getTrad('common.clearLabel') })}
-            onClear={() => setSearchQuery('')}
-          />
-        </Box>
-        <SingleSelect
-          value={filterStatus}
-          onChange={setFilterStatus}
-          placeholder={formatMessage({ id: getTrad('tokens.filter.status') })}
-        >
-          <SingleSelectOption value="all">{formatMessage({ id: getTrad('jwt.filter.all') })}</SingleSelectOption>
-          <SingleSelectOption value="active">{formatMessage({ id: getTrad('jwt.filter.active') })}</SingleSelectOption>
-          <SingleSelectOption value="expired">{formatMessage({ id: getTrad('jwt.filter.expired') })}</SingleSelectOption>
-          <SingleSelectOption value="revoked">{formatMessage({ id: getTrad('jwt.filter.revoked') })}</SingleSelectOption>
-        </SingleSelect>
-        <SingleSelect
-          value={pageSize.toString()}
-          onChange={(value) => setPageSize(parseInt(value))}
-          placeholder={formatMessage({ id: getTrad('common.entriesPerPage') })}
-        >
-          <SingleSelectOption value="10">{formatMessage({ id: getTrad('common.entries') }, { count: 10 })}</SingleSelectOption>
-          <SingleSelectOption value="25">{formatMessage({ id: getTrad('common.entries') }, { count: 25 })}</SingleSelectOption>
-          <SingleSelectOption value="50">{formatMessage({ id: getTrad('common.entries') }, { count: 50 })}</SingleSelectOption>
-          <SingleSelectOption value="100">{formatMessage({ id: getTrad('common.entries') }, { count: 100 })}</SingleSelectOption>
-        </SingleSelect>
-        <Button
-          onClick={handleCleanup}
-          startIcon={<Trash />}
-          variant="secondary"
-          size="S"
-        >
-          {formatMessage({ id: getTrad('jwt.actions.cleanup') })}
-        </Button>
-        <Button
-          onClick={handleRefresh}
-          startIcon={<ArrowClockwise />}
-          variant="secondary"
-          size="S"
-        >
-          {formatMessage({ id: getTrad('jwt.actions.refresh') })}
-        </Button>
-      </FilterBar>
-      
-      {/* Action Bar für Bulk Actions */}
-      {selectedSessions.length > 0 && (
-        <ActionBar justifyContent="space-between" alignItems="center">
-          <Typography fontWeight="semiBold">
-            {formatMessage({ id: getTrad('common.selectedSessions') }, { count: selectedSessions.length })}
-          </Typography>
-          <Button
-            onClick={() => setSelectedSessions([])}
-            variant="tertiary"
-            size="S"
+            onChange={(event) => handleSearch(event.target.value)}
+            onClear={() => handleSearch('')}
+            clearLabel={t('common.search.clear', 'Clear search')}
+            placeholder={t('common.searchPlaceholder', 'Search by email, username or IP...')}
           >
-            {formatMessage({ id: getTrad('common.clearSelection') })}
+            {t('jwt.search.label', 'Search sessions')}
+          </Searchbar>
+        </FilterSearch>
+        <FilterSelect>
+          <SingleSelect
+            aria-label={t('jwt.filters.status', 'Filter by status')}
+            value={filterStatus}
+            onChange={handleStatusFilter}
+          >
+            <SingleSelectOption value="all">
+              {t('jwt.filter.all', 'All statuses')}
+            </SingleSelectOption>
+            <SingleSelectOption value="active">
+              {t('jwt.filter.active', 'Active only')}
+            </SingleSelectOption>
+            <SingleSelectOption value="expired">
+              {t('jwt.filter.expired', 'Expired only')}
+            </SingleSelectOption>
+            <SingleSelectOption value="revoked">
+              {t('jwt.filter.revoked', 'Revoked only')}
+            </SingleSelectOption>
+          </SingleSelect>
+        </FilterSelect>
+        <FilterSelect>
+          <PageSizeSelect value={pageSize} onChange={handlePageSize} />
+        </FilterSelect>
+        <FilterActions>
+          <Button
+            onClick={handleRefresh}
+            startIcon={<ArrowClockwise aria-hidden="true" />}
+            variant="secondary"
+            size="L"
+            loading={isRefreshing}
+          >
+            {t('jwt.actions.refresh', 'Refresh')}
           </Button>
+          {canManage && stats.expired > 0 ? (
+            <Button
+              onClick={() => setPendingAction({ type: 'cleanup' })}
+              startIcon={<Trash aria-hidden="true" />}
+              variant="danger-light"
+              size="L"
+            >
+              {t('jwt.actions.cleanupCount', 'Clean up ({count})', { count: stats.expired })}
+            </Button>
+          ) : null}
+        </FilterActions>
+      </FilterBar>
+
+      {canManage && selectedSessions.length > 0 ? (
+        <ActionBar>
+          <Typography fontWeight="semiBold" aria-live="polite">
+            {t(
+              'jwt.selection.count',
+              '{count, plural, one {# session selected} other {# sessions selected}}',
+              {
+                count: selectedSessions.length,
+              }
+            )}
+          </Typography>
+          <Flex gap={2} wrap="wrap">
+            <Button onClick={() => setSelectedIds([])} variant="tertiary" size="L">
+              {t('common.clearSelection', 'Clear selection')}
+            </Button>
+            <Button
+              onClick={() => setPendingAction({ type: 'bulkRevoke' })}
+              variant="danger"
+              size="L"
+              startIcon={<Lock aria-hidden="true" />}
+            >
+              {t('jwt.actions.revokeSelected', 'Revoke selected')}
+            </Button>
+          </Flex>
         </ActionBar>
-      )}
-      
-      {/* Data Table */}
-      <DataTable>
-        {filteredAndSortedSessions.length === 0 ? (
-          <EmptyState>
-            <Flex direction="column" alignItems="center" gap={6}>
-              <Box
-                style={{
-                  width: '120px',
-                  height: '120px',
-                  borderRadius: '50%',
-                  background: `linear-gradient(135deg, ${theme.colors.primary[100]} 0%, ${theme.colors.primary[200]} 100%)`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: theme.shadows.xl,
-                }}
-              >
-                <Shield style={{ width: '60px', height: '60px', color: theme.colors.primary[600] }} />
-              </Box>
-              
-              <Typography 
-                variant="alpha" 
-                style={{ 
-                  fontSize: '1.75rem',
-                  fontWeight: '700',
-                  color: theme.colors.neutral[800],
-                  marginBottom: '8px',
-                }}
-              >
-                {formatMessage({ id: getTrad('jwt.empty.title') })}
-              </Typography>
-              
-              <Typography 
-                variant="omega" 
-                textColor="neutral600"
-                style={{
-                  fontSize: '1rem',
-                  maxWidth: '400px',
-                  lineHeight: '1.6',
-                }}
-              >
-                {formatMessage({ id: getTrad('jwt.empty.description') })}
-              </Typography>
-              
-              <Flex gap={3} justifyContent="center" style={{ marginTop: '16px' }}>
-                <Button
-                  onClick={() => {
-                    setSearchQuery('');
-                    setFilterStatus('all');
-                  }}
-                  variant="secondary"
-                  size="L"
-                >
-                  {formatMessage({ id: getTrad('jwt.empty.resetFilters') })}
+      ) : null}
+
+      <DataTable aria-label={t('jwt.title', 'JWT sessions')}>
+        {loadError && sessions.length === 0 ? (
+          <LoadErrorState
+            message={t('jwt.notifications.loadError', 'JWT sessions could not be loaded.')}
+            onRetry={handleRefresh}
+            isRetrying={isRefreshing}
+          />
+        ) : filteredSessions.length === 0 ? (
+          filtersActive && sessions.length > 0 ? (
+            <EmptyState
+              icon={Shield}
+              title={t('jwt.empty.noMatches.title', 'No sessions match your filters')}
+              description={t(
+                'jwt.empty.noMatches.description',
+                'Change the search or status filter to see more sessions.'
+              )}
+              actions={
+                <Button onClick={handleResetFilters} variant="secondary" size="L">
+                  {t('jwt.empty.resetFilters', 'Reset filters')}
                 </Button>
-              </Flex>
-            </Flex>
-          </EmptyState>
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={Shield}
+              title={t('jwt.empty.title', 'No JWT sessions yet')}
+              description={t(
+                'jwt.empty.description',
+                'Sessions appear here after users sign in with a magic link.'
+              )}
+            />
+          )
         ) : (
           <>
-            <StyledTable>
+            {/* DS 2.2.4 RawTable focuses the first [tabindex="0"] after an arrow key,
+                and a cell sets its own tabindex only when it becomes (in)active. The
+                select-all cell, active at mount, kept a stale tabindex="0", so arrows
+                snapped back to it and the row actions were unreachable. Starting on
+                the second column avoids that. */}
+            <StyledTable
+              initialCol={canManage ? 1 : 0}
+              colCount={canManage ? 8 : 6}
+              rowCount={pageSessions.length + 1}
+            >
               <Thead>
                 <Tr>
-                  <Th>
-                    <Checkbox
-                      checked={selectedSessions.length === paginatedSessions.length && paginatedSessions.length > 0}
-                      onCheckedChange={handleSelectAll}
-                    />
+                  {canManage ? (
+                    <Th>
+                      <Checkbox
+                        aria-label={t(
+                          'jwt.table.selectAll',
+                          'Select all active sessions on this page'
+                        )}
+                        checked={selectAllState}
+                        disabled={selectableIds.length === 0}
+                        onCheckedChange={handleSelectAll}
+                      />
+                    </Th>
+                  ) : null}
+                  <Th
+                    aria-sort={ariaSort('username')}
+                    action={sortButton(
+                      'username',
+                      t('common.tableHeaders.sortByUser', 'Sort by user')
+                    )}
+                  >
+                    <SortHeader>{t('common.user', 'User')}</SortHeader>
                   </Th>
-                  <Th action={<IconButton label={formatMessage({ id: getTrad('common.tableHeaders.sortByUser') })} onClick={() => handleSort('username')} variant="ghost" withTooltip={false}><CaretDown /></IconButton>}>
-                    {formatMessage({ id: getTrad('common.user') })}
+                  <Th>{t('common.tableHeaders.ipAddress', 'IP Address')}</Th>
+                  <Th>{t('common.userAgent', 'User Agent')}</Th>
+                  <Th
+                    aria-sort={ariaSort('status')}
+                    action={sortButton(
+                      'status',
+                      t('common.tableHeaders.sortByStatus', 'Sort by status')
+                    )}
+                  >
+                    <SortHeader>{t('common.status', 'Status')}</SortHeader>
                   </Th>
-                  <Th>{formatMessage({ id: getTrad('common.tableHeaders.ipAddress') })}</Th>
-                  <Th>{formatMessage({ id: getTrad('common.userAgent') })}</Th>
-                  <Th action={<IconButton label={formatMessage({ id: getTrad('common.tableHeaders.sortByStatus') })} onClick={() => handleSort('revoked')} variant="ghost" withTooltip={false}><CaretDown /></IconButton>}>
-                    {formatMessage({ id: getTrad('common.status') })}
+                  <Th
+                    aria-sort={ariaSort('createdAt')}
+                    action={sortButton(
+                      'createdAt',
+                      t('common.tableHeaders.sortByCreated', 'Sort by created date')
+                    )}
+                  >
+                    <SortHeader>{t('common.created', 'Created')}</SortHeader>
                   </Th>
-                  <Th action={<IconButton label={formatMessage({ id: getTrad('common.tableHeaders.sortByCreated') })} onClick={() => handleSort('createdAt')} variant="ghost" withTooltip={false}><CaretDown /></IconButton>}>
-                    {formatMessage({ id: getTrad('common.created') })}
+                  <Th
+                    aria-sort={ariaSort('expiresAt')}
+                    action={sortButton(
+                      'expiresAt',
+                      t('common.tableHeaders.sortByExpiry', 'Sort by expiry date')
+                    )}
+                  >
+                    <SortHeader>{t('common.expiresAt', 'Expires At')}</SortHeader>
                   </Th>
-                  <Th action={<IconButton label={formatMessage({ id: getTrad('common.tableHeaders.sortByExpiry') })} onClick={() => handleSort('expiresAt')} variant="ghost" withTooltip={false}><CaretDown /></IconButton>}>
-                    {formatMessage({ id: getTrad('common.expiresAt') })}
-                  </Th>
-                  <Th>{formatMessage({ id: getTrad('common.actions') })}</Th>
+                  {canManage ? (
+                    <Th>
+                      <VisuallyHidden>{t('common.actions', 'Actions')}</VisuallyHidden>
+                    </Th>
+                  ) : null}
                 </Tr>
               </Thead>
               <Tbody>
-                {paginatedSessions.map((session) => (
-                  <Tr key={session.id}>
-                    <Td>
-                      <Checkbox
-                        checked={selectedSessions.includes(session.id)}
-                        onCheckedChange={(checked) => handleSelectSession(session.id, checked)}
-                      />
-                    </Td>
-                    <Td>
-                      <Flex alignItems="center" gap={2}>
-                        <Box
-                          style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: theme.borderRadius.full,
-                            background: `linear-gradient(135deg, ${theme.colors.primary[500]} 0%, ${theme.colors.primary[600]} 100%)`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                          }}
-                        >
-                          <User style={{ width: '18px', height: '18px', color: 'white' }} />
-                        </Box>
-                        <Flex direction="column" alignItems="flex-start" gap={0}>
-                          <Typography fontWeight="semiBold" ellipsis>
-                            {session.username || 'N/A'}
-                          </Typography>
-                          <Typography variant="omega" textColor="neutral600">
-                            {session.email}
+                {pageSessions.map((session) => {
+                  const status = getSessionStatus(session);
+                  const name =
+                    session.username || session.email || t('jwt.unknownUser', 'Unknown user');
+                  return (
+                    <Tr key={session.id}>
+                      {canManage ? (
+                        <Td data-label="">
+                          <Checkbox
+                            aria-label={t('jwt.table.select', 'Select session of {user}', {
+                              user: name,
+                            })}
+                            checked={selectedIds.includes(session.id)}
+                            disabled={status !== 'active'}
+                            onCheckedChange={(checked) => handleSelect(session.id, checked)}
+                          />
+                        </Td>
+                      ) : null}
+                      <Td data-label={t('common.user', 'User')}>
+                        <Flex alignItems="center" gap={2} style={{ minWidth: 0 }}>
+                          <Avatar $background={brand.primary} aria-hidden="true">
+                            <User />
+                          </Avatar>
+                          <Flex direction="column" alignItems="flex-start" style={{ minWidth: 0 }}>
+                            <Typography fontWeight="semiBold" ellipsis>
+                              {name}
+                            </Typography>
+                            {session.username && session.email ? (
+                              <Typography variant="pi" textColor="neutral600" ellipsis>
+                                {session.email}
+                              </Typography>
+                            ) : null}
+                          </Flex>
+                        </Flex>
+                      </Td>
+                      <Td data-label={t('common.tableHeaders.ipAddress', 'IP Address')}>
+                        <Typography variant="pi" textColor="neutral600">
+                          {session.ipAddress || t('jwt.unknownValue', 'Unknown')}
+                        </Typography>
+                      </Td>
+                      <Td className="cell-agent" data-label={t('common.userAgent', 'User Agent')}>
+                        <Flex alignItems="center" gap={1} style={{ minWidth: 0 }}>
+                          <Monitor
+                            aria-hidden="true"
+                            width="1.4rem"
+                            height="1.4rem"
+                            fill="neutral500"
+                          />
+                          <Typography
+                            className="agent-text"
+                            variant="pi"
+                            textColor="neutral600"
+                            ellipsis
+                            title={session.userAgent || undefined}
+                          >
+                            {session.userAgent || t('jwt.unknownValue', 'Unknown')}
                           </Typography>
                         </Flex>
-                      </Flex>
-                    </Td>
-                    <Td>
-                      <Typography variant="pi" textColor="neutral600">
-                        {session.ipAddress || 'Unbekannt'}
-                      </Typography>
-                    </Td>
-                    <Td>
-                      <Flex alignItems="center" gap={1}>
-                        <Monitor style={{ width: '14px', height: '14px', color: theme.colors.neutral[500] }} />
-                        <Typography 
-                          variant="pi" 
-                          textColor="neutral600"
-                          ellipsis
-                          style={{ maxWidth: '200px' }}
-                          title={session.userAgent}
-                        >
-                          {session.userAgent || 'Unbekannt'}
-                        </Typography>
-                      </Flex>
-                    </Td>
-                    <Td>
-                      {getStatusBadge(session)}
-                    </Td>
-                    <Td data-label="Created">
-                      <Flex alignItems="center" gap={1}>
-                        <Calendar style={{ width: '14px', height: '14px', color: theme.colors.neutral[500] }} />
-                        <Typography variant="pi">
-                          {formatDate(session.createdAt)}
-                        </Typography>
-                      </Flex>
-                    </Td>
-                    <Td data-label="Expires">
-                      <Flex alignItems="center" gap={1}>
-                        <Clock style={{ width: '14px', height: '14px', color: theme.colors.warning[500] }} />
-                        <Typography 
-                          variant="pi" 
-                          textColor={session.isExpired ? 'danger600' : 'neutral800'}
-                          fontWeight={session.isExpired ? 'semiBold' : 'normal'}
-                        >
-                          {formatDate(session.expiresAt)}
-                          {session.isExpired && ' (Abgelaufen)'}
-                        </Typography>
-                      </Flex>
-                    </Td>
-                    <Td>
-                      <Flex gap={1} justifyContent="flex-end">
-                        {session.revoked ? (
-                          <IconButton
-                            label={formatMessage({ id: getTrad('jwt.actions.unrevoke') })}
-                            variant="success-ghost"
-                            onClick={() => handleUnrevoke(session.id, session.userId)}
-                            withTooltip={false}
-                            disabled={session.isExpired}
+                      </Td>
+                      <Td data-label={t('common.status', 'Status')}>
+                        <StatusBadge $tone={STATUS_TONE[status]}>{statusLabel(status)}</StatusBadge>
+                      </Td>
+                      <Td className="cell-date" data-label={t('common.created', 'Created')}>
+                        <Flex alignItems="center" gap={1}>
+                          <Calendar
+                            aria-hidden="true"
+                            width="1.4rem"
+                            height="1.4rem"
+                            fill="neutral500"
+                          />
+                          <Typography variant="pi">{formatDateTime(session.createdAt)}</Typography>
+                        </Flex>
+                      </Td>
+                      <Td className="cell-date" data-label={t('common.expiresAt', 'Expires At')}>
+                        <Flex alignItems="center" gap={1}>
+                          <Clock
+                            aria-hidden="true"
+                            width="1.4rem"
+                            height="1.4rem"
+                            fill="neutral500"
+                          />
+                          <Typography
+                            variant="pi"
+                            textColor={status === 'expired' ? 'danger600' : 'neutral800'}
+                            fontWeight={status === 'expired' ? 'semiBold' : undefined}
                           >
-                            <Check />
-                          </IconButton>
-                        ) : (
-                          <IconButton
-                            label={formatMessage({ id: getTrad('jwt.actions.revoke') })}
-                            variant="danger-ghost"
-                            onClick={() => handleRevoke(session.id)}
-                            withTooltip={false}
-                          >
-                            <Lock />
-                          </IconButton>
-                        )}
-                      </Flex>
-                    </Td>
-                  </Tr>
-                ))}
+                            {formatDateTime(session.expiresAt)}
+                          </Typography>
+                        </Flex>
+                      </Td>
+                      {canManage ? (
+                        <Td data-label="">
+                          <Flex gap={1} justifyContent="flex-end">
+                            {session.revoked ? (
+                              <IconButton
+                                label={restoreLabel(session, name)}
+                                variant="success-light"
+                                onClick={() => setPendingAction({ type: 'unrevoke', session })}
+                                disabled={getRestoreBlock(session) !== null}
+                              >
+                                <Check aria-hidden="true" />
+                              </IconButton>
+                            ) : (
+                              <IconButton
+                                label={t('jwt.actions.revokeFor', 'Revoke session of {user}', {
+                                  user: name,
+                                })}
+                                variant="danger-light"
+                                onClick={() => setPendingAction({ type: 'revoke', session })}
+                              >
+                                <Lock aria-hidden="true" />
+                              </IconButton>
+                            )}
+                          </Flex>
+                        </Td>
+                      ) : null}
+                    </Tr>
+                  );
+                })}
               </Tbody>
             </StyledTable>
-            
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <Box paddingTop={4} paddingBottom={4}>
-                <Flex justifyContent="center">
-                  <Pagination activePage={currentPage} pageCount={totalPages}>
-                    <PreviousLink onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}>
-                      {formatMessage({ id: getTrad('common.previous') })}
-                    </PreviousLink>
-                    {[...Array(totalPages)].map((_, i) => (
-                      <PageLink
-                        key={i + 1}
-                        number={i + 1}
-                        onClick={() => setCurrentPage(i + 1)}
-                      >
-                        {i + 1}
-                      </PageLink>
-                    ))}
-                    <NextLink onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}>
-                      {formatMessage({ id: getTrad('common.next') })}
-                    </NextLink>
-                  </Pagination>
-                </Flex>
-              </Box>
-            )}
+            <TablePagination
+              page={safePage}
+              pageCount={pageCount}
+              total={filteredSessions.length}
+              pageSize={pageSize}
+              onChange={(page) => {
+                setCurrentPage(page);
+              }}
+            />
           </>
         )}
       </DataTable>
-    </Container>
+
+      <ConfirmDialog
+        isOpen={canManage && pendingAction !== null}
+        getReturnFocusFallback={getSearchField}
+        title={copy.title}
+        description={copy.description}
+        confirmLabel={copy.confirmLabel}
+        confirmIcon={copy.icon}
+        variant={copy.variant}
+        onConfirm={confirmPending}
+        onClose={() => setPendingAction(null)}
+      />
+    </Box>
   );
 };
 
 export default JWTSessions;
-
