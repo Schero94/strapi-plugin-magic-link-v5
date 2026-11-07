@@ -137,11 +137,11 @@ const buildMetadata = (ctx) => {
 const issueRefreshSession = async (strapi, ctx, user) => {
   const sessionManager = strapi.sessionManager('users-permissions');
   const metadata = buildMetadata(ctx);
-  const refresh = await sessionManager.generateRefreshToken(
-    String(user.id),
-    extractDeviceId(ctx) || crypto.randomUUID(),
-    { type: 'refresh', ...(metadata ? { metadata } : {}) }
-  );
+  const deviceId = extractDeviceId(ctx) || crypto.randomUUID();
+  const refresh = await sessionManager.generateRefreshToken(String(user.id), deviceId, {
+    type: 'refresh',
+    ...(metadata ? { metadata } : {}),
+  });
   const access = await sessionManager.generateAccessToken(refresh.token);
   if (!access || 'error' in access) {
     throw new Error('Failed to generate access token');
@@ -152,6 +152,9 @@ const issueRefreshSession = async (strapi, ctx, user) => {
   const result = {
     jwt: access.token,
     upSessionId: refresh.sessionId,
+    // Rotated refresh tokens keep the device id, so revoking by
+    // (user, deviceId) ends the whole refresh family, not only the root.
+    deviceId,
     expiresAt: decodeJwtExpiry(access.token),
     refreshExpiresAt: refresh.absoluteExpiresAt,
   };
@@ -228,6 +231,18 @@ const issueLoginSession = async (
   const expiresAt =
     issued.expiresAt || new Date(Date.now() + DEFAULT_SESSION_DAYS * 24 * 60 * 60 * 1000);
   const now = new Date().toISOString();
+  // Refresh mode: the access token lives minutes, the refresh family up to
+  // its absolute expiry. The audit record must stay listed, unexpired and
+  // revocable for as long as the family can mint access tokens; otherwise
+  // the admin sees "expired", cleanup marks it revoked without revoking it,
+  // and the record (with its upSessionId) is dropped while the session lives.
+  const refreshExpiry = issued.refreshExpiresAt ? new Date(issued.refreshExpiresAt) : null;
+  const recordExpiresAt =
+    refreshExpiry &&
+    Number.isFinite(refreshExpiry.getTime()) &&
+    refreshExpiry.getTime() > expiresAt.getTime()
+      ? refreshExpiry
+      : expiresAt;
 
   await appendJwtSession(strapi, {
     id: `session_${Date.now()}_${createId(12)}`,
@@ -238,8 +253,10 @@ const issueLoginSession = async (
     jwtTokenHash: cryptoUtils.hashJwt(issued.jwt),
     jwtManagement: mode,
     ...(issued.upSessionId ? { upSessionId: issued.upSessionId } : {}),
+    ...(issued.deviceId ? { deviceId: issued.deviceId } : {}),
     createdAt: now,
-    expiresAt: expiresAt.toISOString(),
+    expiresAt: recordExpiresAt.toISOString(),
+    accessTokenExpiresAt: expiresAt.toISOString(),
     isRevoked: false,
     ipAddress: ctx?.request?.ip,
     userAgent: ctx?.request?.header?.['user-agent'],

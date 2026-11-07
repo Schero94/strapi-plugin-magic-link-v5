@@ -28,6 +28,8 @@
 const crypto = require('crypto');
 
 const MIN_SECRET_LENGTH = 32;
+const GCM_IV_BYTES = 16;
+const GCM_TAG_BYTES = 16;
 const DEV_PEPPER = 'magic-link-otp-dev-pepper-DO-NOT-USE-IN-PRODUCTION';
 
 let warnedDevKey = false;
@@ -249,8 +251,17 @@ const decryptWithKey = (encryptedValue, key) => {
 
   const iv = Buffer.from(ivHex, 'hex');
   const authTag = Buffer.from(authTagHex, 'hex');
+  // encrypt() always writes a 16-byte IV and a full 128-bit tag. Without an
+  // explicit authTagLength Node accepts truncated GCM tags (down to 4 bytes,
+  // deprecated since Node 22), which would let someone with database write
+  // access forge ciphertexts with far fewer attempts.
+  if (iv.length !== GCM_IV_BYTES || authTag.length !== GCM_TAG_BYTES) {
+    throw new Error('[Crypto] decrypt: invalid IV or authentication tag length');
+  }
 
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv, {
+    authTagLength: GCM_TAG_BYTES,
+  });
   decipher.setAuthTag(authTag);
 
   let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
