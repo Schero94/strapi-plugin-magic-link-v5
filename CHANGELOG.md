@@ -1,3 +1,20 @@
+## [Unreleased]
+
+### BREAKING CHANGES
+
+* **Admin RBAC split into read, manage and settings actions.** The single
+  `plugin::magic-link.access` action is replaced by:
+  * `plugin::magic-link.read`: view tokens, OTP codes, JWT sessions and IP bans (menu link and Tokens page)
+  * `plugin::magic-link.manage`: create, block, extend and delete tokens, revoke sessions, ban and unban IPs, delete OTP codes, cleanups
+  * `plugin::magic-link.settings.read`: view the Settings and License pages (License now needs this instead of `access`)
+  * `plugin::magic-link.settings.update`: save settings, reset rate limits, change the license
+
+  Migration: in *Settings > Administration Panel > Roles*, open every role that
+  had "Access the Magic Link plugin" and grant **Read** (and **Manage** for
+  roles that changed tokens, sessions, IP bans or OTP codes). Grant Settings
+  **Read** to roles that used the License page. Super Admin gets all actions
+  automatically.
+
 # [5.6.0](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v5.5.9...v5.6.0) (2026-10-15)
 
 

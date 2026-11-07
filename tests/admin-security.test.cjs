@@ -152,7 +152,8 @@ test('settings write and rate-limit controls are hidden or disabled without upda
   assert.ok(settingsPage.includes("getTrad('settings.permission.readOnly')"));
 
   const adminRegistration = source('admin/src/index.js');
-  assert.ok(adminRegistration.includes('permissions: pluginPermissions.readSettings'));
+  assert.ok(adminRegistration.includes('permissions: pluginPermissions.settingsRead'));
+  assert.equal(adminRegistration.includes('pluginPermissions.access'), false);
 });
 
 test('individual and bulk token deletion both require an explicit confirmation', () => {
