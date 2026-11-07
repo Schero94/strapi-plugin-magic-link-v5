@@ -186,6 +186,10 @@ short version is the upgrade guide.
   with 400, so every status filter failed. The response also carries
   `stats` (`total`, `active`, `expired`, `used` over all codes), so the stat
   cards stay filled while a search or filter is active.
+* `GET /jwt-sessions` adds `restoreBlock` per session (`expired`,
+  `refreshMode`, `accountClaim` or `null`), with the same checks as
+  `unrevoke-jwt`. Refresh-mode sessions cannot be restored because the
+  users-permissions session manager deletes the session on revocation.
 
 ### BREAKING CHANGES (login core)
 
@@ -472,6 +476,21 @@ short version is the upgrade guide.
     clipped header buttons at 320 px, a compact pagination with "Page x of y"
     below 520 px, and 32 px touch targets for the search clear button and the
     page links on phones.
+* OTP codes, JWT sessions and IP bans (browser acceptance at 320 to 1440 px,
+  light and dark):
+  * the row actions are reachable with the arrow keys again (the select-all
+    cell kept the grid focus), and Space and Enter activate them;
+  * Restore is disabled with the reason for expired, refresh-mode and
+    account-claim sessions instead of failing with an error;
+  * the Ban IP dialog and the confirm dialogs return focus to their opener,
+    or to the search field when the row is gone;
+  * the status badges reach 4.5:1 (the design-system warning and danger
+    badges are 3.6:1 and 3.9:1), the table has one frame with the header
+    band at full width, rows line up with the filter bar, and checkboxes and
+    page links are 24 px (32 px on phones);
+  * no horizontal table scrolling from 1024 px, phone cards without a
+    second frame, wrapped IPv6 addresses and no sticky hover tint on touch;
+  * the IP placeholder uses a documentation address (203.0.113.10).
 * All texts are translated into English, German (formal), French, Spanish
   and Portuguese, and dates follow the admin locale. A test now checks that
   every message id used by the admin exists in all five locales.

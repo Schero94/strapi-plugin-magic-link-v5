@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
-  Badge,
   Box,
   Button,
   Checkbox,
@@ -58,6 +57,7 @@ import {
   clampPage,
   filterSessions,
   getPageCount,
+  getRestoreBlock,
   getSelectAllState,
   getSessionStats,
   getSessionStatus,
@@ -65,8 +65,20 @@ import {
   sortSessions,
   summarizeSettled,
 } from './securityTabs.utils';
+import { StatusBadge } from './components/tokenStyles';
 
-const STATUS_BADGE = Object.freeze({ active: 'success', expired: 'warning', revoked: 'danger' });
+/**
+ * Focus target when a confirm dialog closes and its opener left the DOM (the
+ * row disappeared after the action or a refresh): the tab's search field.
+ */
+const getSearchField = () => document.querySelector('input[name="jwt-session-search"]');
+
+/**
+ * Status badge tones. DS 2.2.4 Badge variants pair the 200 background with the
+ * 700 text (3.6:1 warning, 3.9:1 danger); the shared Magic Link StatusBadge
+ * tints keep every state at >= 4.5:1 in light and dark mode.
+ */
+const STATUS_TONE = Object.freeze({ active: 'success', expired: 'warning', revoked: 'danger' });
 
 /**
  * JWT sessions tab: lists the sessions issued by Magic Link logins and lets
@@ -232,10 +244,12 @@ const JWTSessions = () => {
     if (!canManage) return;
     try {
       await post('/magic-link/revoke-jwt', { sessionId: session.id });
-      setPendingAction(null);
       setSelectedIds((ids) => ids.filter((id) => id !== session.id));
       notifySuccess(t('jwt.notifications.revokeSuccess', 'Session revoked successfully'));
       await fetchSessions();
+      // Close after the refresh, so a removed row's dialog returns focus
+      // to the search field instead of <body>.
+      setPendingAction(null);
     } catch {
       notifyError(t('jwt.notifications.revokeError', 'Error revoking session'));
     }
@@ -246,9 +260,9 @@ const JWTSessions = () => {
     if (!canManage) return;
     try {
       await post('/magic-link/unrevoke-jwt', { sessionId: session.id, userId: session.userId });
-      setPendingAction(null);
       notifySuccess(t('jwt.notifications.unrevokeSuccess', 'Session restored successfully'));
       await fetchSessions();
+      setPendingAction(null);
     } catch {
       notifyError(t('jwt.notifications.unrevokeError', 'Error restoring session'));
     }
@@ -259,7 +273,6 @@ const JWTSessions = () => {
     if (!canManage) return;
     try {
       const response = await post('/magic-link/cleanup-sessions');
-      setPendingAction(null);
       const count = Number(response?.data?.count);
       notifySuccess(
         Number.isFinite(count)
@@ -271,6 +284,7 @@ const JWTSessions = () => {
           : t('jwt.notifications.cleanupSuccess', 'Sessions cleaned up successfully')
       );
       await fetchSessions();
+      setPendingAction(null);
     } catch {
       notifyError(t('jwt.notifications.cleanupError', 'Error cleaning up sessions'));
     }
@@ -285,8 +299,6 @@ const JWTSessions = () => {
       ids.map((sessionId) => post('/magic-link/revoke-jwt', { sessionId }))
     );
     const summary = summarizeSettled(ids, results);
-    setPendingAction(null);
-    setSelectedIds(summary.failedIds);
     if (summary.failed === 0) {
       notifySuccess(
         t(
@@ -308,6 +320,9 @@ const JWTSessions = () => {
       );
     }
     await fetchSessions();
+    // The dialog copy counts the selection, so it changes only after the close.
+    setPendingAction(null);
+    setSelectedIds(summary.failedIds);
   };
 
   const handleSelectAll = (checked) => {
@@ -346,6 +361,26 @@ const JWTSessions = () => {
       expired: t('jwt.status.expired', 'Expired'),
       revoked: t('jwt.status.revoked', 'Revoked'),
     })[status];
+
+  /** Restore button label: the action, or why the session cannot be restored. */
+  const restoreLabel = (session, name) => {
+    switch (getRestoreBlock(session)) {
+      case 'expired':
+        return t('jwt.actions.unrevokeExpired', 'Expired sessions cannot be restored');
+      case 'refreshMode':
+        return t(
+          'jwt.actions.unrevokeRefresh',
+          'Refresh-mode sessions cannot be restored. The user has to sign in again.'
+        );
+      case 'accountClaim':
+        return t(
+          'jwt.actions.unrevokeClaim',
+          'Sessions ended by an account claim cannot be restored. The user has to sign in again.'
+        );
+      default:
+        return t('jwt.actions.unrevokeFor', 'Restore session of {user}', { user: name });
+    }
+  };
 
   const sortButton = (field, label) => {
     const active = sortBy === field;
@@ -607,7 +642,16 @@ const JWTSessions = () => {
           )
         ) : (
           <>
-            <StyledTable colCount={canManage ? 8 : 6} rowCount={pageSessions.length + 1}>
+            {/* DS 2.2.4 RawTable focuses the first [tabindex="0"] after an arrow key,
+                and a cell sets its own tabindex only when it becomes (in)active. The
+                select-all cell, active at mount, kept a stale tabindex="0", so arrows
+                snapped back to it and the row actions were unreachable. Starting on
+                the second column avoids that. */}
+            <StyledTable
+              initialCol={canManage ? 1 : 0}
+              colCount={canManage ? 8 : 6}
+              rowCount={pageSessions.length + 1}
+            >
               <Thead>
                 <Tr>
                   {canManage ? (
@@ -709,7 +753,7 @@ const JWTSessions = () => {
                           {session.ipAddress || t('jwt.unknownValue', 'Unknown')}
                         </Typography>
                       </Td>
-                      <Td data-label={t('common.userAgent', 'User Agent')}>
+                      <Td className="cell-agent" data-label={t('common.userAgent', 'User Agent')}>
                         <Flex alignItems="center" gap={1} style={{ minWidth: 0 }}>
                           <Monitor
                             aria-hidden="true"
@@ -718,10 +762,10 @@ const JWTSessions = () => {
                             fill="neutral500"
                           />
                           <Typography
+                            className="agent-text"
                             variant="pi"
                             textColor="neutral600"
                             ellipsis
-                            style={{ maxWidth: '200px' }}
                             title={session.userAgent || undefined}
                           >
                             {session.userAgent || t('jwt.unknownValue', 'Unknown')}
@@ -729,9 +773,9 @@ const JWTSessions = () => {
                         </Flex>
                       </Td>
                       <Td data-label={t('common.status', 'Status')}>
-                        <Badge variant={STATUS_BADGE[status]}>{statusLabel(status)}</Badge>
+                        <StatusBadge $tone={STATUS_TONE[status]}>{statusLabel(status)}</StatusBadge>
                       </Td>
-                      <Td data-label={t('common.created', 'Created')}>
+                      <Td className="cell-date" data-label={t('common.created', 'Created')}>
                         <Flex alignItems="center" gap={1}>
                           <Calendar
                             aria-hidden="true"
@@ -742,7 +786,7 @@ const JWTSessions = () => {
                           <Typography variant="pi">{formatDateTime(session.createdAt)}</Typography>
                         </Flex>
                       </Td>
-                      <Td data-label={t('common.expiresAt', 'Expires At')}>
+                      <Td className="cell-date" data-label={t('common.expiresAt', 'Expires At')}>
                         <Flex alignItems="center" gap={1}>
                           <Clock
                             aria-hidden="true"
@@ -764,19 +808,10 @@ const JWTSessions = () => {
                           <Flex gap={1} justifyContent="flex-end">
                             {session.revoked ? (
                               <IconButton
-                                label={
-                                  session.isExpired
-                                    ? t(
-                                        'jwt.actions.unrevokeExpired',
-                                        'Expired sessions cannot be restored'
-                                      )
-                                    : t('jwt.actions.unrevokeFor', 'Restore session of {user}', {
-                                        user: name,
-                                      })
-                                }
+                                label={restoreLabel(session, name)}
                                 variant="success-light"
                                 onClick={() => setPendingAction({ type: 'unrevoke', session })}
-                                disabled={Boolean(session.isExpired)}
+                                disabled={getRestoreBlock(session) !== null}
                               >
                                 <Check aria-hidden="true" />
                               </IconButton>
@@ -814,6 +849,7 @@ const JWTSessions = () => {
 
       <ConfirmDialog
         isOpen={canManage && pendingAction !== null}
+        getReturnFocusFallback={getSearchField}
         title={copy.title}
         description={copy.description}
         confirmLabel={copy.confirmLabel}

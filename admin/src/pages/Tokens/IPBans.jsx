@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
-  Badge,
   Box,
   Button,
   Field,
@@ -26,6 +25,7 @@ import { UnsavedChangesDialog } from '../../components/shared/UnsavedChangesDial
 import { useMagicLinkIntl } from '../../hooks/useMagicLinkIntl';
 import { useMagicLinkRBAC } from '../../hooks/useMagicLinkRBAC';
 import { useDiscardGuard } from '../../hooks/useUnsavedChangesGuard';
+import { useReturnFocus } from '../../hooks/useReturnFocus';
 import { brand, color, space, theme, tint } from '../../utils/theme';
 import { normalizeIpAddress } from '../../utils/ipAddress.mjs';
 import {
@@ -45,6 +45,7 @@ import {
   TablePagination,
 } from './securityTabs.shared';
 import { clampPage, filterIps, getIpStats, getPageCount, paginate } from './securityTabs.utils';
+import { StatusBadge } from './components/tokenStyles';
 
 const WarningBox = styled.div`
   display: flex;
@@ -70,6 +71,12 @@ const WarningBox = styled.div`
 const MonoInput = styled(TextInput)`
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 `;
+
+/**
+ * Focus target when a confirm dialog closes and its opener left the DOM (the
+ * row disappeared after the action or a refresh): the tab's search field.
+ */
+const getSearchField = () => document.querySelector('input[name="ip-search"]');
 
 /**
  * IP bans tab: lists blocked IP addresses. Banning and unbanning need manage
@@ -100,6 +107,12 @@ const IPBans = () => {
 
   const normalizedNewIP = normalizeIpAddress(newIP);
   const discard = useDiscardGuard(showAddModal && newIP.trim() !== '');
+  // The modal is opened from state (no Modal.Trigger), so Radix cannot return
+  // focus on close; it goes back to the opener, or to the toolbar button when
+  // the opener is gone (the empty-state button after the first ban).
+  const banButtonRef = useRef(null);
+  const getReturnFocusFallback = useCallback(() => banButtonRef.current, []);
+  const returnFocus = useReturnFocus(showAddModal, getReturnFocusFallback);
 
   const notify = useCallback(
     (type, message) =>
@@ -211,9 +224,11 @@ const IPBans = () => {
     if (!canManage) return;
     try {
       await post('/magic-link/unban-ip', { data: { ip } });
-      setPendingUnban(null);
       notify('success', t('ipban.notifications.unbanSuccess', 'IP {ip} has been unbanned', { ip }));
       await fetchBannedIPs();
+      // Close after the refresh, so a removed row's dialog returns focus
+      // to the search field instead of <body>.
+      setPendingUnban(null);
     } catch {
       notify('danger', t('ipban.notifications.unbanError', 'Error unbanning IP'));
     }
@@ -316,6 +331,7 @@ const IPBans = () => {
           </Button>
           {canManage ? (
             <Button
+              ref={banButtonRef}
               onClick={() => setShowAddModal(true)}
               startIcon={<Plus aria-hidden="true" />}
               variant="danger"
@@ -402,7 +418,7 @@ const IPBans = () => {
                       </Flex>
                     </Td>
                     <Td data-label={t('common.status', 'Status')}>
-                      <Badge variant="danger">{t('ipban.status.banned', 'Banned')}</Badge>
+                      <StatusBadge $tone="danger">{t('ipban.status.banned', 'Banned')}</StatusBadge>
                     </Td>
                     {canManage ? (
                       <Td data-label="">
@@ -439,7 +455,7 @@ const IPBans = () => {
             if (!open) discard.runGuarded(closeModal);
           }}
         >
-          <Modal.Content>
+          <Modal.Content onCloseAutoFocus={returnFocus}>
             <form onSubmit={handleBanIP} noValidate>
               <Modal.Header closeLabel={t('common.close', 'Close')}>
                 <Flex direction="column" alignItems="flex-start" gap={1}>
@@ -471,7 +487,7 @@ const IPBans = () => {
                       autoFocus
                       autoComplete="off"
                       spellCheck={false}
-                      placeholder={t('ipban.modal.placeholder', 'e.g. 192.168.1.1')}
+                      placeholder={t('ipban.modal.placeholder', 'e.g. 203.0.113.10')}
                       value={newIP}
                       onChange={(event) => setNewIP(event.target.value)}
                     />
@@ -509,6 +525,7 @@ const IPBans = () => {
 
       <ConfirmDialog
         isOpen={canManage && pendingUnban !== null}
+        getReturnFocusFallback={getSearchField}
         variant="default"
         title={t('ipban.dialog.unban.title', 'Unban IP address?')}
         description={t(

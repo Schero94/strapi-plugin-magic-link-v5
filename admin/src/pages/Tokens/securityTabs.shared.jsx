@@ -251,6 +251,35 @@ export const DataTable = styled.section`
   border-radius: ${theme.borderRadius.xl};
   box-shadow: ${theme.shadows.sm};
   overflow: hidden;
+
+  /* DS 2.2.4 Table renders its own bordered, shadowed wrapper and a scroll
+     container with 24px side padding. Inside this card that drew a second
+     frame and inset the header band, so both are flattened: the header band
+     spans the card and the first column lines up with the filter bar. */
+  > div:has(table) {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  div:has(> table) {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* Phones: the rows are cards of their own, so the frame around them goes
+     away and the cards line up with the filter bar (as in the Tokens tab).
+     Loading, error and empty states keep the frame. */
+  @media (max-width: ${breakpoints.mobile}) {
+    &:has(table) {
+      overflow: visible;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+    }
+  }
 `;
 
 export const StyledTable = styled(Table)`
@@ -276,8 +305,13 @@ export const StyledTable = styled(Table)`
       border-bottom: none;
     }
 
-    &:hover {
-      background: ${(props) => (props.$hover === 'danger' ? color('danger100')(props) : color('primary100')(props))};
+    /* Only on devices that hover: on touch screens the tint stuck to the
+       last tapped card and read as a selection. */
+    @media (hover: hover) {
+      &:hover {
+        background: ${(props) =>
+          props.$hover === 'danger' ? color('danger100')(props) : color('primary100')(props)};
+      }
     }
 
     td {
@@ -288,8 +322,70 @@ export const StyledTable = styled(Table)`
     ${reducedMotion}
   }
 
+  /* DS checkboxes are 20px (flex: 0 0 20px); 24px keeps the row selectors
+     at the desktop target size (32px on phones, below). */
+  button[role='checkbox'] {
+    flex-basis: 24px;
+    width: 24px;
+    height: 24px;
+  }
+
+  .agent-text {
+    max-width: 200px;
+  }
+
+  /* 769-1199px: 8px side padding, wrapping dates and a narrower user agent,
+     so every column, including the row actions, fits without horizontal
+     scrolling (same step as the Tokens table). */
+  @media (max-width: ${breakpoints.tableCompact}) {
+    thead th,
+    tbody tr td {
+      padding-left: ${space(2)};
+      padding-right: ${space(2)};
+    }
+
+    tbody tr td.cell-date {
+      white-space: normal;
+      text-wrap: balance;
+    }
+
+    .agent-text {
+      max-width: 120px;
+    }
+  }
+
+  /* DS gives a checkbox cell 4px side padding, which put the selector 4px
+     from the card edge once the scroll padding was removed. */
+  && thead th:first-child,
+  && tbody td:first-child {
+    padding-left: ${space(4)};
+  }
+
+  /* The outer columns keep 16px at every width, so the rows stay symmetric
+     inside the card when the compact step narrows the inner padding. */
+  && thead th:last-child,
+  && tbody td:last-child {
+    padding-right: ${space(4)};
+  }
+
   @media (max-width: ${breakpoints.mobile}) {
     display: block;
+
+    button[role='checkbox'] {
+      flex-basis: 32px;
+      width: 32px;
+      height: 32px;
+    }
+
+    && tbody td:first-child,
+    && tbody td:last-child {
+      padding-left: 0;
+      padding-right: 0;
+    }
+
+    .agent-text {
+      max-width: 100%;
+    }
 
     thead {
       display: none;
@@ -301,7 +397,7 @@ export const StyledTable = styled(Table)`
 
     tbody tr {
       display: block;
-      margin: ${space(3)};
+      margin: 0 0 ${space(4)};
       padding: ${space(4)};
       background: ${color('neutral0')};
       border: 1px solid ${color('neutral200')};
@@ -309,11 +405,12 @@ export const StyledTable = styled(Table)`
       box-shadow: ${theme.shadows.sm};
 
       &:last-child {
+        margin-bottom: 0;
         border-bottom: 1px solid ${color('neutral200')};
       }
     }
 
-    tbody td {
+    tbody tr td {
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -339,6 +436,11 @@ export const StyledTable = styled(Table)`
 
       &[data-label='']::before {
         display: none;
+      }
+
+      /* Row actions sit at the end of the card, like a footer. */
+      &[data-label='']:last-child {
+        justify-content: flex-end;
       }
     }
   }
@@ -376,7 +478,10 @@ export const MonoText = styled.span`
   font-size: ${fontSize(2)};
   font-weight: 600;
   color: ${color('neutral800')};
+  /* DS table cells are nowrap; long IPv6 addresses may break on phones. */
+  white-space: normal;
   overflow-wrap: anywhere;
+  min-width: 0;
 `;
 
 export const ActionBar = styled.div`
@@ -521,6 +626,14 @@ const PaginationWrap = styled(Box)`
 
   @media (max-width: ${breakpoints.mobile}) {
     justify-content: center;
+    padding: ${space(4)} 0 0;
+    border-top: none;
+
+    nav a,
+    nav button {
+      min-width: 32px;
+      min-height: 32px;
+    }
   }
 `;
 

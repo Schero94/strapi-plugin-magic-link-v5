@@ -143,3 +143,48 @@ test('unrevoke clears the stored session only after the blocklist service succee
     else global.strapi = originalStrapi;
   }
 });
+
+test('the session list tells the admin UI which revoked sessions can be restored', async () => {
+  const originalStrapi = global.strapi;
+  const { CLAIM_REASON } = require('../server/src/utils/account-claim');
+  const future = new Date(Date.now() + 60_000).toISOString();
+  const base = { userId: 'synthetic-user', userEmail: 'user@example.test', isRevoked: true };
+  const storedSessions = {
+    sessions: [
+      { ...base, id: 'legacy', expiresAt: future },
+      { ...base, id: 'expired', expiresAt: new Date(Date.now() - 60_000).toISOString() },
+      { ...base, id: 'refresh', expiresAt: future, upSessionId: 'up-1', jwtManagement: 'refresh' },
+      { ...base, id: 'claim', expiresAt: future, revokeReason: CLAIM_REASON },
+    ],
+  };
+  global.strapi = {
+    store: () => ({
+      get: async ({ key }) =>
+        key === 'jwt_sessions' ? structuredClone(storedSessions) : undefined,
+      set: async () => {},
+    }),
+    log: { info() {}, warn() {}, error() {} },
+  };
+  try {
+    const ctx = {
+      send(payload) {
+        ctx.response = payload;
+      },
+      throw(status) {
+        throw new Error(String(status));
+      },
+    };
+    await jwtController.getSessions(ctx);
+    const blocks = Object.fromEntries(ctx.response.map((s) => [s.id, s.restoreBlock]));
+    assert.deepEqual(blocks, {
+      legacy: null,
+      expired: 'expired',
+      refresh: 'refreshMode',
+      claim: 'accountClaim',
+    });
+    assert.ok(ctx.response.every((s) => !('upSessionId' in s) && !('revokeReason' in s)));
+  } finally {
+    if (originalStrapi === undefined) delete global.strapi;
+    else global.strapi = originalStrapi;
+  }
+});

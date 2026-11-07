@@ -126,6 +126,27 @@ export const getSessionStatus = (session, now = Date.now()) => {
   return 'active';
 };
 
+/** Reasons why a revoked session cannot be restored (server `restoreBlock`). */
+const RESTORE_BLOCKS = Object.freeze(['expired', 'refreshMode', 'accountClaim']);
+
+/**
+ * Why a session cannot be restored, or null when restoring is allowed.
+ * Uses the server's `restoreBlock` field; older servers without it fall back
+ * to expiry and the users-permissions mode (refresh-mode sessions are deleted
+ * by the session manager on revocation, so they can never be restored).
+ * @param {{restoreBlock?: string|null, isExpired?: boolean, expiresAt?: unknown, jwtManagement?: string}} session
+ * @param {number} [now]
+ * @returns {'expired'|'refreshMode'|'accountClaim'|null}
+ */
+export const getRestoreBlock = (session, now = Date.now()) => {
+  if (session && 'restoreBlock' in session) {
+    return RESTORE_BLOCKS.includes(session.restoreBlock) ? session.restoreBlock : null;
+  }
+  if (session?.isExpired || isPast(session?.expiresAt, now)) return 'expired';
+  if (session?.jwtManagement === 'refresh') return 'refreshMode';
+  return null;
+};
+
 /** Sort order of the derived states (ascending). */
 const SESSION_STATUS_RANK = Object.freeze({ active: 0, expired: 1, revoked: 2 });
 

@@ -7,6 +7,14 @@ const { CLAIM_REASON } = require('../utils/account-claim');
 
 const REVOKE_REASON = 'Manually revoked from admin UI';
 
+/** Error messages of unrevokeToken per restore block reason (unchanged wording). */
+const RESTORE_BLOCK_MESSAGES = Object.freeze({
+  expired: 'Cannot unrevoke an expired session',
+  refreshMode: 'Refresh-mode sessions cannot be restored; the user has to log in again',
+  accountClaim:
+    'Sessions ended by an account claim cannot be restored; the user has to log in again',
+});
+
 /**
  * Admin id of the caller, recorded on revocations for the audit trail.
  *
@@ -14,6 +22,23 @@ const REVOKE_REASON = 'Manually revoked from admin UI';
  * @returns {number|string|null} Admin user id.
  */
 const actorId = (ctx) => ctx?.state?.user?.id ?? null;
+
+/**
+ * Why a stored session cannot be restored, checked in the same order as
+ * unrevokeToken: expired sessions, refresh-mode sessions (users-permissions
+ * deletes the session row on revocation, so there is nothing to restore) and
+ * sessions ended by an account claim. `null` means restoring is allowed.
+ *
+ * @param {object} session - Stored record.
+ * @param {Date} now - Current time.
+ * @returns {'expired'|'refreshMode'|'accountClaim'|null} Block reason.
+ */
+const getRestoreBlock = (session, now) => {
+  if (new Date(session.expiresAt) < now) return 'expired';
+  if (session.upSessionId) return 'refreshMode';
+  if (session.revokeReason === CLAIM_REASON) return 'accountClaim';
+  return null;
+};
 
 /**
  * Shapes a stored session for the admin list. Only a hash prefix is shown;
@@ -42,6 +67,7 @@ const toDisplaySession = (session, now) => ({
   revokedAt: session.revokedAt || null,
   revokedBy: session.revokedBy ?? null,
   isExpired: new Date(session.expiresAt) < now,
+  restoreBlock: getRestoreBlock(session, now),
 });
 
 /**
@@ -155,21 +181,10 @@ module.exports = {
       const session = sessions.find((candidate) => candidate.id === sessionId);
       if (!session) return ctx.notFound('Session not found');
 
-      if (new Date(session.expiresAt) < new Date()) {
-        return ctx.badRequest('Cannot unrevoke an expired session');
-      }
-      if (session.upSessionId) {
-        return ctx.badRequest(
-          'Refresh-mode sessions cannot be restored; the user has to log in again'
-        );
-      }
       // Sessions ended because the mailbox owner claimed an unconfirmed
       // account may belong to whoever registered the address first.
-      if (session.revokeReason === CLAIM_REASON) {
-        return ctx.badRequest(
-          'Sessions ended by an account claim cannot be restored; the user has to log in again'
-        );
-      }
+      const restoreBlock = getRestoreBlock(session, new Date());
+      if (restoreBlock) return ctx.badRequest(RESTORE_BLOCK_MESSAGES[restoreBlock]);
 
       const hashToUnblock =
         session.jwtTokenHash ||

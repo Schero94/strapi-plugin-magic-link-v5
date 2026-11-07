@@ -53,8 +53,20 @@ import {
   normalizeOtpListResponse,
   summarizeSettled,
 } from './securityTabs.utils';
+import { StatusBadge } from './components/tokenStyles';
 
-const STATUS_BADGE = Object.freeze({ active: 'success', expired: 'warning', used: 'secondary' });
+/**
+ * Focus target when a confirm dialog closes and its opener left the DOM (the
+ * row disappeared after the action or a refresh): the tab's search field.
+ */
+const getSearchField = () => document.querySelector('input[name="otp-search"]');
+
+/**
+ * Status badge tones. DS 2.2.4 Badge variants pair the 200 background with the
+ * 700 text (3.6:1 warning, 3.9:1 danger); the shared Magic Link StatusBadge
+ * tints keep every state at >= 4.5:1 in light and dark mode.
+ */
+const STATUS_TONE = Object.freeze({ active: 'success', expired: 'warning', used: 'primary' });
 const SEARCH_DEBOUNCE_MS = 300;
 
 /**
@@ -200,10 +212,12 @@ const OTPCodes = () => {
     try {
       const { data } = await del(`/${pluginId}/otp/codes/${id}`);
       if (data?.success === false) throw new Error('not deleted');
-      setPendingAction(null);
       setSelectedIds((ids) => ids.filter((value) => value !== id));
       notify('success', t('otp.notifications.deleteSuccess', 'OTP code deleted'));
       await fetchCodes();
+      // Close after the refresh, so a removed row's dialog returns focus
+      // to the search field instead of <body>.
+      setPendingAction(null);
     } catch {
       notify('danger', t('otp.notifications.deleteError', 'The OTP code could not be deleted.'));
     }
@@ -216,8 +230,6 @@ const OTPCodes = () => {
     if (!ids.length) return;
     const results = await Promise.allSettled(ids.map((id) => del(`/${pluginId}/otp/codes/${id}`)));
     const summary = summarizeSettled(ids, results);
-    setPendingAction(null);
-    setSelectedIds(summary.failedIds);
     if (summary.failed === 0) {
       notify(
         'success',
@@ -243,6 +255,9 @@ const OTPCodes = () => {
       );
     }
     await fetchCodes();
+    // The dialog copy counts the selection, so it changes only after the close.
+    setPendingAction(null);
+    setSelectedIds(summary.failedIds);
   };
 
   /** Removes expired codes after the ConfirmDialog. */
@@ -251,7 +266,6 @@ const OTPCodes = () => {
     try {
       const { data } = await post(`/${pluginId}/otp/cleanup`);
       if (data?.success === false) throw new Error('cleanup failed');
-      setPendingAction(null);
       const count = Number(data?.count);
       notify(
         'success',
@@ -264,6 +278,7 @@ const OTPCodes = () => {
           : t('otp.notifications.cleanupSuccess', 'Expired OTP codes removed')
       );
       await fetchCodes();
+      setPendingAction(null);
     } catch {
       notify(
         'danger',
@@ -543,7 +558,16 @@ const OTPCodes = () => {
           )
         ) : (
           <>
-            <StyledTable colCount={canManage ? 9 : 7} rowCount={codes.length + 1}>
+            {/* DS 2.2.4 RawTable focuses the first [tabindex="0"] after an arrow key,
+                and a cell sets its own tabindex only when it becomes (in)active. The
+                select-all cell, active at mount, kept a stale tabindex="0", so arrows
+                snapped back to it and the row actions were unreachable. Starting on
+                the second column avoids that. */}
+            <StyledTable
+              initialCol={canManage ? 1 : 0}
+              colCount={canManage ? 9 : 7}
+              rowCount={codes.length + 1}
+            >
               <Thead>
                 <Tr>
                   {canManage ? (
@@ -610,15 +634,15 @@ const OTPCodes = () => {
                         <Badge>{typeLabel(code.type)}</Badge>
                       </Td>
                       <Td data-label={t('common.status', 'Status')}>
-                        <Badge variant={STATUS_BADGE[status]}>{statusLabel(status)}</Badge>
+                        <StatusBadge $tone={STATUS_TONE[status]}>{statusLabel(status)}</StatusBadge>
                       </Td>
                       <Td data-label={t('otp.table.attempts', 'Attempts')}>
                         <Typography variant="omega">{code.attempts}</Typography>
                       </Td>
-                      <Td data-label={t('common.created', 'Created')}>
+                      <Td className="cell-date" data-label={t('common.created', 'Created')}>
                         <Typography variant="pi">{formatDateTime(code.createdAt)}</Typography>
                       </Td>
-                      <Td data-label={t('common.expiresAt', 'Expires At')}>
+                      <Td className="cell-date" data-label={t('common.expiresAt', 'Expires At')}>
                         <Typography
                           variant="pi"
                           textColor={status === 'expired' ? 'danger600' : 'neutral800'}
@@ -664,6 +688,7 @@ const OTPCodes = () => {
 
       <ConfirmDialog
         isOpen={canManage && pendingAction !== null}
+        getReturnFocusFallback={getSearchField}
         title={copy.title}
         description={copy.description}
         confirmLabel={copy.confirmLabel}

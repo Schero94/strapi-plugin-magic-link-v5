@@ -343,3 +343,47 @@ test('security tab views gate writes with manage RBAC and confirm destructive ac
     'IP ban form is a DS modal with a Field'
   );
 });
+
+test('restore is offered only when the server allows it (refresh mode and claims stay blocked)', () => {
+  assert.equal(utils.getRestoreBlock({ restoreBlock: null, expiresAt: future }, NOW), null);
+  assert.equal(utils.getRestoreBlock({ restoreBlock: 'refreshMode' }, NOW), 'refreshMode');
+  assert.equal(utils.getRestoreBlock({ restoreBlock: 'accountClaim' }, NOW), 'accountClaim');
+  assert.equal(utils.getRestoreBlock({ restoreBlock: 'expired' }, NOW), 'expired');
+  assert.equal(utils.getRestoreBlock({ restoreBlock: 'unknown' }, NOW), null);
+  // Older servers without restoreBlock: expiry and the users-permissions mode decide.
+  assert.equal(utils.getRestoreBlock({ expiresAt: past }, NOW), 'expired');
+  assert.equal(
+    utils.getRestoreBlock({ expiresAt: future, jwtManagement: 'refresh' }, NOW),
+    'refreshMode'
+  );
+  assert.equal(
+    utils.getRestoreBlock({ expiresAt: future, jwtManagement: 'legacy-support' }, NOW),
+    null
+  );
+});
+
+test('security tab status badges use the shared tint StatusBadge, not DS Badge variants', () => {
+  for (const file of ['OTPCodes.jsx', 'JWTSessions.jsx', 'IPBans.jsx']) {
+    const source = read(file);
+    assert.match(source, /<StatusBadge \$tone=/, `${file} uses StatusBadge`);
+    assert.doesNotMatch(source, /<Badge variant=/, `${file} has no low-contrast DS Badge variant`);
+  }
+});
+
+test('the Ban IP modal returns focus to its opener when it closes', () => {
+  const source = read('IPBans.jsx');
+  assert.match(source, /useReturnFocus\(showAddModal, getReturnFocusFallback\)/);
+  assert.match(source, /<Modal\.Content onCloseAutoFocus=\{returnFocus\}>/);
+});
+
+test('security tab confirm dialogs fall back to the search field when the row is gone', () => {
+  for (const file of ['OTPCodes.jsx', 'JWTSessions.jsx', 'IPBans.jsx']) {
+    assert.match(read(file), /getReturnFocusFallback=\{getSearchField\}/, file);
+  }
+});
+
+test('checkbox tables start the DS grid on the second column (arrow keys reach the rows)', () => {
+  for (const file of ['OTPCodes.jsx', 'JWTSessions.jsx']) {
+    assert.match(read(file), /initialCol=\{canManage \? 1 : 0\}/, file);
+  }
+});
