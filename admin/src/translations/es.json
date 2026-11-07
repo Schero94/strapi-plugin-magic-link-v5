@@ -663,6 +663,8 @@
   "magic-link.tokens.tabs.otpCodes": "Códigos OTP",
   "magic-link.tokens.tabs.otpCodesShort": "OTP",
   "magic-link.tokens.title": "Tokens Magic Link",
-  "magic-link.settings.save.securityForbidden": "Cambiar destinos de enlaces, plantillas o reglas de cuenta, MFA, códigos o límites de solicitudes requiere el permiso «Configuración: Seguridad».",
-  "magic-link.settings.save.linkOriginNotAllowed": "Las URL de los enlaces de inicio de sesión deben usar un origen permitido en la configuración del servidor."
+  "magic-link.settings.save.securityForbidden": "Cambiar destinos de enlaces, plantillas, remitente o reglas de cuenta, MFA, códigos o límites de solicitudes requiere el permiso «Configuración: Seguridad».",
+  "magic-link.settings.save.linkOriginNotAllowed": "Las URL de los enlaces de inicio de sesión deben usar un origen permitido en la configuración del servidor.",
+  "magic-link.settings.validation.mfaNoEnrolled": "Ningún usuario ha configurado todavía una aplicación de autenticación, por lo que «Todos los usuarios» no se puede guardar.",
+  "magic-link.settings.save.mfaNoEnrolled": "Ningún usuario ha configurado todavía una aplicación de autenticación. Elija primero «Usuarios que configuraron una aplicación» para que puedan configurarla y después exíjala a todos."
 }

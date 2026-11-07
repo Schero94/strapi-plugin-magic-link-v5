@@ -7,7 +7,7 @@ const {
   SETTINGS_KEYS,
 } = require('./validation');
 const { errors } = require('@strapi/utils');
-const { normalizeMfaSettings } = require('../utils/mfa-mode');
+const { normalizeMfaSettings, resolveMfaMode } = require('../utils/mfa-mode');
 const { createDefaultSettings } = require('../utils/default-settings');
 
 const SECURITY_ACTION = 'plugin::magic-link.settings.security';
@@ -69,7 +69,10 @@ const SECURITY_SETTING_KEYS = Object.freeze([
   'rate_limit_login_max_attempts',
   'rate_limit_login_window_minutes',
   'rate_limit_login_block_minutes',
-  'max_login_attempts',
+  // Who the login mail claims to come from and where replies go.
+  'from_name',
+  'from_email',
+  'response_email',
 ]);
 
 /** URL settings checked against the server-side `allowedLinkOrigins`. */
@@ -226,6 +229,45 @@ const assertSettingsChangeAllowed = (ctx, existing, patch) => {
   }
 };
 
+/**
+ * Refuses switching MFA to `required` while no end user has an active
+ * authenticator, unless the request sets `acknowledgeNoEnrolledUsers: true`.
+ * With nobody enrolled, every user has to enrol during the next login
+ * (`requiresTOTPSetup`); a frontend without that step would lock everyone
+ * out, so the switch must be deliberate. The admin UI blocks the option in
+ * the same situation.
+ *
+ * @param {object} existing - Stored settings.
+ * @param {object} patch - Validated patch.
+ * @param {boolean} acknowledged - Explicit acknowledgement from the request.
+ * @returns {Promise<void>}
+ * @throws {errors.ValidationError} Key `settings.mfa.noEnrolledUsers`.
+ */
+const assertMfaRequirementSafe = async (existing, patch, acknowledged) => {
+  const defaults = createDefaultSettings();
+  const before = resolveMfaMode(normalizeMfaSettings({ ...defaults, ...existing }));
+  const after = resolveMfaMode(normalizeMfaSettings({ ...defaults, ...existing, ...patch }, patch));
+  if (after !== 'required' || before === 'required' || acknowledged) return;
+  const enrolled = await strapi.db.query('plugin::magic-link.totp-config').count({
+    where: { principalType: 'users-permissions', enabled: true },
+  });
+  if (Number(enrolled) > 0) return;
+  throw new errors.ValidationError(
+    'No user has an authenticator yet. Send acknowledgeNoEnrolledUsers: true to require it anyway',
+    { key: 'settings.mfa.noEnrolledUsers', fields: ['mfa_mode'] }
+  );
+};
+
+/**
+ * Reads `acknowledgeNoEnrolledUsers` from the raw body (top level or inside
+ * the `settings` envelope). It is not a setting and is never stored.
+ *
+ * @param {unknown} body - Raw request body.
+ * @returns {boolean} True when explicitly acknowledged.
+ */
+const isNoEnrolmentAcknowledged = (body) =>
+  body?.acknowledgeNoEnrolledUsers === true || body?.settings?.acknowledgeNoEnrolledUsers === true;
+
 module.exports = {
   SECURITY_SETTING_KEYS,
 
@@ -282,6 +324,11 @@ module.exports = {
     const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
     const existingSettings = (await pluginStore.get({ key: 'settings' })) || {};
     assertSettingsChangeAllowed(ctx, existingSettings, settingsPatch);
+    await assertMfaRequirementSafe(
+      existingSettings,
+      settingsPatch,
+      isNoEnrolmentAcknowledged(ctx.request.body)
+    );
 
     try {
       const processedBody = normalizeBooleans(
@@ -310,31 +357,29 @@ module.exports = {
 
   /**
    * Resets settings to the install defaults and deletes login tokens, the
-   * session audit list and IP bans. Requires `{ confirm: 'RESET' }`.
-   * Active JWT revocations are kept, so a revoked token never becomes valid
-   * again through a reset, and the MFA settings are kept unless
-   * `resetSecurity: true` is sent. Without `settings.security` every
-   * security setting (link targets, templates, account, MFA, code and
-   * rate-limit rules) keeps its current value: a reset must not undo
-   * hardening that only a security admin may change.
+   * session audit list and IP bans. Requires `{ confirm: 'RESET' }` and the
+   * `settings.security` action: the reset removes IP bans and resets link
+   * targets, templates, sender and code rules, so a role with only
+   * `settings.update` may not run it. Active JWT revocations are kept, so a
+   * revoked token never becomes valid again through a reset, and the MFA
+   * settings are kept unless `resetSecurity: true` is sent.
    *
    * @param {object} ctx - Strapi Koa context.
+   * @throws {errors.PolicyError} Without `settings.security`.
    */
   async resetData(ctx) {
     const { resetSecurity } = parseBody(adminResetSchema, ctx.request?.body);
-    const mayChangeSecurity = can(ctx, SECURITY_ACTION);
-    if (resetSecurity && !mayChangeSecurity) {
+    if (!can(ctx, SECURITY_ACTION)) {
       // PolicyError keeps message and details in the 403 response (see above).
       throw new errors.PolicyError(
-        'Resetting the MFA settings requires the "Settings: Security" permission',
-        { key: 'settings.security.forbidden', fields: [...MFA_SETTING_KEYS] }
+        'Resetting Magic Link data requires the "Settings: Security" permission',
+        { key: 'settings.security.forbidden', fields: [] }
       );
     }
     try {
       const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
       const defaults = createDefaultSettings();
       const kept = new Set(resetSecurity ? [] : MFA_SETTING_KEYS);
-      if (!mayChangeSecurity) SECURITY_SETTING_KEYS.forEach((key) => kept.add(key));
       if (kept.size > 0) {
         const current = (await pluginStore.get({ key: 'settings' })) || {};
         for (const key of kept) {
@@ -353,12 +398,11 @@ module.exports = {
       }
 
       strapi.log.warn(
-        `[magic-link] Data reset by admin ${ctx.state?.user?.id ?? 'unknown'} (${deleted?.count || 0} token(s) deleted, MFA settings ${resetSecurity ? 'reset' : 'kept'}, security settings ${mayChangeSecurity ? 'reset' : 'kept'})`
+        `[magic-link] Data reset by admin ${ctx.state?.user?.id ?? 'unknown'} (${deleted?.count || 0} token(s) deleted, MFA settings ${resetSecurity ? 'reset' : 'kept'})`
       );
       ctx.send({
         success: true,
         deletedTokens: deleted?.count || 0,
-        securitySettingsKept: !mayChangeSecurity,
         message: 'Magic Link data was reset. Revoked JWTs stay blocked until they expire.',
       });
     } catch {

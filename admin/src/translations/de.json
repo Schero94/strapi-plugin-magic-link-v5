@@ -663,6 +663,8 @@
   "magic-link.tokens.tabs.otpCodes": "OTP-Codes",
   "magic-link.tokens.tabs.otpCodesShort": "OTP",
   "magic-link.tokens.title": "Magic Link Tokens",
-  "magic-link.settings.save.securityForbidden": "Für Änderungen an Link-Zielen, Vorlagen, Konto-, MFA-, Code- oder Rate-Limit-Regeln ist die Berechtigung „Einstellungen: Sicherheit“ erforderlich.",
-  "magic-link.settings.save.linkOriginNotAllowed": "Anmeldelinks müssen einen in der Serverkonfiguration erlaubten Origin verwenden."
+  "magic-link.settings.save.securityForbidden": "Für Änderungen an Link-Zielen, Vorlagen, Absender-, Konto-, MFA-, Code- oder Rate-Limit-Regeln ist die Berechtigung „Einstellungen: Sicherheit“ erforderlich.",
+  "magic-link.settings.save.linkOriginNotAllowed": "Anmeldelinks müssen einen in der Serverkonfiguration erlaubten Origin verwenden.",
+  "magic-link.settings.validation.mfaNoEnrolled": "Noch kein Benutzer hat eine Authenticator-App eingerichtet, daher kann „Alle Benutzer“ nicht gespeichert werden.",
+  "magic-link.settings.save.mfaNoEnrolled": "Noch kein Benutzer hat eine Authenticator-App eingerichtet. Wählen Sie zuerst „Benutzer mit eingerichteter App“, damit Benutzer eine App einrichten können, und verlangen Sie sie danach von allen."
 }

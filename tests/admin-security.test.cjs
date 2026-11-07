@@ -96,6 +96,8 @@ test('settings writes normalize legacy required TOTP, keep known settings and dr
         persisted = value;
       },
     }),
+    // One end user has an authenticator, so MFA may become required.
+    db: { query: () => ({ count: async () => 1 }) },
     plugin: () => undefined,
     log: { info() {} },
   };

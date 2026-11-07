@@ -6,8 +6,8 @@ short version is the upgrade guide.
 
 ### Upgrade guide (5.x to 6.0.0)
 
-1. Run Node.js 22 or newer and Strapi 5.24.0 or newer (5.33.3+ when you use
-   users-permissions refresh mode).
+1. Run Node.js 22 or newer and Strapi 5.24.0 or newer (5.33.3+ when refresh
+   mode should read the refresh token from the httpOnly cookie).
 2. Set `MAGIC_LINK_ENCRYPTION_KEY` and `MAGIC_LINK_OTP_PEPPER` (32+ characters
    each) on every host. If the old encryption key was shorter, or you used the
    development fallback, also set `MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS` for the
@@ -77,17 +77,16 @@ short version is the upgrade guide.
   and brute-force rules `otp_length`, `otp_expiry`, `otp_max_attempts`,
   `otp_resend_cooldown`, `totp_algorithm`, `totp_digits`, `totp_period`,
   `rate_limit_enabled`, `rate_limit_max_attempts`,
-  `rate_limit_window_minutes`, `rate_limit_login_*` and
-  `max_login_attempts`. Sending them unchanged is allowed. A refused save
+  `rate_limit_window_minutes`, `rate_limit_login_*`, and the sender identity
+  `from_name`, `from_email` and `response_email`. Sending them unchanged is allowed. A refused save
   answers 403 (`error.details.key: settings.security.forbidden`, `fields`)
-  and writes nothing. `reset-data` with `resetSecurity: true` needs it as
-  well; a `reset-data` without it keeps every security setting and resets
-  only the others (`securitySettingsKept: true` in the response).
+  and writes nothing. `reset-data` needs it as well (see "Follow-up fixes"
+  below).
   Migration: the action is never granted automatically (Super Admin has
   it). Grant **Settings > Security** to the roles that should keep changing
   link targets, templates, account, MFA, code or rate-limit rules; roles
-  with only `settings.update` keep sender, subject, welcome-mail, login-info
-  and TOTP issuer changes.
+  with only `settings.update` keep subject, welcome-mail, login-info and TOTP
+  issuer changes.
 * **Optional `allowedLinkOrigins` plugin config.** When set
   (`config/plugins.js`, e.g. `['https://app.example.com']`), a changed
   `confirmationUrl`, `frontend_url` or `callback_url` outside these origins
@@ -523,6 +522,43 @@ short version is the upgrade guide.
 * All texts are translated into English, German (formal), French, Spanish
   and Portuguese, and dates follow the admin locale. A test now checks that
   every message id used by the admin exists in all five locales.
+
+### BREAKING CHANGES (follow-up fixes, 2026-11-07)
+
+* **`POST /magic-link/reset-data` needs `settings.security`.** A reset
+  deletes every login token, the JWT session list and all IP bans and resets
+  link targets, templates, sender and code rules, so `settings.update` alone
+  no longer allows it (403, `error.details.key: settings.security.forbidden`).
+  The `securitySettingsKept` response field is gone. Migration: grant
+  **Settings > Security** to the roles that run resets.
+* **Sender identity is a security setting.** Changing `from_name`,
+  `from_email` or `response_email` needs `settings.security` in addition to
+  `settings.update`: the login mail carries the login link, so who it claims
+  to come from matters. Sending them unchanged is still allowed.
+* **`mfa_mode: "required"` is refused while nobody is enrolled.** The settings
+  API answers 400 (`error.details.key: settings.mfa.noEnrolledUsers`,
+  `fields: ["mfa_mode"]`) when MFA would become required (also through the
+  legacy `mfa_require_totp`) and no end user has an active authenticator.
+  Send `acknowledgeNoEnrolledUsers: true` with the update when your landing
+  page handles `requiresTOTPSetup`; the flag is never stored.
+* **`max_login_attempts` is removed.** It was validated but never read; the
+  login limiter uses `rate_limit_login_max_attempts`. A stored or sent value
+  is dropped.
+
+### Security and fixes (follow-up, 2026-11-07)
+
+* `send-link` keys its e-mail rate limiter with a hash of the normalised
+  address, like the OTP and TOTP paths, so no address is kept in limiter
+  memory and case variants share one bucket.
+* Admin: the Tokens, Settings and License pages no longer show "no
+  permissions" to a Super Admin after a full page reload. Strapi 5.61
+  `useRBAC` could check while the admin permissions were still loading,
+  settle with nothing allowed and never re-check; unconditioned grants from
+  the loaded admin permissions now count.
+* Admin: arrow keys in the Tokens table no longer get stuck on the
+  select-all header cell.
+* Docs: refresh mode works from Strapi 5.24.0; Strapi's own
+  `/api/auth/refresh` reads the httpOnly refresh cookie only from 5.33.3.
 
 ### Build, dependencies and release
 

@@ -327,7 +327,10 @@ module.exports = {
     const params = parseBody(sendLinkSchema, ctx.request.body);
 
     if (!(await allowRequest(ctx, ctx.request.ip, 'ip'))) return undefined;
-    if (!(await allowRequest(ctx, params.email, 'email'))) return undefined;
+    // Hashed like the OTP/TOTP keys: no address in limiter memory, and case
+    // variants of one address share a bucket.
+    const emailKey = limiterKey('email', String(params.email).trim().toLowerCase());
+    if (!(await allowRequest(ctx, emailKey, 'email'))) return undefined;
 
     const magicLink = plugin().service('magic-link');
     const locale = i18n.getLocaleFromContext(ctx);

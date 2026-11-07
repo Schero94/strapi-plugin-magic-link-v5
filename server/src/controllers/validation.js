@@ -408,7 +408,6 @@ const settingsFieldSchemas = {
   expire_period: z.number().int().min(10).max(31_536_000),
   // >= 22 URL-safe characters = 132 bits of entropy.
   token_length: z.number().int().min(22).max(128),
-  max_login_attempts: z.number().int().min(1).max(1_000),
   // Login links may only point at https URLs (http only for localhost).
   confirmationUrl: linkUrlSchema,
   callback_url: linkUrlSchema,
@@ -506,7 +505,12 @@ const toKnownSettings = (settings) => {
   return known;
 };
 
-const settingsEnvelopeSchema = z.object({ settings: settingsRecordSchema }).strict();
+// `acknowledgeNoEnrolledUsers` confirms switching MFA to `required` while no
+// end user has an authenticator yet (users then enrol during their next login).
+// It is read by controller.updateSettings and never stored.
+const settingsEnvelopeSchema = z
+  .object({ settings: settingsRecordSchema, acknowledgeNoEnrolledUsers: z.boolean().optional() })
+  .strict();
 const settingsUpdateSchema = z
   .union([settingsEnvelopeSchema, settingsRecordSchema])
   .transform((value) => toKnownSettings('settings' in value ? value.settings : value));

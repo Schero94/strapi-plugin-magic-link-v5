@@ -663,6 +663,8 @@
   "magic-link.tokens.tabs.otpCodes": "Codes OTP",
   "magic-link.tokens.tabs.otpCodesShort": "OTP",
   "magic-link.tokens.title": "Jetons Magic Link",
-  "magic-link.settings.save.securityForbidden": "Modifier les cibles des liens, les modèles ou les règles de compte, MFA, codes ou limites de requêtes nécessite l'autorisation « Paramètres : Sécurité ».",
-  "magic-link.settings.save.linkOriginNotAllowed": "Les URL des liens de connexion doivent utiliser une origine autorisée dans la configuration du serveur."
+  "magic-link.settings.save.securityForbidden": "Modifier les cibles des liens, les modèles, l'expéditeur ou les règles de compte, MFA, codes ou limites de requêtes nécessite l'autorisation « Paramètres : Sécurité ».",
+  "magic-link.settings.save.linkOriginNotAllowed": "Les URL des liens de connexion doivent utiliser une origine autorisée dans la configuration du serveur.",
+  "magic-link.settings.validation.mfaNoEnrolled": "Aucun utilisateur n'a encore d'application d'authentification, « Tous les utilisateurs » ne peut donc pas être enregistré.",
+  "magic-link.settings.save.mfaNoEnrolled": "Aucun utilisateur n'a encore d'application d'authentification. Choisissez d'abord « Utilisateurs ayant configuré une application » pour qu'ils puissent en configurer une, puis exigez-la de tous."
 }

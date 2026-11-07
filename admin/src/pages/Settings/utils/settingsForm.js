@@ -351,6 +351,7 @@ export const getServerErrorField = (error) => {
 const FIELD_LIST_ERRORS = Object.freeze({
   'settings.security.forbidden': 'securityForbidden',
   'settings.linkOrigin.notAllowed': 'linkOrigin',
+  'settings.mfa.noEnrolledUsers': 'mfaNoEnrolled',
 });
 
 /**
@@ -359,7 +360,7 @@ const FIELD_LIST_ERRORS = Object.freeze({
  * focused or highlighted.
  *
  * @param {unknown} error - fetch client error
- * @returns {{code: 'securityForbidden'|'linkOrigin', fields: string[]}|null}
+ * @returns {{code: 'securityForbidden'|'linkOrigin'|'mfaNoEnrolled', fields: string[]}|null}
  */
 export const getServerErrorFields = (error) => {
   const details = error?.response?.data?.error?.details;

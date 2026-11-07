@@ -260,14 +260,15 @@ test('settings.update alone cannot weaken e-mail codes, TOTP parameters or rate 
       adminCtx({
         otp_length: defaults.otp_length,
         rate_limit_enabled: defaults.rate_limit_enabled,
-        from_name: 'Example Shop',
+        // Sender identity is a security setting since the 2026-11-07 follow-up.
+        object: 'Sign in to Example Shop',
       })
     );
-    assert.equal(values.get('settings').from_name, 'Example Shop');
+    assert.equal(values.get('settings').object, 'Sign in to Example Shop');
   });
 });
 
-test('a data reset without settings.security keeps every security setting', async () => {
+test('a data reset needs settings.security; a security admin resets everything but MFA', async () => {
   const hardened = {
     frontend_url: 'https://app.example.test',
     createUserIfNotExists: false,
@@ -280,14 +281,14 @@ test('a data reset without settings.security keeps every security setting', asyn
     from_name: 'Example Shop',
   };
   const { values } = settingsEnv(hardened);
+  const before = JSON.stringify(values.get('settings'));
 
-  await settingsController.resetData(adminCtx({ confirm: 'RESET' }));
-
-  const after = values.get('settings');
-  for (const key of Object.keys(hardened).filter((name) => name !== 'from_name')) {
-    assert.deepEqual(after[key], hardened[key], `${key} is kept`);
-  }
-  assert.equal(after.from_name, createDefaultSettings().from_name, 'other settings are reset');
+  // The reset deletes tokens, sessions and IP bans (2026-11-07 follow-up).
+  await assert.rejects(
+    settingsController.resetData(adminCtx({ confirm: 'RESET' })),
+    (error) => error.name === 'PolicyError' && error.details.key === 'settings.security.forbidden'
+  );
+  assert.equal(JSON.stringify(values.get('settings')), before, 'nothing was reset');
 
   // A security admin still resets them (MFA kept unless resetSecurity).
   settingsEnv(hardened);

@@ -347,7 +347,8 @@ const settingsEnv = (stored = {}) => {
       delete: async ({ key }) => values.delete(key),
     }),
     config: { get: (_key, fallback) => fallback },
-    db: { query: () => ({ deleteMany: async () => ({ count: 0 }) }) },
+    // count: one end user has an authenticator, so MFA may become required.
+    db: { query: () => ({ deleteMany: async () => ({ count: 0 }), count: async () => 1 }) },
     plugin: () => undefined,
     log: Object.fromEntries(
       ['info', 'warn', 'error', 'debug'].map((level) => [level, (msg) => logs.push(msg)])
@@ -412,10 +413,11 @@ test('settings.update keeps working for unchanged security fields and harmless f
   global.strapi.config = { get: (_key, fallback) => fallback };
   await settingsController.getSettings(readCtx);
   // otp_length is a security setting since the 2026-11-07 re-attack.
-  const form = { ...readCtx.response.settings, from_name: 'Example Shop', welcome_email: true };
+  // The sender identity is a security setting since the 2026-11-07 follow-up.
+  const form = { ...readCtx.response.settings, object: 'Sign in', welcome_email: true };
 
   await settingsController.updateSettings(adminCtx(form));
-  assert.equal(values.get('settings').from_name, 'Example Shop');
+  assert.equal(values.get('settings').object, 'Sign in');
   assert.equal(values.get('settings').welcome_email, true);
 });
 

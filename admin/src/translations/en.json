@@ -663,6 +663,8 @@
   "magic-link.tokens.tabs.otpCodes": "OTP Codes",
   "magic-link.tokens.tabs.otpCodesShort": "OTP",
   "magic-link.tokens.title": "Magic Link Tokens",
-  "magic-link.settings.save.securityForbidden": "Changing link targets, templates, account, MFA, code or rate-limit rules needs the \"Settings: Security\" permission.",
-  "magic-link.settings.save.linkOriginNotAllowed": "Login link URLs must use an origin allowed in the server configuration."
+  "magic-link.settings.save.securityForbidden": "Changing link targets, templates, sender, account, MFA, code or rate-limit rules needs the \"Settings: Security\" permission.",
+  "magic-link.settings.save.linkOriginNotAllowed": "Login link URLs must use an origin allowed in the server configuration.",
+  "magic-link.settings.validation.mfaNoEnrolled": "No user has an authenticator app yet, so \"Every user\" cannot be saved.",
+  "magic-link.settings.save.mfaNoEnrolled": "No user has an authenticator app yet. Choose \"Users who set up an app\" first so users can set one up, then require it for every user."
 }

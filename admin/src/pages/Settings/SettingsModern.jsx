@@ -318,6 +318,11 @@ const SettingsModern = () => {
               'settings.validation.linkOrigin',
               'This origin is not in the allowed link origins of the server configuration.'
             );
+          case 'mfaNoEnrolled':
+            return t(
+              'settings.validation.mfaNoEnrolled',
+              'No user has an authenticator app yet, so "Every user" cannot be saved.'
+            );
           default:
             return t(
               'settings.validation.server',
@@ -576,16 +581,20 @@ const SettingsModern = () => {
         }
         toggleNotification({
           type: 'danger',
-          message:
-            rejected.code === 'securityForbidden'
-              ? t(
-                  'settings.save.securityForbidden',
-                  'Changing link targets, templates, account, MFA, code or rate-limit rules needs the "Settings: Security" permission.'
-                )
-              : t(
-                  'settings.save.linkOriginNotAllowed',
-                  'Login link URLs must use an origin allowed in the server configuration.'
-                ),
+          message: {
+            securityForbidden: t(
+              'settings.save.securityForbidden',
+              'Changing link targets, templates, sender, account, MFA, code or rate-limit rules needs the "Settings: Security" permission.'
+            ),
+            linkOrigin: t(
+              'settings.save.linkOriginNotAllowed',
+              'Login link URLs must use an origin allowed in the server configuration.'
+            ),
+            mfaNoEnrolled: t(
+              'settings.save.mfaNoEnrolled',
+              'No user has an authenticator app yet. Choose "Users who set up an app" first so users can set one up, then require it for every user.'
+            ),
+          }[rejected.code],
         });
       } else if (field) {
         setServerErrors({ [field]: 'server' });
