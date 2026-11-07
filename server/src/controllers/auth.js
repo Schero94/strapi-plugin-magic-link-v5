@@ -174,6 +174,29 @@ const totpSetupChallengeResponse = (token, loginToken) => ({
 });
 
 /**
+ * Answer for a request that lost the challenge start to a parallel request
+ * with the same link (another process, a mail scanner, a double click):
+ * when the token now carries a pending challenge of the expected type, the
+ * same challenge response is returned without sending another code.
+ *
+ * @param {object} ctx - Koa context.
+ * @param {string} loginToken - Plaintext login token.
+ * @param {'otp'|'totp'|'totp-setup'} type - Challenge this request tried to start.
+ * @param {object} settings - Plugin settings.
+ * @returns {Promise<void>}
+ */
+const answerLostChallengeStart = async (ctx, loginToken, type, settings) => {
+  const fresh = await plugin().service('magic-link').fetchToken(loginToken);
+  const challenge = fresh?.is_active ? fresh.challenge : null;
+  if (!challenge || challenge.verifiedAt || challenge.type !== type) {
+    return i18n.sendError(ctx, 'token.invalid', 400);
+  }
+  if (type === 'totp') return ctx.send(totpChallengeResponse(fresh, loginToken));
+  if (type === 'totp-setup') return ctx.send(totpSetupChallengeResponse(fresh, loginToken));
+  return ctx.send(otpChallengeResponse(fresh, loginToken, settings));
+};
+
+/**
  * Reads the login token from a POST body (preferred) or the legacy GET query.
  *
  * @param {object} ctx - Koa context.
@@ -259,7 +282,7 @@ module.exports = {
         ...pendingChallenge,
         otpSentAt: new Date().toISOString(),
       });
-      if (!restarted) return i18n.sendError(ctx, 'token.invalid', 400);
+      if (!restarted) return answerLostChallengeStart(ctx, loginToken, 'otp', settings);
       if (!(await sendChallengeOtp(ctx, token, settings))) return undefined;
       return ctx.send(otpChallengeResponse(token, loginToken, settings));
     }
@@ -272,7 +295,7 @@ module.exports = {
         userId: user.id,
         userDocumentId: user.documentId,
       });
-      if (!started) return i18n.sendError(ctx, 'token.invalid', 400);
+      if (!started) return answerLostChallengeStart(ctx, loginToken, 'totp-setup', settings);
       return ctx.send(totpSetupChallengeResponse(token, loginToken));
     }
 
@@ -282,7 +305,7 @@ module.exports = {
         userId: user.id,
         userDocumentId: user.documentId,
       });
-      if (!started) return i18n.sendError(ctx, 'token.invalid', 400);
+      if (!started) return answerLostChallengeStart(ctx, loginToken, 'totp', settings);
       return ctx.send(totpChallengeResponse(token, loginToken));
     }
 
@@ -293,7 +316,7 @@ module.exports = {
         userDocumentId: user.documentId,
         otpSentAt: new Date().toISOString(),
       });
-      if (!started) return i18n.sendError(ctx, 'token.invalid', 400);
+      if (!started) return answerLostChallengeStart(ctx, loginToken, 'otp', settings);
       if (!(await sendChallengeOtp(ctx, token, settings))) return undefined;
       return ctx.send(otpChallengeResponse(token, loginToken, settings));
     }

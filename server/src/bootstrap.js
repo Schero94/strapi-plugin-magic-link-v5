@@ -28,6 +28,8 @@ const { migrateSettings } = require('./utils/settings-migration');
 const { clampTokenLength } = require('./services/magic-link');
 const { createDefaultSettings } = require('./utils/default-settings');
 const { updateJwtSessions } = require('./utils/jwt-session-store');
+const { runExclusiveJob, updateStoreKey, withClusterLock } = require('./utils/cluster');
+const { dedupeStoreKeys } = require('./utils/store-dedupe');
 const {
   RBAC_ACTIONS,
   migrateLegacyAccessPermission,
@@ -36,6 +38,12 @@ const {
   trackCleanup,
   warnOnUnsafeProxyConfig,
 } = require('./utils/lifecycle');
+
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+// Shorter than the interval, so the next round can be taken by any process.
+const CLEANUP_LEASE_MS = 4 * 60 * 1000;
+// One-off startup jobs: one process per rolling deploy is enough.
+const STARTUP_LEASE_MS = 10 * 60 * 1000;
 
 module.exports = async ({ strapi }) => {
   // Fail fast on missing or weak secrets (MAGIC_LINK_ENCRYPTION_KEY,
@@ -50,39 +58,43 @@ module.exports = async ({ strapi }) => {
     throw e;
   }
 
-  const pluginStore = strapi.store({
-    type: 'plugin',
-    name: 'magic-link',
-  });
-  let settings = await pluginStore.get({ key: 'settings' });
+  // Several processes may start at once (Railway replicas, pm2 cluster):
+  // every startup step that writes shared state runs under a cluster-wide
+  // database lock and re-reads what it changes (utils/cluster.js).
+  try {
+    const merged = await dedupeStoreKeys(strapi);
+    if (merged > 0) {
+      strapi.log.warn(`[magic-link] Merged ${merged} duplicate plugin-store row(s)`);
+    }
+  } catch {
+    strapi.log.error('[magic-link] Duplicate plugin-store rows could not be merged');
+  }
 
-  if (!settings) {
-    const value = createDefaultSettings();
-
-    await pluginStore.set({ key: 'settings', value });
-  } else {
+  await updateStoreKey(strapi, 'settings', (settings) => {
+    if (!settings) return { value: createDefaultSettings() };
     const migration = migrateSettings(settings, {
       serverUrl: strapi.config.get('server.url', ''),
       clampTokenLength,
     });
     const next = migration.settings;
     if (next.store_login_info === undefined) next.store_login_info = true;
-    if (migration.changed || settings.store_login_info === undefined) {
-      await pluginStore.set({ key: 'settings', value: next });
-      if (migration.removedKeys > 0) {
-        strapi.log.info(
-          `[magic-link] Removed ${migration.removedKeys} obsolete WhatsApp/SMS setting(s)`
-        );
-      }
+    if (!(migration.changed || settings.store_login_info === undefined)) return {};
+    if (migration.removedKeys > 0) {
+      strapi.log.info(
+        `[magic-link] Removed ${migration.removedKeys} obsolete WhatsApp/SMS setting(s)`
+      );
     }
-  }
+    return { value: next };
+  });
 
   // Authenticator enrolments from before 6.0.0: namespace them by principal
   // (users-permissions vs admin), fail closed where ownership is not
   // provable, store per-enrolment TOTP parameters and finish a key rotation.
   // Unmigrated rows have no principal key and are never used for a login.
   try {
-    const totpStats = await strapi.plugin('magic-link').service('otp').migrateTotpConfigs();
+    const totpStats = await withClusterLock(strapi, 'migration:totp', () =>
+      strapi.plugin('magic-link').service('otp').migrateTotpConfigs()
+    );
     if (totpStats.assigned || totpStats.disabled || totpStats.reencrypted) {
       strapi.log.info(
         `[magic-link] TOTP migration: ${totpStats.assigned} assigned, ${totpStats.disabled} disabled, ` +
@@ -99,7 +111,9 @@ module.exports = async ({ strapi }) => {
   // Roles that held the 5.x `access` action get read + manage.
   await strapi.admin.services.permission.actionProvider.registerMany([...RBAC_ACTIONS]);
   try {
-    const { roles } = await migrateLegacyAccessPermission(strapi);
+    const { roles } = await withClusterLock(strapi, 'migration:rbac', () =>
+      migrateLegacyAccessPermission(strapi)
+    );
     if (roles > 0) {
       strapi.log.info(
         `[magic-link] Migrated the 5.x "access" permission to read + manage for ${roles} role(s)`
@@ -114,7 +128,8 @@ module.exports = async ({ strapi }) => {
   warnOnUnsafeProxyConfig(strapi);
 
   // Older releases stored plaintext JWTs in the session audit list; keep
-  // only their hashes and drop records past the retention period.
+  // only their hashes and drop records past the retention period. Runs under
+  // the session-list lock, so it never overwrites a concurrent login.
   try {
     await updateJwtSessions(strapi, (sessions) => sessions);
   } catch {
@@ -143,38 +158,41 @@ module.exports = async ({ strapi }) => {
   // failing job is logged instead of becoming an unhandled rejection.
   const plugin = () => strapi.plugin('magic-link');
 
+  // Every job below runs in one process only: the process that wins the
+  // job's lease (utils/cluster.js runExclusiveJob). The jobs themselves are
+  // idempotent deleteMany/updateMany calls, so a lease that expires while a
+  // job still runs is harmless.
+  const exclusive = (name, ttlMs, job) => () => runExclusiveJob(strapi, name, ttlMs, job);
+
   // Login tokens stored without salt by very old releases can no longer be
   // used; deactivate them once so they do not linger as active rows.
   runLater(
     strapi,
     4000,
-    async () => {
+    exclusive('legacy-token-cleanup', STARTUP_LEASE_MS, async () => {
       const count = await plugin().service('magic-link').deactivateLegacyTokens();
       if (count > 0)
         strapi.log.info(`[magic-link] Deactivated ${count} legacy unhashed login token(s)`);
-    },
+    }),
     () => strapi.log.debug('[magic-link] Legacy token cleanup skipped')
   );
 
-  runLater(
-    strapi,
-    10000,
-    () => plugin().service('otp').cleanupExpiredCodes(),
-    () => strapi.log.debug('[magic-link] OTP cleanup skipped')
+  // Every 5 minutes: expired OTP codes, expired JWT revocation entries,
+  // login tokens that expired more than 30 days ago and stale shared
+  // rate-limit counters. The lease is shorter
+  // than the interval, so each round is done by exactly one process.
+  const periodicCleanup = exclusive('periodic-cleanup', CLEANUP_LEASE_MS, async () => {
+    await plugin().service('otp').cleanupExpiredCodes();
+    const magicLinkService = plugin().service('magic-link');
+    await magicLinkService.pruneBlocklist();
+    await magicLinkService.cleanupExpiredTokens();
+    await plugin().service('rate-limiter').cleanupExpired();
+  });
+  runLater(strapi, 10000, periodicCleanup, () =>
+    strapi.log.debug('[magic-link] OTP cleanup skipped')
   );
-
-  // Every 5 minutes: expired OTP codes, expired JWT revocation entries and
-  // login tokens that expired more than 30 days ago.
-  runEvery(
-    strapi,
-    5 * 60 * 1000,
-    async () => {
-      await plugin().service('otp').cleanupExpiredCodes();
-      const magicLinkService = plugin().service('magic-link');
-      await magicLinkService.getBlockedJwtTokens();
-      await magicLinkService.cleanupExpiredTokens();
-    },
-    () => strapi.log.debug('[magic-link] Periodic cleanup skipped')
+  runEvery(strapi, CLEANUP_INTERVAL_MS, periodicCleanup, () =>
+    strapi.log.debug('[magic-link] Periodic cleanup skipped')
   );
 
   // Users created by releases before 4.x carry the provider 'magic-link';
@@ -182,7 +200,7 @@ module.exports = async ({ strapi }) => {
   runLater(
     strapi,
     5000,
-    async () => {
+    exclusive('provider-migration', STARTUP_LEASE_MS, async () => {
       const updated = await strapi.db.query('plugin::users-permissions.user').updateMany({
         where: { provider: 'magic-link' },
         data: { provider: 'local' },
@@ -192,7 +210,7 @@ module.exports = async ({ strapi }) => {
           `[magic-link] Migrated ${updated.count} user(s) from provider "magic-link" to "local"`
         );
       }
-    },
+    }),
     () => strapi.log.error('[magic-link] Provider migration failed')
   );
 };

@@ -4,6 +4,7 @@ const { errors } = require('@strapi/utils');
 const { normalizeEmail } = require('../utils/email');
 const { normalizeIpAddress, ipBanKey } = require('../utils/ip-address');
 const { buildLoginUrl } = require('../utils/login-url');
+const { updateStoreKey } = require('../utils/cluster');
 const {
   adminTokenCreateSchema,
   adminTokenExtendSchema,
@@ -20,19 +21,21 @@ const ISSUE_ACTION = 'plugin::magic-link.tokens.issue';
 const DEFAULT_LIST_SIZE = 1000;
 const BANNED_IPS_KEY = 'banned_ips';
 
-let banListQueue = Promise.resolve();
-
 /**
- * Serialises read-modify-write cycles on the IP block list in this process.
+ * Read-modify-write of the IP block list under a cluster-wide database lock
+ * (utils/cluster.js), so bans and unbans on different processes never
+ * overwrite each other.
  *
- * @param {() => Promise<any>} task - Work to run.
- * @returns {Promise<any>} Result of the task.
+ * @param {(ips: string[]) => {ips?: string[], result?: any}} mutator - Change.
+ * @returns {Promise<any>} The mutator's result.
  */
-const withBanListLock = (task) => {
-  const run = banListQueue.then(task, task);
-  banListQueue = run.catch(() => {});
-  return run;
-};
+const updateBannedIps = (mutator) =>
+  updateStoreKey(strapi, BANNED_IPS_KEY, (stored) => {
+    const ips = stored?.ips ?? [];
+    if (!Array.isArray(ips)) throw new Error('Invalid IP block-list data');
+    const outcome = mutator(ips);
+    return { value: outcome.ips ? { ips: outcome.ips } : undefined, result: outcome.result };
+  });
 
 const pluginStore = () => strapi.store({ type: 'plugin', name: 'magic-link' });
 const magicLinkService = () => strapi.plugin('magic-link').service('magic-link');
@@ -208,17 +211,23 @@ module.exports = {
       if (settings.createUserIfNotExists !== true) {
         return ctx.badRequest('User does not exist and automatic user creation is disabled');
       }
+      // Looked up again and created under the cluster-wide user-creation lock
+      // (services/magic-link.js findOrCreateUser): parallel requests for one
+      // new address, on one or several processes, create a single account.
+      let created;
       try {
-        user = await magicLink.createUser({ email });
+        ({ user, created } = await magicLink.findOrCreateUser(email));
       } catch {
         strapi.log.error('[magic-link] Admin token: user could not be created');
         return ctx.badRequest(
           'The user could not be created (check the users-permissions default role)'
         );
       }
-      strapi.log.info(
-        `[magic-link] Admin ${actorId(ctx)} created users-permissions user ${user.id} for a login link`
-      );
+      if (created) {
+        strapi.log.info(
+          `[magic-link] Admin ${actorId(ctx)} created users-permissions user ${user.id} for a login link`
+        );
+      }
     }
     if (user.blocked) {
       return ctx.badRequest('This user is blocked');
@@ -390,13 +399,12 @@ module.exports = {
     }
 
     try {
-      const added = await withBanListLock(async () => {
-        const ips = await readBannedIps();
-        const banKey = ipBanKey(ipAddress);
-        if (ips.some((existingIp) => ipBanKey(existingIp) === banKey)) return false;
-        await pluginStore().set({ key: BANNED_IPS_KEY, value: { ips: [...ips, ipAddress] } });
-        return true;
-      });
+      const banKey = ipBanKey(ipAddress);
+      const added = await updateBannedIps((ips) =>
+        ips.some((existingIp) => ipBanKey(existingIp) === banKey)
+          ? { result: false }
+          : { ips: [...ips, ipAddress], result: true }
+      );
 
       if (added) {
         const variants = ipAddress.includes(':') ? [ipAddress] : [ipAddress, `::ffff:${ipAddress}`];
@@ -442,13 +450,9 @@ module.exports = {
 
     try {
       const banKey = ipBanKey(ipAddress);
-      await withBanListLock(async () => {
-        const ips = await readBannedIps();
-        await pluginStore().set({
-          key: BANNED_IPS_KEY,
-          value: { ips: ips.filter((existingIp) => ipBanKey(existingIp) !== banKey) },
-        });
-      });
+      await updateBannedIps((ips) => ({
+        ips: ips.filter((existingIp) => ipBanKey(existingIp) !== banKey),
+      }));
       strapi.log.info(`[magic-link] Admin ${actorId(ctx)} removed an IP ban`);
       return { success: true, message: `IP ${ipAddress} has been unbanned` };
     } catch {

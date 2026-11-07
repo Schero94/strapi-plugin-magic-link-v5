@@ -58,7 +58,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --test tests/*.test.cjs"
+    "test": "node --test tests/*.test.cjs",
+    "test:cluster": "node tests/cluster/run.cjs"
   },
   "dependencies": {
     "otplib": "^13.6.0",
@@ -79,11 +80,13 @@
     "@strapi/strapi": "^5.61.0",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
+    "better-sqlite3": "^13.0.3",
     "esbuild": "^0.28.2",
     "eslint": "^10.14.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.14.0",
+    "pg": "^8.23.1",
     "prettier": "^3.9.10",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

@@ -424,7 +424,10 @@ const tokenStrapi = ({ settings = {}, users = [], sendFails = false, tokenRow } 
   const created = [];
   const magicLink = {
     settings: async () => settings,
-    createUser: async ({ email }) => ({ id: 99, email, username: 'new', blocked: false }),
+    findOrCreateUser: async (email) => ({
+      user: { id: 99, email, username: 'new', blocked: false },
+      created: true,
+    }),
     createToken: async (email, context) => {
       created.push({ email, context });
       return {

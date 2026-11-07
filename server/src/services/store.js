@@ -8,6 +8,8 @@
  * boilerplate. Previously lived at server/services/store.js (legacy path);
  * moved into server/src/services/ as part of the v5 layout consolidation.
  */
+const { updateStoreKey } = require('../utils/cluster');
+
 module.exports = ({ strapi }) => ({
   /**
    * Reads the `settings` blob from the plugin store.
@@ -19,12 +21,12 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Writes the `settings` blob to the plugin store.
+   * Writes the `settings` blob to the plugin store under the cluster-wide
+   * settings lock (utils/cluster.js).
    * @param {object} settings
    * @returns {Promise<void>}
    */
   async set(settings) {
-    const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-    return pluginStore.set({ key: 'settings', value: settings });
+    return updateStoreKey(strapi, 'settings', () => ({ value: settings }));
   },
 });

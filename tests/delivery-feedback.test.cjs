@@ -117,6 +117,14 @@ const createStrapi = ({ tokens = [], webhooks = {}, magicMail = false } = {}) =>
               return value.startsWith(cond.$startsWith);
             })
           ),
+        updateMany: async ({ where, data }) => {
+          const rows = tokens.filter(
+            (token) =>
+              token.id === where.id && where.delivery_status.$in.includes(token.delivery_status)
+          );
+          rows.forEach((row) => Object.assign(row, data));
+          return { count: rows.length };
+        },
       }),
     },
     documents: () => ({

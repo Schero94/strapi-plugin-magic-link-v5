@@ -25,6 +25,9 @@
  * are hashed; null is stored as null).
  */
 
+const { dialectOf, withClusterLock } = require('./cluster');
+
+const USER_UID = 'plugin::users-permissions.user';
 const CLAIM_REASON = 'Unconfirmed account claimed by the e-mail owner';
 
 /**
@@ -39,21 +42,43 @@ const CLAIM_REASON = 'Unconfirmed account claimed by the e-mail owner';
 const claimUnconfirmedAccount = async (strapi, user) => {
   if (!user || user.confirmed) return false;
 
-  await strapi.plugin('magic-link').service('magic-link').revokeUserSessions(user.id, CLAIM_REASON);
-  await strapi.plugin('users-permissions').service('user').edit(user.id, {
-    confirmed: true,
-    password: null,
-    resetPasswordToken: null,
-    confirmationToken: null,
+  // Two first logins for the same account can run on two processes. Only the
+  // first may claim it: a second claim would end the session the first login
+  // has just issued. The claim therefore runs under a per-account cluster
+  // lock and re-reads `confirmed` inside it. Sessions are revoked before the
+  // account is confirmed, so a failed revocation leaves it unconfirmed.
+  const claimed = await withClusterLock(strapi, `account-claim:${user.id}`, async () => {
+    // Without a real database (unit tests) there is no other process.
+    const current = dialectOf(strapi)
+      ? await strapi.db.query(USER_UID).findOne({ where: { id: user.id }, select: ['confirmed'] })
+      : user;
+    if (current && current.confirmed) return false;
+
+    await strapi
+      .plugin('magic-link')
+      .service('magic-link')
+      .revokeUserSessions(user.id, CLAIM_REASON);
+    await strapi.plugin('users-permissions').service('user').edit(user.id, {
+      confirmed: true,
+      password: null,
+      resetPasswordToken: null,
+      confirmationToken: null,
+    });
+    return true;
   });
+
+  // Either this request or a concurrent one claimed the account: the
+  // password and pending tokens are gone in both cases.
   user.confirmed = true;
   user.password = null;
   user.resetPasswordToken = null;
   user.confirmationToken = null;
-  strapi.log.info(
-    '[magic-link] Unconfirmed account confirmed by its e-mail owner; earlier sessions and the password were invalidated'
-  );
-  return true;
+  if (claimed) {
+    strapi.log.info(
+      '[magic-link] Unconfirmed account confirmed by its e-mail owner; earlier sessions and the password were invalidated'
+    );
+  }
+  return claimed;
 };
 
 module.exports = { claimUnconfirmedAccount, CLAIM_REASON };

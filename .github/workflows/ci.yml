@@ -49,3 +49,45 @@ jobs:
         run: npm pack --dry-run
       - name: Production audit (critical)
         run: npm audit --omit=dev --audit-level=critical
+
+  # Several Strapi processes on one database (Railway replicas, pm2 cluster):
+  # 8 Node processes run the shared-state scenarios against SQLite and
+  # PostgreSQL 16 (tests/cluster/run.cjs). Synthetic data only.
+  cluster:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: strapi
+          POSTGRES_PASSWORD: strapi-ci-only
+          POSTGRES_DB: magic_link_cluster
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --legacy-peer-deps --ignore-scripts
+      - name: Build the SQLite driver (native addon, skipped by --ignore-scripts)
+        run: npm rebuild better-sqlite3
+      - name: Cluster test (SQLite)
+        run: npm run test:cluster
+      - name: Cluster test (PostgreSQL)
+        run: npm run test:cluster
+        env:
+          ML_CLUSTER_DB: postgres
+          ML_CLUSTER_PG_URL: postgres://strapi:strapi-ci-only@localhost:5432/magic_link_cluster

@@ -27,7 +27,7 @@ Existing uncommitted work is part of the baseline and must be preserved and revi
 
 ## Open risks (documented, not fixed)
 
-- AUTH-14: in a cluster, concurrent admin writes to the session list, blocklist and ban list can overwrite each other; each instance caches the blocklist for up to 2 s.
+- AUTH-14: fixed on `feat/multi-instance` (cluster-wide database locks for every plugin-store write, shared database rate limits, leased jobs; see README "Running several instances"). Remaining by design: each instance caches the blocklist for up to 2 s and the rate-limit settings for up to 5 s. MySQL is covered by unit tests only, not by a live multi-process run.
 - `reset-data` deletes the session list and the IP bans with `settings.update` only; `from_email` and `response_email` are not security-gated.
 - `/login-totp` keeps a small database-timing difference between unknown and known accounts.
 - The server does not refuse `mfa_mode: required` when nobody has enrolled an authenticator (only the admin UI blocks it).

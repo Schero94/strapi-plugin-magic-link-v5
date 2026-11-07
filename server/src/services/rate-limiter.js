@@ -1,8 +1,15 @@
 'use strict';
 
 const { isIP } = require('node:net');
-const { RateLimiterMemory, RateLimiterRedis } = require('rate-limiter-flexible');
+const {
+  RateLimiterMemory,
+  RateLimiterMySQL,
+  RateLimiterPostgres,
+  RateLimiterRedis,
+  RateLimiterSQLite,
+} = require('rate-limiter-flexible');
 const { ipRateLimitKey } = require('../utils/ip-address');
+const { dialectOf, updateStoreKey, withClusterLock } = require('../utils/cluster');
 
 /**
  * Rate Limiter Service (rate-limiter-flexible 11).
@@ -14,10 +21,21 @@ const { ipRateLimitKey } = require('../utils/ip-address');
  * - Client addresses are keyed through `ipRateLimitKey`: IPv4-mapped IPv6 is
  *   folded into IPv4 and IPv6 is keyed per /64, so a client cannot dodge a
  *   limit by rotating addresses inside its own prefix.
- * - Counters live in process memory by default. Clustered deployments can
- *   share them through Redis with the plugin config
- *   `rateLimit: { redis: { storeClient, useRedisPackage } }`; an in-memory
- *   insurance limiter keeps limiting when Redis is unavailable.
+ * - Counters live in the Strapi database by default (table
+ *   `magic_link_rate_limits`, created once at startup under a cluster lock),
+ *   so every process (Railway replicas, pm2 cluster) shares the same
+ *   counters and a limit means the same thing with 1 or 8 processes:
+ *   RateLimiterPostgres / RateLimiterMySQL / RateLimiterSQLite with
+ *   `storeType: 'knex'` on Strapi's own knex connection.
+ * - Optional Redis: plugin config `rateLimit: { redis: { storeClient,
+ *   useRedisPackage } }`. The database limiter is its insurance limiter, so
+ *   a Redis outage keeps the limits shared instead of falling back to
+ *   per-process memory.
+ * - `rateLimit: { store: 'memory' }` keeps counters in process memory
+ *   (single process only; also used when there is no database, e.g. tests).
+ * - Admin reset and setting changes reach every process through the
+ *   database: the reset bumps a shared epoch that is part of every public
+ *   limiter key, and settings are re-read every SETTINGS_CACHE_TTL_MS.
  * - Internal limiter errors fail closed (request refused).
  * - Second-factor code checks (TOTP, backup codes, e-mail OTP) use the
  *   `verify` limiter, which stays on when public rate limiting is disabled,
@@ -27,7 +45,7 @@ const { ipRateLimitKey } = require('../utils/ip-address');
  * API-methods: consume rejects with RateLimiterRes or Error).
  */
 
-const LIMITER_TYPES = ['ip', 'email', 'otp', 'login', 'admin', 'verify'];
+const LIMITER_TYPES = ['ip', 'email', 'otp', 'login', 'admin', 'verify', 'webhook'];
 // Admin-initiated actions (token creation) per admin user and window.
 const ADMIN_POINTS = 60;
 const ADMIN_WINDOW_SECONDS = 15 * 60;
@@ -36,8 +54,19 @@ const ADMIN_WINDOW_SECONDS = 15 * 60;
 const VERIFY_POINTS = 10;
 const VERIFY_WINDOW_SECONDS = 15 * 60;
 const VERIFY_BLOCK_SECONDS = 15 * 60;
+// Provider delivery webhooks per caller address (all processes together).
+const WEBHOOK_POINTS = 600;
+const WEBHOOK_WINDOW_SECONDS = 60;
+// Longest window for one-time markers (webhook replay protection).
+const ONCE_MAX_SECONDS = 2 * 60 * 60;
 /** Limiter types that ignore `rate_limit_enabled: false`. */
-const ALWAYS_ON_TYPES = new Set(['admin', 'verify']);
+const ALWAYS_ON_TYPES = new Set(['admin', 'verify', 'webhook']);
+/** Shared counter table (created by this plugin, not a Strapi content type). */
+const TABLE_NAME = 'magic_link_rate_limits';
+const EPOCH_KEY = 'rate_limit_epoch';
+// Expired counters older than this are deleted by the leased cleanup job.
+const EXPIRED_GRACE_MS = 60 * 60 * 1000;
+const SETTINGS_CACHE_TTL_MS = 5_000;
 
 /**
  * Rewrites identifiers that carry a client address so they key on
@@ -69,7 +98,8 @@ module.exports = ({ strapi }) => {
   let limiterSignature = '';
   let cachedSettings = null;
   let settingsCacheTime = 0;
-  const SETTINGS_CACHE_TTL_MS = 60_000;
+  let localEpoch = 0;
+  let tableReady = null;
   const stats = {
     blocked: Object.fromEntries(LIMITER_TYPES.map((type) => [type, 0])),
     errors: 0,
@@ -77,7 +107,64 @@ module.exports = ({ strapi }) => {
   };
 
   /**
-   * Loads rate-limit settings from the plugin store (cached for 60 s).
+   * Plugin config `rateLimit.store`: 'database' (default) or 'memory'.
+   * @returns {'database'|'memory'}
+   */
+  function configuredStore() {
+    const store = strapi.config?.get?.('plugin::magic-link.rateLimit.store');
+    return store === 'memory' ? 'memory' : 'database';
+  }
+
+  /**
+   * Database client used for shared counters, or null for memory.
+   * @returns {'postgres'|'mysql'|'sqlite'|null}
+   */
+  function databaseBackend() {
+    if (configuredStore() === 'memory') return null;
+    return dialectOf(strapi);
+  }
+
+  /**
+   * Creates the shared counter table once, under a cluster lock so several
+   * starting processes do not race on CREATE TABLE. Columns follow
+   * rate-limiter-flexible 11 (lib/RateLimiter{Postgres,MySQL,SQLite}.js):
+   * key varchar(255) primary key, points integer, expire bigint (ms).
+   * @returns {Promise<void>}
+   */
+  function ensureTable() {
+    if (!tableReady) {
+      tableReady = withClusterLock(strapi, 'rate-limit-table', async (trx) => {
+        const schema = strapi.db.getSchemaConnection(trx);
+        if (await schema.hasTable(TABLE_NAME)) return;
+        await schema.createTable(TABLE_NAME, (table) => {
+          table.string('key', 255).primary();
+          table.integer('points').notNullable().defaultTo(0);
+          table.bigInteger('expire').nullable();
+        });
+      }).catch((error) => {
+        tableReady = null;
+        throw error;
+      });
+    }
+    return tableReady;
+  }
+
+  /**
+   * Current reset epoch. Shared through the plugin store when a database is
+   * available, so a reset on one process resets the counters of all.
+   * @returns {Promise<number>}
+   */
+  async function readEpoch() {
+    if (!dialectOf(strapi)) return localEpoch;
+    const value = Number(
+      await strapi.store({ type: 'plugin', name: 'magic-link' }).get({ key: EPOCH_KEY })
+    );
+    return Number.isSafeInteger(value) && value > 0 ? value : 0;
+  }
+
+  /**
+   * Loads rate-limit settings from the plugin store (cached for 5 s, so a
+   * change made on another process applies within 5 s).
    * @returns {Promise<object>} Merged settings with defaults
    */
   async function getSettings() {
@@ -94,13 +181,14 @@ module.exports = ({ strapi }) => {
       loginMaxAttempts: positive(raw?.rate_limit_login_max_attempts, 10),
       loginWindowMinutes: positive(raw?.rate_limit_login_window_minutes, 15),
       loginBlockMinutes: positive(raw?.rate_limit_login_block_minutes, 30),
+      epoch: await readEpoch(),
     };
     settingsCacheTime = now;
     return cachedSettings;
   }
 
   /**
-   * Redis options from the plugin config, or null for in-memory limiting.
+   * Redis options from the plugin config, or null.
    * @returns {object|null}
    */
   function getRedisOptions() {
@@ -109,26 +197,59 @@ module.exports = ({ strapi }) => {
   }
 
   /**
-   * Creates one limiter: Redis with an in-memory insurance limiter when
-   * configured, otherwise in-memory.
+   * Database limiter on Strapi's knex connection, or null without a
+   * database. Expired rows are removed by `cleanupExpired` (leased job), not
+   * by per-limiter timers.
+   * @param {object} options - rate-limiter-flexible options.
+   * @returns {object|null} Limiter.
+   */
+  function createDatabaseLimiter(options) {
+    const backend = databaseBackend();
+    if (!backend) return null;
+    const common = {
+      ...options,
+      storeClient: strapi.db.connection,
+      storeType: 'knex',
+      tableName: TABLE_NAME,
+      tableCreated: true,
+      clearExpiredByTimeout: false,
+    };
+    if (backend === 'postgres') {
+      const schemaName = strapi.db.getSchemaName?.();
+      return new RateLimiterPostgres({ ...common, ...(schemaName ? { schemaName } : {}) });
+    }
+    if (backend === 'mysql') {
+      return new RateLimiterMySQL({
+        ...common,
+        dbName: strapi.db.connection.client.connectionSettings.database,
+      });
+    }
+    return new RateLimiterSQLite(common);
+  }
+
+  /**
+   * Creates one limiter: Redis (database or memory insurance) when
+   * configured, else the shared database limiter, else memory.
    * @param {object} options - rate-limiter-flexible options.
    * @returns {object} Limiter.
    */
   function createLimiter(options) {
     const redis = getRedisOptions();
-    if (!redis) return new RateLimiterMemory(options);
+    const database = createDatabaseLimiter(options);
+    if (!redis) return database || new RateLimiterMemory(options);
     return new RateLimiterRedis({
       ...options,
       storeClient: redis.storeClient,
       ...(redis.useRedisPackage ? { useRedisPackage: true } : {}),
       rejectIfRedisNotReady: true,
-      insuranceLimiter: new RateLimiterMemory(options),
+      insuranceLimiter: database || new RateLimiterMemory(options),
     });
   }
 
   /**
    * Creates the always-on limiters (admin actions, second-factor code
-   * checks). Their limits are fixed and do not depend on the settings.
+   * checks, webhook callers, one-time markers). Their limits are fixed and
+   * do not depend on the settings or the reset epoch.
    * @returns {object} Map of limiter instances keyed by purpose
    */
   function buildFixedLimiters() {
@@ -144,6 +265,12 @@ module.exports = ({ strapi }) => {
         duration: VERIFY_WINDOW_SECONDS,
         blockDuration: VERIFY_BLOCK_SECONDS,
       }),
+      webhook: createLimiter({
+        keyPrefix: 'ml_webhook',
+        points: WEBHOOK_POINTS,
+        duration: WEBHOOK_WINDOW_SECONDS,
+      }),
+      once: createLimiter({ keyPrefix: 'ml_once', points: 1, duration: ONCE_MAX_SECONDS }),
     };
   }
 
@@ -151,18 +278,20 @@ module.exports = ({ strapi }) => {
    * Creates the limiters for the current settings. The always-on limiters
    * are created once per process and reused, so neither a settings change
    * nor an admin "reset" clears the brute-force counters for code checks.
+   * Public key prefixes carry the reset epoch.
    * @param {object} s - Settings object from getSettings()
    * @returns {object} Map of limiter instances keyed by purpose
    */
   function buildLimiters(s) {
     const window = s.windowMinutes * 60;
     if (!fixedLimiters) fixedLimiters = buildFixedLimiters();
+    const prefix = (name) => (s.epoch > 0 ? `ml_${name}_e${s.epoch}` : `ml_${name}`);
     return {
-      ip: createLimiter({ keyPrefix: 'ml_ip', points: s.maxAttempts, duration: window }),
-      email: createLimiter({ keyPrefix: 'ml_email', points: s.maxAttempts, duration: window }),
-      otp: createLimiter({ keyPrefix: 'ml_otp', points: s.maxAttempts, duration: window }),
+      ip: createLimiter({ keyPrefix: prefix('ip'), points: s.maxAttempts, duration: window }),
+      email: createLimiter({ keyPrefix: prefix('email'), points: s.maxAttempts, duration: window }),
+      otp: createLimiter({ keyPrefix: prefix('otp'), points: s.maxAttempts, duration: window }),
       login: createLimiter({
-        keyPrefix: 'ml_login',
+        keyPrefix: prefix('login'),
         points: s.loginMaxAttempts,
         duration: s.loginWindowMinutes * 60,
         blockDuration: s.loginBlockMinutes * 60,
@@ -178,15 +307,17 @@ module.exports = ({ strapi }) => {
       s.loginMaxAttempts,
       s.loginWindowMinutes,
       s.loginBlockMinutes,
+      s.epoch,
     ].join('|');
 
   /**
    * Returns the current limiters, building them on first use or when the
-   * limit values changed.
+   * limit values or the reset epoch changed.
    * @returns {Promise<object>} Limiter instances
    */
   async function getLimiters() {
     const s = await getSettings();
+    if (databaseBackend()) await ensureTable();
     const signature = signatureOf(s);
     if (!limiters || signature !== limiterSignature) {
       limiters = buildLimiters(s);
@@ -195,11 +326,27 @@ module.exports = ({ strapi }) => {
     return limiters;
   }
 
+  /**
+   * Human-readable backend for the admin statistics.
+   * @returns {string}
+   */
+  function backendLabel() {
+    const database = databaseBackend();
+    if (getRedisOptions()) {
+      return database
+        ? `redis, ${database} insurance (rate-limiter-flexible)`
+        : 'redis (rate-limiter-flexible)';
+    }
+    return database
+      ? `database: ${database}, shared by all processes (rate-limiter-flexible)`
+      : 'in-memory (rate-limiter-flexible)';
+  }
+
   return {
     /**
      * Checks and consumes one point (fail-closed).
      * @param {string} identifier - IP address, e-mail hash, or other key
-     * @param {string} type - 'ip', 'email', 'otp', 'login', 'admin' or 'verify'
+     * @param {string} type - 'ip', 'email', 'otp', 'login', 'admin', 'verify' or 'webhook'
      * @returns {Promise<{allowed: boolean, retryAfter: number}>}
      */
     async checkRateLimit(identifier, type = 'ip') {
@@ -237,20 +384,68 @@ module.exports = ({ strapi }) => {
     },
 
     /**
-     * Expired keys are removed by the limiter itself (memory: per-key timers,
-     * Redis: key TTL), so there is nothing to clean manually.
-     * @returns {Promise<{cleaned: number}>}
+     * Records `key` once: true the first time, false while the marker lives
+     * (`ttlSeconds`, at most two hours). Shared by all processes through the
+     * limiter store, so a replayed webhook is skipped on every process.
+     * Store errors return true (feedback is idempotent; nothing is lost).
+     * @param {string} key - Marker key (no personal data).
+     * @returns {Promise<boolean>} Whether this is the first sighting.
      */
-    async cleanupExpired() {
-      return { cleaned: 0 };
+    async markOnce(key) {
+      try {
+        const lims = await getLimiters();
+        await lims.once.consume(String(key).slice(0, 200));
+        return true;
+      } catch (rlRejected) {
+        if (rlRejected instanceof Error) {
+          stats.errors += 1;
+          strapi.log.warn('[magic-link] Replay marker store unavailable');
+          return true;
+        }
+        return false;
+      }
     },
 
     /**
-     * Clears the public (settings-driven) counters while retaining the
-     * currently loaded policy. The always-on `verify` and `admin` counters
-     * are kept: an admin reset must never reopen code guessing.
+     * Deletes counters that expired more than an hour ago from the shared
+     * table. Memory and Redis expire keys on their own. Idempotent, safe to
+     * run in several processes; the bootstrap runs it from one (lease).
+     * @returns {Promise<{cleaned: number}>}
+     */
+    async cleanupExpired() {
+      if (!databaseBackend()) return { cleaned: 0 };
+      try {
+        await ensureTable();
+        const cleaned = await strapi.db
+          .getConnection(TABLE_NAME)
+          .where('expire', '<', Date.now() - EXPIRED_GRACE_MS)
+          .del();
+        return { cleaned: Number(cleaned) || 0 };
+      } catch {
+        strapi.log.debug('[magic-link] Rate-limit cleanup skipped');
+        return { cleaned: 0 };
+      }
+    },
+
+    /**
+     * Clears the public (settings-driven) counters on every process while
+     * retaining the currently loaded policy: the shared reset epoch is part
+     * of every public key, so bumping it starts fresh counters everywhere
+     * (other processes within SETTINGS_CACHE_TTL_MS). The always-on `verify`
+     * and `admin` counters are kept: an admin reset must never reopen code
+     * guessing.
      */
     async resetAll() {
+      if (dialectOf(strapi)) {
+        await updateStoreKey(strapi, EPOCH_KEY, (current) => {
+          const value = Number(current);
+          return { value: (Number.isSafeInteger(value) && value > 0 ? value : 0) + 1 };
+        });
+      } else {
+        localEpoch += 1;
+      }
+      cachedSettings = null;
+      settingsCacheTime = 0;
       limiters = null;
       limiterSignature = '';
       await getLimiters();
@@ -295,15 +490,17 @@ module.exports = ({ strapi }) => {
         totalEntries: blockedTotal,
         ipLimits: stats.blocked.ip,
         emailLimits: stats.blocked.email,
-        backend: getRedisOptions()
-          ? 'redis (rate-limiter-flexible)'
-          : 'in-memory (rate-limiter-flexible)',
+        backend: backendLabel(),
+        // Rejection counters are kept per process; with several processes
+        // they show the share of the process that answered this request.
+        statsScope: 'process',
       };
     },
   };
 };
 
 module.exports.normalizeLimiterIdentifier = normalizeLimiterIdentifier;
+module.exports.RATE_LIMIT_TABLE = TABLE_NAME;
 module.exports.VERIFY_LIMIT = Object.freeze({
   points: VERIFY_POINTS,
   windowSeconds: VERIFY_WINDOW_SECONDS,

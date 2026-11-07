@@ -23,9 +23,13 @@ const {
  *    provider is off until its secret is set in the plugin config
  *    (`deliveryWebhooks`) or the matching environment variable.
  *
- * Feedback is idempotent (same status twice changes nothing), so replay
- * protection uses a bounded in-memory window. Only reason codes are stored;
- * provider texts and addresses never are. Responses carry no detail.
+ * Feedback is idempotent (same status twice changes nothing) and every
+ * status change is one conditional update, so parallel deliveries on several
+ * processes cannot break the "a complaint never replaces a bounce" rule.
+ * Replay markers and the per-caller limit are shared by all processes
+ * through the rate-limiter store (database or Redis); a bounded in-memory
+ * window stays in front of it. Only reason codes are stored; provider texts
+ * and addresses never are. Responses carry no detail.
  */
 
 const TOKEN_UID = 'plugin::magic-link.token';
@@ -55,6 +59,46 @@ const replay = new Map();
 const rateBuckets = new Map();
 /** @type {Map<string, {pem: string, expiresAt: number}>} */
 const certCache = new Map();
+
+/**
+ * Statuses a token may move from, per feedback kind: only accepted mail
+ * (`sent`) changes, and a complaint never replaces a bounce.
+ */
+const ALLOWED_FROM = Object.freeze({
+  bounced: Object.freeze(['sent', 'complained']),
+  complained: Object.freeze(['sent']),
+});
+
+/**
+ * The plugin's rate-limiter service when it offers the shared helpers.
+ *
+ * @returns {object|null} Service or null (unit tests, early startup).
+ */
+const sharedLimiter = () => {
+  try {
+    const service = strapi.plugin('magic-link')?.service?.('rate-limiter');
+    return typeof service?.markOnce === 'function' ? service : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Whether a replay key is new on every process (shared marker) and in this
+ * process (local window). Records it in both.
+ *
+ * @param {string} key - Replay key.
+ * @returns {Promise<boolean>} True for the first sighting.
+ */
+const firstSighting = async (key) => {
+  if (wasSeen(key)) return false;
+  const limiter = sharedLimiter();
+  if (limiter && !(await limiter.markOnce(`replay:${key}`))) {
+    remember(key);
+    return false;
+  }
+  return true;
+};
 
 /** @param {string} key @param {number} [now] */
 const wasSeen = (key, now = Date.now()) => (replay.get(key) || 0) > now;
@@ -353,6 +397,11 @@ module.exports = ({ strapi }) => ({
    */
   async handleWebhook({ provider, rawBody, headers = {}, ip }) {
     if (!allowRequest(ip)) return { status: 429, applied: 0 };
+    const limiter = sharedLimiter();
+    if (limiter) {
+      const shared = await limiter.checkRateLimit(`webhook:${String(ip || 'unknown')}`, 'webhook');
+      if (!shared.allowed) return { status: 429, applied: 0 };
+    }
     if (!PROVIDERS.includes(provider)) return { status: 401, applied: 0 };
     if (!Buffer.isBuffer(rawBody) || rawBody.length === 0) return { status: 400, applied: 0 };
     const config = this.getWebhookConfig();
@@ -385,7 +434,7 @@ module.exports = ({ strapi }) => ({
       });
       if (!valid) return { status: 401, applied: 0 };
       replayKey = `mailgun-token:${signature.token}`;
-      if (wasSeen(replayKey)) return { status: 200, applied: 0 };
+      if (!(await firstSighting(replayKey))) return { status: 200, applied: 0 };
       events = parseMailgun(payload['event-data']);
     } else if (provider === 'ses') {
       if (config.ses.topicArns.length === 0) return { status: 401, applied: 0 };
@@ -426,7 +475,7 @@ module.exports = ({ strapi }) => ({
     let applied = 0;
     for (const event of events) {
       const key = event.eventId ? `${provider}:${String(event.eventId).slice(0, 160)}` : null;
-      if (key && wasSeen(key)) continue;
+      if (key && !(await firstSighting(key))) continue;
       applied += await this.applyFeedback({ provider, ...event });
       if (key) remember(key);
     }
@@ -461,16 +510,15 @@ module.exports = ({ strapi }) => ({
 
     let updated = 0;
     for (const token of tokens) {
-      const current = token.delivery_status;
-      const accepted = current === 'sent' || current === 'bounced' || current === 'complained';
-      if (!accepted) continue;
-      if (kind === 'complained' && current === 'bounced') continue;
-      if (current === kind) continue;
-      await strapi.documents(TOKEN_UID).update({
-        documentId: token.documentId,
+      if (!ALLOWED_FROM[kind].includes(token.delivery_status)) continue;
+      // Conditional update: the transition is checked by the database, so a
+      // bounce and a complaint handled at once on two processes cannot let
+      // the complaint overwrite the bounce.
+      const result = await strapi.db.query(TOKEN_UID).updateMany({
+        where: { id: token.id, delivery_status: { $in: [...ALLOWED_FROM[kind]] } },
         data: { delivery_status: kind, delivery_reason: reason, delivery_updated_at: new Date() },
       });
-      updated += 1;
+      updated += Number(result?.count) || 0;
     }
     return updated;
   },
