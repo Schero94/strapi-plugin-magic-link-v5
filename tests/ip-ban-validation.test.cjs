@@ -33,7 +33,10 @@ test('admin IP validation accepts valid IPv4 and IPv6 forms and rejects malforme
   assert.equal(normalizeAdminIpAddress(' 2001:0db8:0:0:0:0:0:1 '), '2001:db8::1');
   assert.equal(normalizeServerIpAddress('2001:0db8:0:0:0:0:0:1'), '2001:db8::1');
   assert.equal(normalizeAdminIpAddress('::ffff:192.0.2.25'), '::ffff:c000:219');
-  assert.equal(normalizeServerIpAddress('::ffff:192.0.2.25'), '::ffff:c000:219');
+  // The server folds IPv4-mapped IPv6 into IPv4, so an IPv4 ban also matches
+  // dual-stack request addresses (::ffff:a.b.c.d).
+  assert.equal(normalizeServerIpAddress('::ffff:192.0.2.25'), '192.0.2.25');
+  assert.equal(normalizeServerIpAddress('::FFFF:C000:0219'), '192.0.2.25');
 });
 
 test('banIP rejects malformed addresses before storage writes or token queries', async () => {
@@ -44,9 +47,7 @@ test('banIP rejects malformed addresses before storage writes or token queries',
       get: async () => ({ ips: [] }),
       set: async () => { writes += 1; },
     }),
-    documents: () => ({
-      findMany: async () => { tokenLookups += 1; return []; },
-    }),
+    db: { query: () => ({ updateMany: async () => { tokenLookups += 1; return { count: 0 }; } }) },
     log: { error() {}, info() {} },
   };
 
@@ -74,9 +75,7 @@ test('banIP trims a valid IPv4 address before storing and looking up matching to
       get: async () => ({ ips: [] }),
       set: async ({ value }) => { writes.push(value); },
     }),
-    documents: () => ({
-      findMany: async ({ filters }) => { lookups.push(filters); return []; },
-    }),
+    db: { query: () => ({ updateMany: async ({ where }) => { lookups.push(where); return { count: 0 }; } }) },
     log: { error() {}, info() {} },
   };
 
@@ -90,7 +89,7 @@ test('banIP trims a valid IPv4 address before storing and looking up matching to
     const result = await tokensController.banIP(ctx);
     assert.equal(result.success, true);
     assert.deepEqual(writes, [{ ips: ['192.0.2.25'] }]);
-    assert.deepEqual(lookups, [{ ip_address: '192.0.2.25', is_active: true }]);
+    assert.deepEqual(lookups, [{ ip_address: { $in: ['192.0.2.25', '::ffff:192.0.2.25'] }, is_active: true }]);
   } finally {
     delete global.strapi;
   }
@@ -130,9 +129,7 @@ test('banIP does not duplicate an IPv6 ban stored in a different valid form', as
       get: async () => ({ ips: ['2001:0db8:0:0:0:0:0:1'] }),
       set: async () => { writes += 1; },
     }),
-    documents: () => ({
-      findMany: async () => { tokenLookups += 1; return []; },
-    }),
+    db: { query: () => ({ updateMany: async () => { tokenLookups += 1; return { count: 0 }; } }) },
     log: { error() {}, info() {} },
   };
   const ctx = {

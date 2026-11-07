@@ -1,200 +1,203 @@
 'use strict';
 
 const cryptoUtils = require('../utils/crypto');
+const { readJwtSessions, updateJwtSessions, cleanSessions } = require('../utils/jwt-session-store');
+const { jwtRevokeSchema, jwtUnrevokeSchema, parseBody } = require('./validation');
+
+const REVOKE_REASON = 'Manually revoked from admin UI';
 
 /**
- * JWT controller for managing JWT sessions and token revocation
+ * Admin id of the caller, recorded on revocations for the audit trail.
+ *
+ * @param {object} ctx - Koa context.
+ * @returns {number|string|null} Admin user id.
+ */
+const actorId = (ctx) => ctx?.state?.user?.id ?? null;
+
+/**
+ * Shapes a stored session for the admin list. Only a hash prefix is shown;
+ * plaintext JWTs are never stored or returned.
+ *
+ * @param {object} session - Stored record.
+ * @param {Date} now - Current time.
+ * @returns {object} Display record.
+ */
+const toDisplaySession = (session, now) => ({
+  id: session.id,
+  userId: session.userId,
+  userDocumentId: session.userDocumentId,
+  username: session.username,
+  email: session.userEmail,
+  token: session.jwtTokenHash ? `[hash] ${String(session.jwtTokenHash).substring(0, 12)}...` : 'N/A',
+  createdAt: session.createdAt,
+  expiresAt: session.expiresAt,
+  ipAddress: session.ipAddress,
+  userAgent: session.userAgent || 'Unknown',
+  source: session.source || 'Magic Link Login',
+  jwtManagement: session.jwtManagement || 'legacy-support',
+  revoked: Boolean(session.isRevoked),
+  revokedAt: session.revokedAt || null,
+  revokedBy: session.revokedBy ?? null,
+  isExpired: new Date(session.expiresAt) < now,
+});
+
+/**
+ * JWT controller: lists plugin-issued sessions and revokes or restores them.
+ * Every change goes through the serialised session store, and the blocklist
+ * entry is written before the session is shown as revoked.
  */
 module.exports = {
   /**
-   * Returns all stored JWT sessions with safe display data
-   * @param {Object} ctx - Koa context
+   * Returns all stored JWT sessions with safe display data.
+   * @param {object} ctx - Koa context
    */
   async getSessions(ctx) {
     try {
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const storedData = (await pluginStore.get({ key: 'jwt_sessions' })) || { sessions: [] };
-      const jwtSessions = storedData.sessions || [];
       const now = new Date();
-
-      const sessions = jwtSessions.map(session => {
-        let tokenDisplay = 'N/A';
-        if (session.jwtTokenHash && typeof session.jwtTokenHash === 'string') {
-          tokenDisplay = `[hash] ${session.jwtTokenHash.substring(0, 12)}...`;
-        } else if (session.jwtToken && typeof session.jwtToken === 'string' && session.jwtToken.length > 0) {
-          tokenDisplay = session.jwtToken.substring(0, 30) + '...';
-        }
-
-        return {
-          id: session.id,
-          userId: session.userId,
-          username: session.username,
-          email: session.userEmail,
-          token: tokenDisplay,
-          createdAt: session.createdAt,
-          expiresAt: session.expiresAt,
-          ipAddress: session.ipAddress,
-          userAgent: session.userAgent || 'Unknown',
-          source: session.source || 'Magic Link Login',
-          revoked: session.isRevoked,
-          isExpired: new Date(session.expiresAt) < now,
-        };
-      });
-
-      ctx.send(sessions);
-    } catch (error) {
-      strapi.log.error('Error fetching JWT sessions:', error);
-      ctx.throw(500, error);
+      const sessions = cleanSessions(await readJwtSessions(strapi));
+      ctx.send(sessions.map((session) => toDisplaySession(session, now)));
+    } catch {
+      strapi.log.error('[magic-link] JWT sessions could not be loaded');
+      ctx.throw(500, 'Failed to load JWT sessions');
     }
   },
 
   /**
-   * Revokes a JWT session by sessionId or token
-   * @param {Object} ctx - Koa context
+   * Revokes a JWT session by `sessionId`, or a raw JWT by `token`. The JWT
+   * hash is blocked until the token expires and, in refresh mode, the
+   * users-permissions session is revoked as well. A client-supplied user id
+   * is never trusted.
+   * @param {object} ctx - Koa context
    */
   async revokeToken(ctx) {
+    const { token, sessionId } = parseBody(jwtRevokeSchema, ctx.request.body);
+    const magicLink = strapi.plugin('magic-link').service('magic-link');
+    const revokedBy = actorId(ctx);
+
     try {
-      const { token, sessionId } = ctx.request.body;
-
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const storedData = (await pluginStore.get({ key: 'jwt_sessions' })) || { sessions: [] };
-      let jwtSessions = storedData.sessions || [];
-
       if (sessionId) {
-        const sessionIndex = jwtSessions.findIndex(s => s.id === sessionId);
-        if (sessionIndex === -1) {
-          return ctx.badRequest('Session not found');
-        }
+        const sessions = await readJwtSessions(strapi);
+        const session = sessions.find((candidate) => candidate.id === sessionId);
+        if (!session) return ctx.notFound('Session not found');
 
-        jwtSessions[sessionIndex].isRevoked = true;
-        jwtSessions[sessionIndex].revokedAt = new Date().toISOString();
-        jwtSessions[sessionIndex].revokeReason = 'Manually revoked from admin UI';
-
-        const session = jwtSessions[sessionIndex];
-        const magicLink = strapi.plugin('magic-link').service('magic-link');
-        const hashToBlock = session.jwtTokenHash || (session.jwtToken ? cryptoUtils.hashJwt(session.jwtToken) : null);
-
+        const hashToBlock =
+          session.jwtTokenHash || (typeof session.jwtToken === 'string' ? cryptoUtils.hashJwt(session.jwtToken) : null);
         if (hashToBlock) {
-          await magicLink.blockJwtTokenByHash(hashToBlock, session.userId, 'Manually revoked from admin UI');
+          await magicLink.blockJwtTokenByHash(hashToBlock, session.userId, REVOKE_REASON, {
+            expiresAt: session.expiresAt,
+          });
         }
 
-        await pluginStore.set({ key: 'jwt_sessions', value: { sessions: jwtSessions } });
+        await updateJwtSessions(strapi, (list) =>
+          list.map((candidate) =>
+            candidate.id === sessionId
+              ? { ...candidate, isRevoked: true, revokedAt: new Date().toISOString(), revokeReason: REVOKE_REASON, revokedBy }
+              : candidate
+          )
+        );
+        strapi.log.info(`[magic-link] Admin ${revokedBy ?? 'unknown'} revoked JWT session ${sessionId}`);
         return ctx.send({ success: true, message: 'JWT session revoked successfully' });
       }
 
-      if (token) {
-        const magicLink = strapi.plugin('magic-link').service('magic-link');
-        await magicLink.blockJwtToken(token, ctx.request.body.userId || 'unknown', 'Manually revoked from admin UI');
+      const tokenHash = cryptoUtils.hashJwt(token);
+      const sessions = await readJwtSessions(strapi);
+      const owner = sessions.find((candidate) => candidate.jwtTokenHash === tokenHash);
+      await magicLink.blockJwtToken(token, owner?.userId ?? 'unknown', REVOKE_REASON);
 
-        const tokenHash = cryptoUtils.hashJwt(token);
-        jwtSessions = jwtSessions.map(session => {
-          const sessionHash = session.jwtTokenHash || (session.jwtToken ? cryptoUtils.hashJwt(session.jwtToken) : null);
-          if (sessionHash === tokenHash) {
-            return {
-              ...session,
-              isRevoked: true,
-              revokedAt: new Date().toISOString(),
-              revokeReason: 'Manually revoked from admin UI via token',
-            };
-          }
-          return session;
-        });
-
-        await pluginStore.set({ key: 'jwt_sessions', value: { sessions: jwtSessions } });
-        return ctx.send({ success: true, message: 'Session revoked successfully.' });
-      }
-
-      return ctx.badRequest('Token or sessionId is required');
-    } catch (error) {
-      strapi.log.error('Error revoking JWT token:', error);
-      ctx.throw(500, error);
+      await updateJwtSessions(strapi, (list) =>
+        list.map((candidate) =>
+          candidate.jwtTokenHash === tokenHash
+            ? {
+                ...candidate,
+                isRevoked: true,
+                revokedAt: new Date().toISOString(),
+                revokeReason: `${REVOKE_REASON} via token`,
+                revokedBy,
+              }
+            : candidate
+        )
+      );
+      strapi.log.info(`[magic-link] Admin ${revokedBy ?? 'unknown'} revoked a JWT`);
+      return ctx.send({ success: true, message: 'Session revoked successfully.' });
+    } catch {
+      strapi.log.error('[magic-link] JWT revocation failed');
+      return ctx.throw(500, 'Failed to revoke JWT session');
     }
   },
 
   /**
-   * Removes a session's JWT block only after blocklist storage accepts the change.
-   * The session record remains revoked if the blocklist operation fails.
+   * Removes a session's JWT block only after blocklist storage accepts the
+   * change. Refresh-mode sessions cannot be restored, because the
+   * users-permissions session behind them was deleted on revocation.
    *
    * @param {import('koa').Context} ctx - Authenticated admin request context
    * @returns {Promise<void>} Sends the updated session or throws on storage failure
    */
   async unrevokeToken(ctx) {
+    const { sessionId } = parseBody(jwtUnrevokeSchema, ctx.request.body);
+
     try {
-      const { sessionId, userId } = ctx.request.body;
+      const sessions = await readJwtSessions(strapi);
+      const session = sessions.find((candidate) => candidate.id === sessionId);
+      if (!session) return ctx.notFound('Session not found');
 
-      if (!sessionId) {
-        return ctx.badRequest('Session ID is required');
-      }
-
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const storedData = (await pluginStore.get({ key: 'jwt_sessions' })) || { sessions: [] };
-      const jwtSessions = storedData.sessions || [];
-
-      const sessionIndex = jwtSessions.findIndex(s => s.id === sessionId);
-      if (sessionIndex === -1) {
-        return ctx.badRequest('Session not found');
-      }
-
-      if (new Date(jwtSessions[sessionIndex].expiresAt) < new Date()) {
+      if (new Date(session.expiresAt) < new Date()) {
         return ctx.badRequest('Cannot unrevoke an expired session');
       }
-
-      const session = jwtSessions[sessionIndex];
-      const magicLink = strapi.plugin('magic-link').service('magic-link');
-      const hashToUnblock = session.jwtTokenHash || (session.jwtToken ? cryptoUtils.hashJwt(session.jwtToken) : null);
-
-      if (hashToUnblock) {
-        await magicLink.unblockJwtTokenByHash(hashToUnblock, userId || session.userId);
+      if (session.upSessionId) {
+        return ctx.badRequest('Refresh-mode sessions cannot be restored; the user has to log in again');
       }
 
-      jwtSessions[sessionIndex] = {
-        ...session,
-        isRevoked: false,
-        revokedAt: null,
-        revokeReason: null,
-      };
-      await pluginStore.set({ key: 'jwt_sessions', value: { sessions: jwtSessions } });
+      const hashToUnblock =
+        session.jwtTokenHash || (typeof session.jwtToken === 'string' ? cryptoUtils.hashJwt(session.jwtToken) : null);
+      if (hashToUnblock) {
+        const magicLink = strapi.plugin('magic-link').service('magic-link');
+        await magicLink.unblockJwtTokenByHash(hashToUnblock, session.userId);
+      }
+
+      await updateJwtSessions(strapi, (list) =>
+        list.map((candidate) =>
+          candidate.id === sessionId
+            ? { ...candidate, isRevoked: false, revokedAt: null, revokeReason: null, revokedBy: null, restoredBy: actorId(ctx) }
+            : candidate
+        )
+      );
+      strapi.log.info(`[magic-link] Admin ${actorId(ctx) ?? 'unknown'} restored JWT session ${sessionId}`);
       return ctx.send({ success: true, message: 'JWT session unrevoked successfully' });
-    } catch (error) {
-      strapi.log.error('Error unrevoking JWT token');
-      ctx.throw(500, 'Failed to update JWT revocation status');
+    } catch {
+      strapi.log.error('[magic-link] Error unrevoking JWT token');
+      return ctx.throw(500, 'Failed to update JWT revocation status');
     }
   },
 
   /**
-   * Cleans up expired sessions by marking them as revoked
-   * @param {Object} ctx - Koa context
+   * Marks expired sessions as ended and drops records past the retention
+   * period.
+   * @param {object} ctx - Koa context
    */
   async cleanupSessions(ctx) {
     try {
       const now = new Date();
-      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      const storedData = (await pluginStore.get({ key: 'jwt_sessions' })) || { sessions: [] };
-      let jwtSessions = storedData.sessions || [];
-
-      let cleanedCount = 0;
-      jwtSessions = jwtSessions.map(session => {
-        if (new Date(session.expiresAt) < now && !session.isRevoked) {
-          cleanedCount++;
-          return {
-            ...session,
-            isRevoked: true,
-            revokedAt: now.toISOString(),
-            revokeReason: 'Automatically expired',
-          };
-        }
-        return session;
+      const cleanedCount = await updateJwtSessions(strapi, (list) => {
+        let count = 0;
+        const sessions = list.map((session) => {
+          if (new Date(session.expiresAt) < now && !session.isRevoked) {
+            count += 1;
+            return { ...session, isRevoked: true, revokedAt: now.toISOString(), revokeReason: 'Automatically expired' };
+          }
+          return session;
+        });
+        return { sessions, result: count };
       });
 
-      await pluginStore.set({ key: 'jwt_sessions', value: { sessions: jwtSessions } });
       ctx.send({
         success: true,
         count: cleanedCount,
         message: `${cleanedCount} expired sessions cleaned up.`,
       });
-    } catch (error) {
-      strapi.log.error('Error cleaning up sessions:', error);
-      ctx.throw(500, error);
+    } catch {
+      strapi.log.error('[magic-link] Session cleanup failed');
+      ctx.throw(500, 'Failed to clean up sessions');
     }
   },
 };

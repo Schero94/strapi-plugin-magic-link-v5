@@ -237,6 +237,101 @@ const otpCodesQuerySchema = z
   })
   .strict();
 
+// ─────────────────────── Admin token, session and IP-ban APIs ───────────────────────
+
+/** Admin-chosen link lifetime in hours (create form). Mirrors admin tokenModel TTL_LIMITS. */
+const TOKEN_TTL_HOURS = Object.freeze({ min: 1, max: 720 });
+/** Extension in days. Mirrors admin tokenModel EXTEND_LIMITS. */
+const TOKEN_EXTEND_DAYS = Object.freeze({ min: 1, max: 365 });
+
+/**
+ * Admin context may arrive as an object or (5.x clients) a JSON string.
+ * Either way it must satisfy the same policy as public context.
+ */
+const adminContextSchema = z
+  .union([
+    z.string().max(LIMITS.maxJsonLength * 4).transform((value, ctx) => {
+      if (value.trim() === '') return {};
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+      } catch {
+        // reported below
+      }
+      ctx.addIssue({ code: 'custom', message: 'context must be a JSON object' });
+      return z.NEVER;
+    }),
+    z.record(z.string(), z.unknown()),
+  ])
+  .pipe(contextSchema.unwrap())
+  .optional();
+
+/** POST /tokens (admin). */
+const adminTokenCreateSchema = z
+  .object({
+    email: emailSchema,
+    ttl: z.coerce.number().int().min(TOKEN_TTL_HOURS.min).max(TOKEN_TTL_HOURS.max).optional(),
+    send_email: z.boolean().default(true),
+    context: adminContextSchema,
+  })
+  .strict();
+
+/** POST /tokens/:id/extend (admin). */
+const adminTokenExtendSchema = z
+  .object({
+    days: z.coerce.number().int().min(TOKEN_EXTEND_DAYS.min).max(TOKEN_EXTEND_DAYS.max).default(7),
+  })
+  .strict();
+
+/** Route parameter for token actions: documentId or numeric id. */
+const tokenIdSchema = z.string().trim().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/);
+
+/** GET /tokens (admin) query string. Without page/pageSize the newest 1000 tokens are returned. */
+const adminTokenListQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).max(100_000).optional(),
+    pageSize: z.coerce.number().int().min(1).max(1_000).optional(),
+  })
+  .strict();
+
+/** POST /ban-ip and /unban-ip (admin): `{ data: { ip } }`. */
+const ipBanSchema = z
+  .object({
+    data: z.object({ ip: z.string().trim().min(2).max(64) }).strict(),
+  })
+  .strict();
+
+/** POST /revoke-jwt (admin): exactly one of sessionId / token. */
+const jwtRevokeSchema = z
+  .object({
+    sessionId: z.string().min(1).max(128).optional(),
+    token: z.string().min(10).max(8_192).optional(),
+    // 5.x clients sent the owner id; it is ignored (taken from the server record).
+    userId: z.union([z.string().max(64), z.number()]).optional(),
+  })
+  .strict()
+  .refine((value) => Boolean(value.sessionId) !== Boolean(value.token), {
+    message: 'Send either sessionId or token',
+    path: ['sessionId'],
+  });
+
+/** POST /unrevoke-jwt (admin). */
+const jwtUnrevokeSchema = z
+  .object({
+    sessionId: z.string().min(1).max(128),
+    // Ignored; see jwtRevokeSchema.
+    userId: z.union([z.string().max(64), z.number()]).optional(),
+  })
+  .strict();
+
+/** POST /license/store-key (admin, settings.update). */
+const licenseStoreKeySchema = z
+  .object({
+    licenseKey: z.string().trim().min(8).max(128).regex(/^[A-Za-z0-9-]+$/, 'Invalid license key format'),
+    email: emailSchema,
+  })
+  .strict();
+
 const linkUrlSchema = z
   .string()
   .max(2_048)
@@ -293,8 +388,12 @@ const settingsFieldSchemas = {
   message_text: z.string().max(50_000),
   context_whitelist: z.array(z.string().max(128)).max(100).or(z.string().max(10_000)),
   context_blacklist: z.array(z.string().max(128)).max(100).or(z.string().max(10_000)),
-  email_designer_template_id: z.string().max(128),
-  magic_mail_template_id: z.string().max(128),
+  email_designer_template_id: z.union([z.string().max(128), z.number().int().nonnegative()]),
+  magic_mail_template_id: z.union([z.string().max(128), z.number().int().nonnegative()]),
+  magic_mail_template_reference_id: z.string().max(128),
+  rate_limit_login_max_attempts: z.number().int().min(1).max(1_000),
+  rate_limit_login_window_minutes: z.number().int().min(1).max(10_080),
+  rate_limit_login_block_minutes: z.number().int().min(1).max(10_080),
   totp_issuer: z.string().max(128),
   totp_algorithm: z.enum(['SHA1', 'SHA256', 'SHA512']),
   ui_language: z.enum(['de', 'en', 'es', 'fr', 'pt']),
@@ -329,10 +428,39 @@ const settingsRecordSchema = z
     }
   });
 
+/** Keys a settings update may persist. Anything else is dropped, never stored. */
+const SETTINGS_KEYS = Object.freeze(Object.keys(settingsFieldSchemas));
+const CONTEXT_LIST_KEYS = ['context_whitelist', 'context_blacklist'];
+
+/**
+ * Keeps only known settings keys and turns comma/newline separated context
+ * lists into arrays, so every consumer sees one shape.
+ *
+ * @param {object} settings - Validated settings patch.
+ * @returns {object} Patch that is safe to persist.
+ */
+const toKnownSettings = (settings) => {
+  const known = {};
+  for (const key of SETTINGS_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(settings, key)) known[key] = settings[key];
+  }
+  for (const key of CONTEXT_LIST_KEYS) {
+    if (typeof known[key] === 'string') {
+      known[key] = known[key]
+        .split(/[,\n]/)
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .slice(0, 100)
+        .map((entry) => entry.slice(0, 128));
+    }
+  }
+  return known;
+};
+
 const settingsEnvelopeSchema = z.object({ settings: settingsRecordSchema }).strict();
 const settingsUpdateSchema = z
   .union([settingsEnvelopeSchema, settingsRecordSchema])
-  .transform((value) => ('settings' in value ? value.settings : value));
+  .transform((value) => toKnownSettings('settings' in value ? value.settings : value));
 
 /**
  * Parses an input with a Zod schema and converts any error into a Strapi
@@ -372,6 +500,17 @@ module.exports = {
   totpDisableSchema,
   totpBackupCodesSchema,
   otpCodesQuerySchema,
+  adminTokenCreateSchema,
+  adminTokenExtendSchema,
+  adminTokenListQuerySchema,
+  tokenIdSchema,
+  ipBanSchema,
+  jwtRevokeSchema,
+  jwtUnrevokeSchema,
+  licenseStoreKeySchema,
   settingsUpdateSchema,
+  SETTINGS_KEYS,
+  TOKEN_TTL_HOURS,
+  TOKEN_EXTEND_DAYS,
   parseBody,
 };

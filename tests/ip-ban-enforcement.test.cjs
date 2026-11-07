@@ -26,35 +26,57 @@ test('IP-ban policy allows a valid address when the service confirms it is not b
   assert.equal(ctx.response.status, 200);
 });
 
-test('IP-ban policy denies a banned address without returning the address', async () => {
+test('IP-ban policy denies a banned address with a ForbiddenError that Strapi formats (not a generic PolicyError)', async () => {
+  const { errors } = require('@strapi/utils');
   const policy = require('../server/src/policies/ip-ban-check');
-  const ctx = { request: { ip: '192.0.2.25' }, response: { status: 200, body: null } };
+  const ctx = { request: { ip: '::ffff:192.0.2.25' }, response: { status: 200, body: null } };
+  let checked;
   const strapi = {
-    plugin: () => ({ service: () => ({ isIPBanned: async () => true }) }),
+    plugin: () => ({ service: () => ({ isIPBanned: async (ip) => { checked = ip; return true; } }) }),
     log: { error() {} },
   };
 
-  assert.equal(await policy(ctx, {}, { strapi }), false);
-  assert.equal(ctx.response.status, 403);
-  assert.equal(JSON.stringify(ctx.response.body).includes('192.0.2.25'), false);
+  await assert.rejects(policy(ctx, {}, { strapi }), (error) => {
+    assert.ok(error instanceof errors.ForbiddenError);
+    assert.equal(error instanceof errors.PolicyError, false);
+    assert.equal(error.details.code, 'IP_ADDRESS_BLOCKED');
+    assert.equal(JSON.stringify(error).includes('192.0.2.25'), false);
+    return true;
+  });
+  assert.equal(checked, '192.0.2.25', 'IPv4-mapped request addresses are checked in IPv4 form');
 });
 
 test('IP-ban policy fails closed when the address or block-list storage cannot be checked', async () => {
+  const { errors } = require('@strapi/utils');
   const policy = require('../server/src/policies/ip-ban-check');
-  const errors = [];
+  const logged = [];
   const strapi = {
     plugin: () => ({ service: () => ({ isIPBanned: async () => { throw new Error('store details'); } }) }),
-    log: { error: (message) => errors.push(message) },
+    log: { error: (message) => logged.push(message) },
   };
-  const storeErrorContext = { request: { ip: '192.0.2.25' }, response: { status: 200, body: null } };
-  const missingIpContext = { request: {}, response: { status: 200, body: null } };
+  const isUnavailable = (error) => {
+    assert.ok(error instanceof errors.PolicyError);
+    assert.equal(error.details.code, 'IP_BAN_CHECK_UNAVAILABLE');
+    assert.equal(error.message.includes('store details'), false);
+    return true;
+  };
 
-  assert.equal(await policy(storeErrorContext, {}, { strapi }), false);
-  assert.equal(storeErrorContext.response.status, 503);
-  assert.equal(JSON.stringify(storeErrorContext.response.body).includes('store details'), false);
-  assert.equal(await policy(missingIpContext, {}, { strapi }), false);
-  assert.equal(missingIpContext.response.status, 503);
-  assert.ok(errors.length > 0);
+  await assert.rejects(policy({ request: { ip: '192.0.2.25' } }, {}, { strapi }), isUnavailable);
+  await assert.rejects(policy({ request: {} }, {}, { strapi }), isUnavailable);
+  assert.ok(logged.length > 0);
+  assert.ok(logged.every((entry) => !entry.includes('store details')));
+});
+
+test('IP-ban service matches an IPv4 ban against the IPv4-mapped IPv6 request form', async () => {
+  const service = createMagicLinkService({
+    strapi: {
+      store: () => ({ get: async () => ({ ips: ['192.0.2.25'] }) }),
+      log: { error() {} },
+    },
+  });
+
+  assert.equal(await service.isIPBanned('::ffff:192.0.2.25'), true);
+  assert.equal(await service.isIPBanned('::ffff:192.0.2.26'), false);
 });
 
 test('IP-ban service propagates storage failures for the route policy to deny safely', async () => {

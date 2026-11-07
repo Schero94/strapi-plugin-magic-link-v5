@@ -1,20 +1,73 @@
 'use strict';
 
-const { settingsUpdateSchema, parseBody } = require('./validation');
+const { settingsUpdateSchema, parseBody, SETTINGS_KEYS } = require('./validation');
 const { normalizeMfaSettings } = require('../utils/mfa-mode');
+const { createDefaultSettings } = require('../utils/default-settings');
+
+const BOOLEAN_FIELDS = [
+  'enabled',
+  'createUserIfNotExists',
+  'stays_valid',
+  'verify_email',
+  'welcome_email',
+  'use_jwt_token',
+  'allow_magic_links_on_public_registration',
+  'store_login_info',
+  'use_email_designer',
+  'use_magic_mail',
+  'otp_enabled',
+  'otp_strict_binding',
+  'mfa_require_totp',
+  'totp_as_primary_auth',
+  'rate_limit_enabled',
+  'passwordlessCompatibility',
+];
+
+const KNOWN_KEYS = new Set(SETTINGS_KEYS);
 
 /**
- * Removes provider credentials from settings responses while preserving them
- * in storage for future provider support.
+ * Keeps only the settings keys of the 6.0 contract. Legacy keys (provider
+ * credentials, `create_new_user`, `remember_me`, ...) are neither returned
+ * nor written back.
  *
- * @param {object} settings - Stored or normalized plugin settings.
- * @returns {object} Safe settings for the admin API response.
+ * @param {object} settings - Stored or merged settings.
+ * @returns {object} Settings with known keys only.
  */
-const redactProviderCredentials = (settings) => {
-  const safeSettings = { ...settings };
-  delete safeSettings.sms_api_key;
-  delete safeSettings.sms_api_secret;
-  return safeSettings;
+const pickKnownSettings = (settings) =>
+  Object.fromEntries(Object.entries(settings || {}).filter(([key]) => KNOWN_KEYS.has(key)));
+
+/**
+ * Normalises booleans that older admin builds or SQLite stored as strings or 0/1.
+ *
+ * @param {object} settings - Settings object (mutated copy).
+ * @returns {object} The same object.
+ */
+const normalizeBooleans = (settings) => {
+  for (const field of BOOLEAN_FIELDS) {
+    if (!(field in settings)) continue;
+    const value = settings[field];
+    if (typeof value === 'string') settings[field] = value === 'true';
+    else if (value && typeof value === 'object' && value.type === 'boolean') settings[field] = Boolean(value.value);
+    else settings[field] = Boolean(value);
+  }
+  return settings;
+};
+
+/**
+ * Settings as returned to the admin UI.
+ *
+ * @param {object} stored - Stored settings.
+ * @returns {object} Safe, normalised settings.
+ */
+const toResponseSettings = (stored) => {
+  const settings = normalizeBooleans(pickKnownSettings(normalizeMfaSettings(stored || {})));
+  if (settings.store_login_info === undefined) settings.store_login_info = true;
+  if (settings.use_email_designer === undefined) settings.use_email_designer = false;
+  if (settings.email_designer_template_id === undefined) settings.email_designer_template_id = '';
+  if (settings.login_path === '/passwordless-login' || settings.login_path === '/api/magic-link/login') {
+    settings.login_path = '/magic-link/login';
+  }
+  return settings;
 };
 
 module.exports = {
@@ -27,99 +80,39 @@ module.exports = {
    */
   async getSettings(ctx) {
     try {
-      const pluginStore = strapi.store({
-        type: 'plugin',
-        name: 'magic-link',
-      });
-      
+      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
       const settings = await pluginStore.get({ key: 'settings' });
-      
-      // Stelle sicher, dass alle Boolean-Werte korrekt formatiert sind
-      const processedSettings = redactProviderCredentials(normalizeMfaSettings(settings || {}));
-      
-      // Entferne verschachtelte settings-Objekte, falls vorhanden
-      if (processedSettings && processedSettings.settings) {
-        delete processedSettings.settings;
-      }
-      
-      // Verarbeite alle Eigenschaften, die als Boolean behandelt werden sollten
-      const booleanFields = [
-        'enabled', 'createUserIfNotExists', 'stays_valid', 'verify_email', 
-        'welcome_email', 'use_jwt_token', 'allow_magic_links_on_public_registration',
-        'store_login_info', 'use_email_designer'
-      ];
-      
-      booleanFields.forEach(field => {
-        if (field in processedSettings) {
-          // Konvertiere zu echten Boolean-Werten
-          processedSettings[field] = !!processedSettings[field];
-        }
-      });
-      
-      // Ensure store_login_info has a value
-      if (processedSettings.store_login_info === undefined) {
-        processedSettings.store_login_info = true;
-      }
-      
-      // Ensure email designer settings have values
-      if (processedSettings.use_email_designer === undefined) {
-        processedSettings.use_email_designer = false;
-      }
-      
-      if (processedSettings.email_designer_template_id === undefined) {
-        processedSettings.email_designer_template_id = '';
-      }
-      
-      // Korrigiere den Login-Pfad, wenn er den alten Wert hat
-      if (processedSettings.login_path === '/passwordless-login' || processedSettings.login_path === '/api/magic-link/login') {
-        processedSettings.login_path = '/magic-link/login';
-      }
 
-      // Check if Email Designer plugin is installed
-      const isEmailDesignerInstalled = !!strapi.plugin('email-designer-5');
-      
-      // Check if MagicMail plugin is installed
-      const isMagicMailInstalled = !!strapi.plugin('magic-mail');
-      
-      // Check if email provider is configured
       let emailProviderConfigured = false;
       let emailProviderName = null;
-      
       try {
-        // Check if Strapi email plugin is available
         if (strapi.plugin('email')) {
           emailProviderConfigured = true;
           const emailConfig = strapi.config.get('plugin::email');
-          emailProviderName = emailConfig?.provider || 'configured';
+          emailProviderName = typeof emailConfig?.provider === 'string' ? emailConfig.provider : 'configured';
         }
       } catch {
-        // Email plugin not available
         emailProviderConfigured = false;
       }
-      
-      strapi.log.info('[EMAIL] Email Provider Check:', {
+
+      ctx.send({
+        settings: toResponseSettings(settings),
+        emailDesignerInstalled: Boolean(strapi.plugin('email-designer-5')),
+        magicMailInstalled: Boolean(strapi.plugin('magic-mail')),
         emailProviderConfigured,
         emailProviderName,
-        emailDesignerInstalled: isEmailDesignerInstalled,
-        magicMailInstalled: isMagicMailInstalled
       });
-      
-      ctx.send({ 
-        settings: processedSettings,
-        emailDesignerInstalled: isEmailDesignerInstalled,
-        magicMailInstalled: isMagicMailInstalled,
-        emailProviderConfigured,
-        emailProviderName
-      });
-    } catch (error) {
-      ctx.throw(500, error);
+    } catch {
+      strapi.log.error('[magic-link] Settings could not be loaded');
+      ctx.throw(500, 'Failed to load settings');
     }
   },
 
   /**
    * Validates and persists a partial settings update without dropping other
-   * stored values. The legacy TOTP flag and the current mode are normalized
-   * before the settings are returned to the admin UI.
+   * known values. Unknown and legacy keys are discarded. The legacy TOTP flag
+   * and the current mode are normalized before the settings are returned.
+   * Nothing from the settings object is logged.
    *
    * @param {object} ctx - Strapi Koa context.
    * @returns {Promise<void>}
@@ -129,48 +122,13 @@ module.exports = {
     const settingsPatch = parseBody(settingsUpdateSchema, ctx.request.body);
 
     try {
-      const pluginStore = strapi.store({
-        type: 'plugin',
-        name: 'magic-link',
-      });
+      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
       const existingSettings = (await pluginStore.get({ key: 'settings' })) || {};
-      const processedBody = normalizeMfaSettings(
-        { ...existingSettings, ...settingsPatch },
-        settingsPatch
+      const processedBody = normalizeBooleans(
+        pickKnownSettings(normalizeMfaSettings({ ...existingSettings, ...settingsPatch }, settingsPatch))
       );
-      
-      // Verarbeite alle Eigenschaften, die als Boolean behandelt werden sollten
-      const booleanFields = [
-        'enabled', 'createUserIfNotExists', 'stays_valid', 'verify_email', 
-        'welcome_email', 'use_jwt_token', 'allow_magic_links_on_public_registration',
-        'store_login_info', 'use_email_designer', 'use_magic_mail',
-        'otp_enabled', 'otp_strict_binding', 'mfa_require_totp',
-        'totp_as_primary_auth', 'rate_limit_enabled',
-      ];
-      
-      booleanFields.forEach(field => {
-        if (field in processedBody) {
-          // Konvertiere verschiedene Formate zu echten Boolean-Werten
-          if (typeof processedBody[field] === 'string') {
-            processedBody[field] = processedBody[field] === 'true';
-          } else if (typeof processedBody[field] === 'object' && processedBody[field]?.type === 'boolean') {
-            processedBody[field] = !!processedBody[field].value;
-          } else {
-            processedBody[field] = !!processedBody[field];
-          }
-        }
-      });
-      
-      // Ensure store_login_info is included in the stored settings
-      if (processedBody.store_login_info === undefined) {
-        processedBody.store_login_info = true;
-      }
-      
-      // Debug log for MagicMail settings
-      if (processedBody.use_magic_mail) {
-        strapi.log.info(`[DEBUG] Saving MagicMail settings - use_magic_mail: ${processedBody.use_magic_mail}, template_id: ${processedBody.magic_mail_template_id}`);
-      }
-      
+      if (processedBody.store_login_info === undefined) processedBody.store_login_info = true;
+
       await pluginStore.set({ key: 'settings', value: processedBody });
 
       const rateLimiter = strapi.plugin('magic-link')?.service?.('rate-limiter');
@@ -178,115 +136,49 @@ module.exports = {
         await rateLimiter.reloadSettings();
       }
 
-      ctx.send({ settings: redactProviderCredentials(processedBody) });
-    } catch (error) {
-      ctx.throw(500, error);
+      strapi.log.info(
+        `[magic-link] Settings updated by admin ${ctx.state?.user?.id ?? 'unknown'}: ${Object.keys(settingsPatch).sort().join(', ')}`
+      );
+      ctx.send({ settings: toResponseSettings(processedBody) });
+    } catch {
+      strapi.log.error('[magic-link] Settings could not be saved');
+      ctx.throw(500, 'Failed to save settings');
     }
-  },
-
-  async index(ctx) {
-    ctx.body = { message: 'Welcome to Magic Link plugin!' };
   },
 
   /**
-   * Setzt alle Magic Link Daten und Einstellungen zurück
-   * @param {Object} ctx - Context
+   * Resets settings to the install defaults and deletes login tokens, the
+   * session audit list and IP bans. Active JWT revocations are kept, so a
+   * revoked token never becomes valid again through a reset.
+   *
+   * @param {object} ctx - Strapi Koa context.
    */
   async resetData(ctx) {
     try {
-      // Plugin Store für die Einstellungen
-      const pluginStore = strapi.store({
-        type: 'plugin',
-        name: 'magic-link',
-      });
+      const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
+      await pluginStore.set({ key: 'settings', value: createDefaultSettings() });
 
-      // Standardeinstellungen definieren
-      const defaultSettings = {
-        enabled: true,
-        createUserIfNotExists: false,
-        stays_valid: false,
-        expire_period: 3600,
-        token_length: 32,
-        max_login_attempts: 5,
-        login_path: '/magic-link/login',
-        confirmationUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
-        store_login_info: true,
-        default_role: 'authenticated',
-        object: 'Your Magic Link for Login',
-        from_name: 'Magic Link Service',
-        from_email: 'noreply@example.com',
-        // Context Field Control
-        context_whitelist: [],
-        context_blacklist: ['password', 'secret', 'apiKey', 'token'],
-        message_html: `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta http-equiv="x-ua-compatible" content="ie=edge">
-  <title>Magic Link Login</title>
-</head>
-<body>
-  <h2>Magic Link Login</h2>
-  <p>Click the link below to log in:</p>
-  <p><a href="<%= URL %>?loginToken=<%= CODE %>">Log in to your account</a></p>
-  <p>Or use this URL: <%= URL %>?loginToken=<%= CODE %></p>
-  <p>This link will expire in 1 hour.</p>
-</body>
-</html>`,
-        message_text: `Hello,
+      const deleted = await strapi.db.query('plugin::magic-link.token').deleteMany({ where: {} });
+      await pluginStore.delete({ key: 'jwt_sessions' });
+      await pluginStore.set({ key: 'banned_ips', value: { ips: [] } });
 
-Click the link below to log in:
-
-<%= URL %>?loginToken=<%= CODE %>
-
-This link will expire in 1 hour.`,
-        jwt_token_expires_in: '30d',
-        // Compatibility Settings
-        passwordlessCompatibility: false,
-        emailDesignerCompatibility: true,
-      };
-
-      // Einstellungen zurücksetzen
-      await pluginStore.set({ key: 'settings', value: defaultSettings });
-
-      // Delete all Magic Link tokens using Document Service API
-      const tokens = await strapi.documents('plugin::magic-link.token').findMany({});
-      
-      if (tokens && tokens.length > 0) {
-        // Delete in batches to avoid memory issues
-        for (const token of tokens) {
-          await strapi.documents('plugin::magic-link.token').delete({
-            documentId: token.documentId
-          });
-        }
-        strapi.log.info(`[SUCCESS] Deleted ${tokens.length} Magic Link token(s)`);
+      const rateLimiter = strapi.plugin('magic-link')?.service?.('rate-limiter');
+      if (typeof rateLimiter?.reloadSettings === 'function') {
+        await rateLimiter.reloadSettings();
       }
 
-      // JWT Sessions löschen
-      try {
-        await pluginStore.delete({ key: 'jwt_sessions' });
-      } catch (error) {
-        console.error('Fehler beim Löschen der JWT Sessions:', error);
-      }
-
-      // Gebannte IPs zurücksetzen
-      try {
-        await pluginStore.set({ key: 'banned_ips', value: { ips: [] } });
-      } catch (error) {
-        console.error('Fehler beim Zurücksetzen der gebannten IPs:', error);
-      }
-
-      // Keep active revocations: clearing this deny-list would make a still-valid
-      // JWT work again after an administrative data reset.
-
-      // Erfolgreiche Antwort senden
+      strapi.log.warn(
+        `[magic-link] Data reset by admin ${ctx.state?.user?.id ?? 'unknown'} (${deleted?.count || 0} token(s) deleted)`
+      );
       ctx.send({
         success: true,
-        message: 'Magic Link Daten wurden zurückgesetzt. Widerrufene JWTs bleiben bis zum Ablauf gesperrt.',
+        deletedTokens: deleted?.count || 0,
+        message: 'Magic Link data was reset. Revoked JWTs stay blocked until they expire.',
       });
-    } catch (error) {
-      console.error('Fehler beim Zurücksetzen der Magic Link Daten:', error);
-      ctx.throw(500, error);
+    } catch {
+      strapi.log.error('[magic-link] Data reset failed');
+      ctx.throw(500, 'Failed to reset Magic Link data');
     }
   },
 };
+

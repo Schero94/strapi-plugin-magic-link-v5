@@ -93,7 +93,7 @@ test('unrevoke clears the stored session only after the blocklist service succee
         unblockJwtTokenByHash: async (...args) => { unblockArgs = args; return { success: true }; },
       }),
     }),
-    log: { warn() {}, error() {} },
+    log: { info() {}, warn() {}, error() {} },
   };
 
   try {

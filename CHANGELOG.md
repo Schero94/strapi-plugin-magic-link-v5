@@ -8,12 +8,89 @@
   * `plugin::magic-link.manage`: create, block, extend and delete tokens, revoke sessions, ban and unban IPs, delete OTP codes, cleanups
   * `plugin::magic-link.settings.read`: view the Settings and License pages (License now needs this instead of `access`)
   * `plugin::magic-link.settings.update`: save settings, reset rate limits, change the license
+  * `plugin::magic-link.tokens.issue` (new, *Tokens > Issue login links without
+    e-mail*): needed for `POST /magic-link/tokens` with `send_email: false`,
+    which hands a working login link for the user to the admin (impersonation)
 
-  Migration: in *Settings > Administration Panel > Roles*, open every role that
-  had "Access the Magic Link plugin" and grant **Read** (and **Manage** for
-  roles that changed tokens, sessions, IP bans or OTP codes). Grant Settings
-  **Read** to roles that used the License page. Super Admin gets all actions
-  automatically.
+  The server enforces these actions on every admin route.
+
+  Migration: on startup, roles that still hold the 5.x `access` permission
+  get **Read** and **Manage** automatically and the old permission is removed;
+  `tokens.issue` is never granted automatically. If your roles show no Magic
+  Link permission after the upgrade, open every role that had "Access the
+  Magic Link plugin" in *Settings > Administration Panel > Roles* and grant
+  **Read** (and **Manage** for roles that changed tokens, sessions, IP bans or
+  OTP codes). Grant Settings **Read** to roles that used the License page and
+  **Issue login links** only to roles that may log in as end users. Super
+  Admin gets all actions automatically.
+
+### BREAKING CHANGES (admin API)
+
+* **Admin-created tokens.** `POST /magic-link/tokens` is validated
+  (`email`, `ttl` in hours 1-720, `send_email`, `context` as object or JSON
+  string; unknown fields and reserved context keys return 400). It uses the
+  same renderer, link builder and providers (Magic Mail, Email Designer,
+  e-mail plugin) as the public send-link. With `send_email: true` the
+  response no longer contains the plaintext token; with `send_email: false`
+  it contains `token` and `loginUrl` once and requires
+  `plugin::magic-link.tokens.issue` (403 otherwise). A failed e-mail
+  deactivates the new token and returns 503 instead of a silent success.
+  Missing users are created only when `createUserIfNotExists` is on, and
+  start unconfirmed. Admin creation is limited to 60 per admin and 15
+  minutes and no longer uses the public per-IP/per-e-mail buckets. Each issue
+  is logged with the admin id and token id (no e-mail, no token).
+  Migration: send `ttl` as a top-level field (not in `context`); grant
+  `tokens.issue` to roles that need copyable links.
+* **Token list and actions.** `GET /magic-link/tokens` no longer returns the
+  hash, salt, lookup prefix or `challenge`, and no `meta.securityScore`; it
+  returns the newest 1000 tokens, or a page with `?page=&pageSize=`
+  (`meta.pagination`). `extend` accepts `days` 1-365 (400 otherwise) and
+  refuses used single-use links. `activate` refuses used single-use links,
+  links that completed a second-factor challenge, expired links and links
+  last used from a banned IP.
+* **Removed admin routes** (unused by the admin UI): `GET /security-score`,
+  `GET /validate-email`, `GET /user-by-email`, `POST /tokens/:id/resend`,
+  `POST /license/auto-create`, `POST /license/create`, `POST /license/ping`.
+* **JWT sessions.** `POST /revoke-jwt` needs exactly one of `sessionId` or
+  `token`; a client-sent `userId` is ignored and the acting admin is recorded
+  (`revokedBy`). Refresh-mode sessions cannot be restored with
+  `/unrevoke-jwt` (the users-permissions session is deleted on revocation).
+  Plaintext JWTs stored by older releases in the session list are replaced
+  by their hash on startup; records are kept 7 days after expiry.
+* **IP addresses.** IPv4-mapped IPv6 addresses (`::ffff:192.0.2.1`) are
+  stored and matched as IPv4, so an IPv4 ban also blocks dual-stack
+  requests. Rate limits key IPv6 clients by their /64 network. Banned or
+  unverifiable requests now get a formatted 403 with `error.details.code`
+  `IP_ADDRESS_BLOCKED` or `IP_BAN_CHECK_UNAVAILABLE` (was a generic
+  "Policy Failed").
+* **Settings API.** Only known settings keys are stored and returned; unknown
+  and legacy keys (`create_new_user`, `remember_me`, `token_lifetime`, ...)
+  are dropped on the next save. `context_whitelist`/`context_blacklist`
+  strings are stored as arrays. `reset-data` writes the same defaults as a
+  fresh install (API login URL, no `noreply@example.com`).
+* **License privacy.** The plugin no longer sends hostname, IP address, OS
+  details, a device id or admin name/e-mail to the license server; only the
+  license key is sent (on save and for the License page, cached 10 minutes).
+  Set `license: { remoteLookup: false }` in the plugin config or
+  `MAGIC_LINK_LICENSE_LOOKUP=false` to disable all license-server calls.
+  `GET /license/status` returns `licenseKeyMasked` and `lookup`
+  (`ok`, `not-found`, `unavailable`, `disabled`, `none`); the full key and
+  holder name/e-mail are only returned to admins with `settings.update`.
+  `POST /license/store-key` validates the key format.
+
+### Security and fixes (admin API)
+
+* Session-list and IP-ban updates are serialised, so parallel revocations,
+  logins and bans no longer overwrite each other in one process.
+* Saving settings keeps rate-limit counters unless a limit changed;
+  `/rate-limit/stats` reports real rejection counts. Optional shared limits
+  for clusters: `rateLimit: { redis: { storeClient } }` in the plugin config
+  (rate-limiter-flexible Redis limiter with an in-memory fallback).
+* A startup warning appears when `server.proxy.koa` is on without
+  `server.proxy.maxIpsCount` (clients could spoof their IP).
+* Bootstrap timers are cleared in `destroy()`, and failing background jobs
+  are logged instead of causing unhandled rejections.
+* Admin logs no longer contain settings objects, e-mail addresses or tokens.
 
 ### BREAKING CHANGES (login core)
 

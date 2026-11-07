@@ -65,10 +65,12 @@ test('settings update rejects invalid authentication policy values without writi
   assert.equal(writes, 0);
 });
 
-test('settings writes normalize legacy required TOTP and preserve unrelated stored settings', async () => {
+test('settings writes normalize legacy required TOTP, keep known settings and drop unknown or legacy keys', async () => {
   let persisted;
   const existing = {
-    custom_flag: 'kept',
+    custom_flag: 'dropped',
+    create_new_user: true,
+    expire_period: 900,
     mfa_mode: 'disabled',
     mfa_require_totp: false,
     sms_api_secret: 'local-test-secret',
@@ -82,7 +84,7 @@ test('settings writes normalize legacy required TOTP and preserve unrelated stor
     log: { info() {} },
   };
   const ctx = {
-    request: { body: { mfa_mode: 'disabled', mfa_require_totp: true } },
+    request: { body: { mfa_mode: 'disabled', mfa_require_totp: true, unknown_key: 'x', context_blacklist: 'secret, pin' } },
     send(payload) { this.response = payload; return payload; },
   };
 
@@ -90,10 +92,12 @@ test('settings writes normalize legacy required TOTP and preserve unrelated stor
 
   assert.equal(persisted.mfa_mode, 'required');
   assert.equal(persisted.mfa_require_totp, true);
-  assert.equal(persisted.custom_flag, 'kept');
-  assert.equal(persisted.sms_api_secret, 'local-test-secret');
-  assert.equal(ctx.response.settings.custom_flag, persisted.custom_flag);
-  assert.equal(ctx.response.settings.sms_api_secret, undefined);
+  assert.equal(persisted.expire_period, 900, 'known settings are preserved');
+  assert.deepEqual(persisted.context_blacklist, ['secret', 'pin'], 'string lists are stored as arrays');
+  for (const key of ['custom_flag', 'create_new_user', 'sms_api_secret', 'unknown_key']) {
+    assert.equal(key in persisted, false, `${key} is not stored`);
+    assert.equal(key in ctx.response.settings, false, `${key} is not returned`);
+  }
 });
 
 test('settings read responses omit reserved provider credentials', async () => {
@@ -207,21 +211,25 @@ test('JWT revoke, unrevoke and cleanup run only from the manage-gated ConfirmDia
   }
 });
 
-test('reset-data preserves unexpired JWT revocations', async () => {
+test('reset-data preserves unexpired JWT revocations and writes the install defaults', async () => {
+  const { createDefaultSettings } = require('../server/src/utils/default-settings');
   const blockedTokens = {
     tokens: [{ tokenHash: 'synthetic-revoked-hash', expiresAt: new Date(Date.now() + 60_000).toISOString() }],
   };
-  const values = new Map([['blocked_jwt_tokens', blockedTokens]]);
+  const values = new Map([['blocked_jwt_tokens', blockedTokens], ['jwt_sessions', { sessions: [] }]]);
+  let deleteManyWhere;
   global.strapi = {
     store: () => ({
       get: async ({ key }) => values.get(key),
       set: async ({ key, value }) => values.set(key, value),
       delete: async ({ key }) => values.delete(key),
     }),
-    documents: () => ({ findMany: async () => [] }),
-    log: { info() {}, error() {} },
+    db: { query: () => ({ deleteMany: async ({ where }) => { deleteManyWhere = where; return { count: 3 }; } }) },
+    plugin: () => undefined,
+    log: { info() {}, warn() {}, error() {} },
   };
   const ctx = {
+    state: { user: { id: 7 } },
     send(payload) { this.response = payload; return payload; },
     throw(status, error) { throw error || new Error(String(status)); },
   };
@@ -229,7 +237,13 @@ test('reset-data preserves unexpired JWT revocations', async () => {
   await controller.resetData(ctx);
 
   assert.deepEqual(values.get('blocked_jwt_tokens'), blockedTokens);
-  assert.match(ctx.response.message, /widerrufene jwts/i);
+  assert.deepEqual(values.get('settings'), createDefaultSettings());
+  assert.equal(values.get('settings').confirmationUrl, '', 'links use the API login URL after a reset');
+  assert.deepEqual(values.get('banned_ips'), { ips: [] });
+  assert.equal(values.has('jwt_sessions'), false);
+  assert.deepEqual(deleteManyWhere, {});
+  assert.equal(ctx.response.deletedTokens, 3);
+  assert.match(ctx.response.message, /revoked jwts stay blocked/i);
 });
 
 test('rate-limit reset clears the live limiter instead of writing an unused plugin-store key', async () => {
