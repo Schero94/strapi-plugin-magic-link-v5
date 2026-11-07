@@ -516,7 +516,13 @@ test('returning a login link without e-mail requires the tokens.issue permission
       tokensController.create(
         adminCtx({ body: { email: 'user@example.test', send_email: false } })
       ),
-      errors.ForbiddenError
+      (error) => {
+        // Strapi 5.61's authorize middleware replaces any other ForbiddenError
+        // with a bare "Forbidden" and drops `details`; PolicyError passes.
+        assert.ok(error instanceof errors.PolicyError);
+        assert.equal(error.details.key, 'tokens.issue.forbidden');
+        return true;
+      }
     );
   });
   assert.equal(mock.created.length, 0, 'no token is created');

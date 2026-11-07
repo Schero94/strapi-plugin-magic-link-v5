@@ -26,7 +26,7 @@ test('IP-ban policy allows a valid address when the service confirms it is not b
   assert.equal(ctx.response.status, 200);
 });
 
-test('IP-ban policy denies a banned address with a ForbiddenError that Strapi formats (not a generic PolicyError)', async () => {
+test('IP-ban policy denies a banned address with a PolicyError, so Strapi keeps its message and details.code', async () => {
   const { errors } = require('@strapi/utils');
   const policy = require('../server/src/policies/ip-ban-check');
   const ctx = { request: { ip: '::ffff:192.0.2.25' }, response: { status: 200, body: null } };
@@ -44,8 +44,10 @@ test('IP-ban policy denies a banned address with a ForbiddenError that Strapi fo
   };
 
   await assert.rejects(policy(ctx, {}, { strapi }), (error) => {
-    assert.ok(error instanceof errors.ForbiddenError);
-    assert.equal(error instanceof errors.PolicyError, false);
+    // Strapi 5.61's authorize middleware wraps the policies and replaces any
+    // ForbiddenError that is not a PolicyError with a bare "Forbidden".
+    assert.ok(error instanceof errors.PolicyError);
+    assert.equal(error.message, 'This request cannot be completed.');
     assert.equal(error.details.code, 'IP_ADDRESS_BLOCKED');
     assert.equal(JSON.stringify(error).includes('192.0.2.25'), false);
     return true;

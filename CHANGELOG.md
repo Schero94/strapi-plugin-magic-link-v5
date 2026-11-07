@@ -15,8 +15,9 @@ short version is the upgrade guide.
 3. Remove WhatsApp/SMS fields from `send-link` calls and delete a leftover
    `.whatsapp-auth` directory.
 4. Review admin roles: `access` became `read`, `manage`, `settings.read`,
-   `settings.update` and `tokens.issue` (roles with `access` get Read and
-   Manage automatically).
+   `settings.update`, `tokens.issue` and `settings.security` (roles with
+   `access` get Read and Manage automatically; the others are never granted
+   automatically).
 5. Frontend: exchange tokens with `POST /api/magic-link/login { loginToken }`,
    handle `requiresTOTPSetup` when MFA is required, use `expires_at` instead of
    `expiry_formatted`, and read errors from `error.key`.
@@ -129,8 +130,8 @@ short version is the upgrade guide.
 * **IP addresses.** IPv4-mapped IPv6 addresses (`::ffff:192.0.2.1`) are
   stored and matched as IPv4, so an IPv4 ban also blocks dual-stack
   requests. Rate limits key IPv6 clients by their /64 network. Banned or
-  unverifiable requests now get a formatted 403 with `error.details.code`
-  `IP_ADDRESS_BLOCKED` or `IP_BAN_CHECK_UNAVAILABLE` (was a generic
+  unverifiable requests now get a formatted 403 `PolicyError` with
+  `error.details.code` `IP_ADDRESS_BLOCKED` or `IP_BAN_CHECK_UNAVAILABLE` (was a generic
   "Policy Failed").
 * **IPv6 bans cover the /64.** Bans now match with the same granularity as
   the rate limits: IPv4 exactly, IPv6 per /64 network. Banning one IPv6
@@ -195,6 +196,14 @@ short version is the upgrade guide.
   `details` (`key: 'settings.security.forbidden'`, `fields`). Strapi replaced
   the previous `ForbiddenError` with a bare "Forbidden" and dropped the
   details, so the admin could not say what was refused.
+* The IP-ban policy (`IP_ADDRESS_BLOCKED`) and `POST /magic-link/tokens`
+  without `tokens.issue` (`tokens.issue.forbidden`) now throw a
+  `PolicyError` (403) as well. Strapi 5.61's authorize middleware wraps the
+  policies and the controller, so the previous `ForbiddenError` reached
+  clients as a bare "Forbidden" with empty `details` (seen on a 5.61 host:
+  a banned IP got `{"name":"ForbiddenError","message":"Forbidden","details":{}}`).
+  Clients that read `error.details.code` or `error.details.key` now get it;
+  `error.name` is `PolicyError`.
 
 ### BREAKING CHANGES (login core)
 
@@ -420,7 +429,7 @@ short version is the upgrade guide.
   "Failed to send OTP code".
 * **OTP codes:** the `sms` type and the `phoneNumber` attribute were removed
   from `otp-code`. The admin list (`GET /magic-link/otp/codes`) validates its
-  query (`page`, `pageSize` up to 100, `email`, `type`), paginates on the
+  query (`page`, `pageSize` up to 1000, `email`, `type`, `status`), paginates on the
   server, returns `pagination.truncated` and no longer returns code hashes
   or token bindings.
 

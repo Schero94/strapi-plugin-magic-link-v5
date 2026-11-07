@@ -170,7 +170,9 @@ module.exports = {
     const sendEmail = body.send_email !== false;
 
     if (!sendEmail && !can(ctx, ISSUE_ACTION)) {
-      throw new errors.ForbiddenError(
+      // PolicyError, not ForbiddenError: Strapi's authorize middleware answers
+      // any other ForbiddenError with a bare "Forbidden" and drops `details`.
+      throw new errors.PolicyError(
         'Returning a login link without e-mail requires the "Issue login links" permission',
         {
           key: 'tokens.issue.forbidden',

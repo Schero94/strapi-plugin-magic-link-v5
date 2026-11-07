@@ -377,7 +377,7 @@ In the default `legacy-support` mode the JWT lifetime comes from the plugin sett
 
 ## Public API
 
-All routes are under `/api/magic-link` (or your `api.rest.prefix`). Every response of these routes sends `Cache-Control: no-store` and `Referrer-Policy: no-referrer`. Unknown body fields are rejected with 400.
+All routes are under `/api/magic-link` (or your `api.rest.prefix`). Every answer from these route handlers sends `Cache-Control: no-store` and `Referrer-Policy: no-referrer` (a request refused by the IP-ban check is answered before the handler runs). Unknown body fields are rejected with 400.
 
 | Method | Path                   | Auth              | Body                                                       | Success response                                                                 |
 | ------ | ---------------------- | ----------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -473,7 +473,7 @@ Most errors use the Strapi error envelope with a stable `key`:
 Some answers do not carry a `key`. Handle them by status:
 
 - **Body validation** (unknown field, bad e-mail, removed `phoneNumber`/`phone`/`via`/non-e-mail `delivery`): `400 ValidationError` with a message such as `Invalid request body at 'email': ...`.
-- **IP bans**: `403 ForbiddenError` with `details.code: "IP_ADDRESS_BLOCKED"`. When the ban list cannot be read: `403 PolicyError` with `details.code: "IP_BAN_CHECK_UNAVAILABLE"`.
+- **IP bans**: `403 PolicyError` with `details.code: "IP_ADDRESS_BLOCKED"`, or `details.code: "IP_BAN_CHECK_UNAVAILABLE"` when the ban list cannot be read.
 - **`/otp/send`, `/otp/resend`, `/otp/verify`**: plain Strapi errors.
   - A wrong or expired code answers `400` "Invalid or expired verification code".
   - Limits answer `429` with a "try again in N seconds" message and a `Retry-After` header.
@@ -520,6 +520,8 @@ Admin routes live under `/magic-link` on the Strapi server (not under `/api`). T
 
 A missing permission answers `403`; a missing or expired admin token answers `401`.
 
+`reset-data` also deletes every login token, the JWT session list and all IP bans. Active JWT revocations are kept. Without the session list, refresh-mode sessions can no longer be revoked from the admin panel.
+
 #### Example: create and e-mail a link
 
 ```bash
@@ -541,7 +543,7 @@ curl -X POST http://localhost:1337/magic-link/tokens \
 }
 ```
 
-- With `send_email: false` the link is not mailed. The response then also carries `token` and `loginUrl`, once, which lets the admin log in as that user. That needs the separate `tokens.issue` permission (otherwise `403` with `details.key: "tokens.issue.forbidden"`).
+- With `send_email: false` the link is not mailed. The response then also carries `token` and `loginUrl`, once, which lets the admin log in as that user. That needs the separate `tokens.issue` permission (otherwise `403 PolicyError` with `details.key: "tokens.issue.forbidden"`).
 - An unknown address gets an account only when `createUserIfNotExists` is on; otherwise `400`. A blocked user answers `400`.
 - Creation is limited to 60 per admin per 15 minutes (`429` with `details.retryAfter`).
 - If the e-mail cannot be sent, the token is deactivated and the answer is `503`.
@@ -699,7 +701,7 @@ Templates from 5.x that use `<%= URL %>?loginToken=<%= CODE %>` are converted to
 What is protected, and how:
 
 - **Login links**
-  - Tokens have 132 or more bits of entropy and are stored salted and hashed, never in clear.
+  - Tokens have 132 or more bits of entropy and are stored as salted hashes. Only an 8-character lookup prefix is kept in clear.
   - A single-use link is consumed with a conditional update, so parallel clicks yield exactly one session.
   - Links expire after `expire_period`.
 - **No account discovery.** `send-link` answers before any lookup or delivery: identical body, identical timing. `/login-totp` gives one answer for unknown accounts, missing authenticators and wrong codes.
