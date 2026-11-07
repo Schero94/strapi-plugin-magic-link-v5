@@ -47,6 +47,7 @@ export const MagicLinksPanel = ({
 
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
+  const [delivery, setDelivery] = useState('all');
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState({ sortBy: 'createdAt', sortOrder: 'desc' });
@@ -76,8 +77,8 @@ export const MagicLinksPanel = ({
 
   const stats = useMemo(() => computeTokenStats(tokens), [tokens]);
   const filtered = useMemo(
-    () => filterAndSortTokens(tokens, { search, status, ...sort }),
-    [tokens, search, status, sort]
+    () => filterAndSortTokens(tokens, { search, status, delivery, ...sort }),
+    [tokens, search, status, delivery, sort]
   );
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = clampPage(page, pageCount);
@@ -314,7 +315,7 @@ export const MagicLinksPanel = ({
     }
   })();
 
-  const hasFilters = search.trim() !== '' || status !== 'all';
+  const hasFilters = search.trim() !== '' || status !== 'all' || delivery !== 'all';
 
   return (
     <>
@@ -329,6 +330,11 @@ export const MagicLinksPanel = ({
         status={status}
         onStatusChange={(value) => {
           setStatus(value);
+          resetView();
+        }}
+        delivery={delivery}
+        onDeliveryChange={(value) => {
+          setDelivery(value);
           resetView();
         }}
         pageSize={pageSize}
@@ -378,6 +384,7 @@ export const MagicLinksPanel = ({
         onResetFilters={() => {
           setSearch('');
           setStatus('all');
+          setDelivery('all');
           resetView();
         }}
         canManage={canManage}

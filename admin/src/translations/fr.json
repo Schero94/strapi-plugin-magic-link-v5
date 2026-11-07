@@ -666,5 +666,18 @@
   "magic-link.settings.save.securityForbidden": "Modifier les cibles des liens, les modèles, l'expéditeur ou les règles de compte, MFA, codes ou limites de requêtes nécessite l'autorisation « Paramètres : Sécurité ».",
   "magic-link.settings.save.linkOriginNotAllowed": "Les URL des liens de connexion doivent utiliser une origine autorisée dans la configuration du serveur.",
   "magic-link.settings.validation.mfaNoEnrolled": "Aucun utilisateur n'a encore d'application d'authentification, « Tous les utilisateurs » ne peut donc pas être enregistré.",
-  "magic-link.settings.save.mfaNoEnrolled": "Aucun utilisateur n'a encore d'application d'authentification. Choisissez d'abord « Utilisateurs ayant configuré une application » pour qu'ils puissent en configurer une, puis exigez-la de tous."
+  "magic-link.settings.save.mfaNoEnrolled": "Aucun utilisateur n'a encore d'application d'authentification. Choisissez d'abord « Utilisateurs ayant configuré une application » pour qu'ils puissent en configurer une, puis exigez-la de tous.",
+  "magic-link.tokens.delivery.channel.email": "Plugin e-mail de Strapi",
+  "magic-link.tokens.delivery.channel.emailDesigner": "Email Designer",
+  "magic-link.tokens.delivery.channel.magicMail": "Magic Mail",
+  "magic-link.tokens.delivery.failed": "Échec",
+  "magic-link.tokens.delivery.reason": "Motif : {reason}",
+  "magic-link.tokens.delivery.rejected": "Refusé",
+  "magic-link.tokens.delivery.sent": "Envoyé",
+  "magic-link.tokens.delivery.unknown": "Inconnu",
+  "magic-link.tokens.delivery.unknownHint": "Émis sans e-mail ou avant le suivi de l'envoi.",
+  "magic-link.tokens.details.delivery": "Envoi",
+  "magic-link.tokens.filter.allDeliveries": "Tous les envois",
+  "magic-link.tokens.filter.delivery": "Filtrer par envoi",
+  "magic-link.tokens.table.delivery": "Envoi"
 }

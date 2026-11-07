@@ -25,6 +25,7 @@ Passwordless login for Strapi 5. Your users type their e-mail address, click the
 - [Permissions](#permissions)
 - [Configuration reference](#configuration-reference)
 - [E-mail templates](#e-mail-templates)
+- [Delivery status](#delivery-status)
 - [Security model](#security-model)
 - [Running behind a proxy or in a cluster](#running-behind-a-proxy-or-in-a-cluster)
 - [Migrating from strapi-plugin-passwordless](#migrating-from-strapi-plugin-passwordless)
@@ -698,7 +699,20 @@ Subject, HTML and text bodies use `{{PLACEHOLDER}}` syntax. Values are HTML-esca
 
 Templates from 5.x that use `<%= URL %>?loginToken=<%= CODE %>` are converted to `{{LOGIN_URL}}` at startup. Any other `<% ... %>` block is printed as plain text.
 
-**Magic Mail and Email Designer 5** receive these variables: `magicLink`, `loginUrl`, `url`, `code`, `token`, `email`, `expiryText`, `expiresAt`, `user.email`, `user.username`. Choose the template in **Settings > E-mail**. Magic Mail sends login mails as `transactional` without open or link tracking. If the provider fails, the plugin falls back to the Strapi e-mail plugin.
+**Magic Mail and Email Designer 5** receive these variables: `magicLink`, `loginUrl`, `url`, `code`, `token`, `email`, `expiryText`, `expiresAt`, `user.email`, `user.username`. Choose the template in **Settings > E-mail**. Magic Mail sends login mails as `transactional` without open or link tracking. When Magic Mail proves it sent nothing (no account, quota used up, account misconfigured), the plugin falls back to the Strapi e-mail plugin; after any other Magic Mail error it does not retry, so no second valid link goes out.
+
+## Delivery status
+
+Each token sent by e-mail shows whether the provider took the message. You see it as a badge under the reference in **Tokens**, can filter by it, and find the details in the token dialog.
+
+| Status   | Meaning                                                                                     |
+| -------- | ------------------------------------------------------------------------------------------- |
+| Sent     | The provider accepted the message. This is not proof that it reached the inbox.             |
+| Rejected | The address or message was refused before acceptance (SMTP 5xx, HTTP 400/422, bad address). |
+| Failed   | Connection, credentials, timeout or another provider error. Nothing was accepted.           |
+| Unknown  | Issued without e-mail, or created before delivery tracking.                                 |
+
+It works with or without Magic Mail. Only a reason code such as `SMTP_550` or `ECONNECTION` is stored, never the provider's error text. The admin token API returns `delivery_status`, `delivery_channel`, `delivery_reason` and `delivery_updated_at`. Login e-mails have no open or click tracking.
 
 ## Security model
 

@@ -5,8 +5,14 @@ import { useFormatters } from '../../../hooks/useFormatters';
 import { useMagicLinkIntl } from '../../../hooks/useMagicLinkIntl';
 import { useReturnFocus } from '../../../hooks/useReturnFocus';
 import { accent, brand } from '../../../utils/theme';
-import { getTokenActions, getTokenReference, isPast, toUserContext } from '../tokenModel';
-import { TokenStatusBadge } from './TokenStatus';
+import {
+  getDeliveryState,
+  getTokenActions,
+  getTokenReference,
+  isPast,
+  toUserContext,
+} from '../tokenModel';
+import { DeliveryStatusBadge, TokenStatusBadge } from './TokenStatus';
 import {
   CodeBlock,
   ExpiryValue,
@@ -58,6 +64,13 @@ export const TokenDetailsModal = ({
   const context = token.context && typeof token.context === 'object' ? token.context : {};
   const hasContext = Object.keys(context).length > 0;
   const showLastUsed = token.last_used_at && token.last_used_at !== token.used_at;
+  const deliveryState = getDeliveryState(token);
+  const deliveryChannel =
+    {
+      'magic-mail': t('tokens.delivery.channel.magicMail', 'Magic Mail'),
+      'email-designer': t('tokens.delivery.channel.emailDesigner', 'Email Designer'),
+      email: t('tokens.delivery.channel.email', 'Strapi e-mail plugin'),
+    }[token.delivery_channel] ?? null;
 
   return (
     <Modal.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -88,6 +101,44 @@ export const TokenDetailsModal = ({
                 <dt>{t('tokens.details.status', 'Status')}</dt>
                 <dd>
                   <TokenStatusBadge state={state} />
+                </dd>
+              </div>
+              <div>
+                <dt>{t('tokens.details.delivery', 'Delivery')}</dt>
+                <dd>
+                  <Flex
+                    direction="column"
+                    alignItems="flex-end"
+                    gap={1}
+                    tag="span"
+                    style={{ textAlign: 'right' }}
+                  >
+                    <DeliveryStatusBadge state={deliveryState} />
+                    {deliveryState === 'unknown' ? (
+                      <Typography variant="pi" textColor="neutral600">
+                        {t(
+                          'tokens.delivery.unknownHint',
+                          'Issued without e-mail or before delivery tracking.'
+                        )}
+                      </Typography>
+                    ) : (
+                      <Typography variant="pi" textColor="neutral600">
+                        {[
+                          deliveryChannel,
+                          token.delivery_reason
+                            ? t('tokens.delivery.reason', 'Reason: {reason}', {
+                                reason: token.delivery_reason,
+                              })
+                            : null,
+                          token.delivery_updated_at
+                            ? formatDateTime(token.delivery_updated_at)
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </Typography>
+                    )}
+                  </Flex>
                 </dd>
               </div>
               <div>

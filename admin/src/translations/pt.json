@@ -666,5 +666,18 @@
   "magic-link.settings.save.securityForbidden": "Alterar destinos de links, modelos, remetente ou regras de conta, MFA, códigos ou limites de pedidos exige a permissão \"Configurações: Segurança\".",
   "magic-link.settings.save.linkOriginNotAllowed": "As URLs dos links de login devem usar uma origem permitida na configuração do servidor.",
   "magic-link.settings.validation.mfaNoEnrolled": "Nenhum usuário configurou ainda um aplicativo de autenticação, por isso \"Todos os usuários\" não pode ser salvo.",
-  "magic-link.settings.save.mfaNoEnrolled": "Nenhum usuário configurou ainda um aplicativo de autenticação. Escolha primeiro \"Usuários que configuraram um aplicativo\" para que possam configurá-lo e depois exija-o de todos."
+  "magic-link.settings.save.mfaNoEnrolled": "Nenhum usuário configurou ainda um aplicativo de autenticação. Escolha primeiro \"Usuários que configuraram um aplicativo\" para que possam configurá-lo e depois exija-o de todos.",
+  "magic-link.tokens.delivery.channel.email": "Plugin de e-mail do Strapi",
+  "magic-link.tokens.delivery.channel.emailDesigner": "Email Designer",
+  "magic-link.tokens.delivery.channel.magicMail": "Magic Mail",
+  "magic-link.tokens.delivery.failed": "Falhou",
+  "magic-link.tokens.delivery.reason": "Motivo: {reason}",
+  "magic-link.tokens.delivery.rejected": "Rejeitado",
+  "magic-link.tokens.delivery.sent": "Enviado",
+  "magic-link.tokens.delivery.unknown": "Desconhecido",
+  "magic-link.tokens.delivery.unknownHint": "Emitido sem e-mail ou antes do registo de entrega.",
+  "magic-link.tokens.details.delivery": "Entrega",
+  "magic-link.tokens.filter.allDeliveries": "Todas as entregas",
+  "magic-link.tokens.filter.delivery": "Filtrar por entrega",
+  "magic-link.tokens.table.delivery": "Entrega"
 }

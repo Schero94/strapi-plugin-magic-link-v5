@@ -466,6 +466,29 @@ short version is the upgrade guide.
   404 when nothing was deleted; the new `GET /magic-link/totp/enrollment-summary`
   (Settings read) returns the number of enrolled end users.
 
+### Delivery status for login e-mails
+
+* Every login link sent by e-mail now records whether the provider accepted
+  it. The status is stored on the token: **sent** (accepted by the provider),
+  **rejected** (the address or message was refused before acceptance, such
+  as an SMTP 5xx reply, an HTTP 400/422 or an invalid recipient) or
+  **failed** (connection, credentials, timeout or another provider error).
+  It works with every send path, with or without Magic Mail: Magic Mail,
+  Email Designer 5 and the Strapi e-mail plugin.
+* Only a short reason code is stored, such as `SMTP_550`, `HTTP_400` or
+  `ECONNECTION`, plus the send path and the time. Error messages, addresses,
+  links and provider responses are never stored. The provider message id is
+  kept server-side (private attribute) for bounce matching in a later
+  release.
+* The admin token list (`GET /magic-link/tokens`) returns `delivery_status`,
+  `delivery_channel`, `delivery_reason` and `delivery_updated_at`. The token
+  content type has five new optional attributes; existing rows show
+  "Unknown". No migration is needed.
+* Tokens view: a delivery badge under the reference, a "Delivery" filter and
+  the reason and send path in the token details.
+* "Sent" means the provider accepted the message, not that it reached the
+  inbox. Login e-mails still carry no open or click tracking.
+
 ### Admin panel
 
 * The Tokens, OTP codes, JWT sessions, IP bans, Settings and License pages

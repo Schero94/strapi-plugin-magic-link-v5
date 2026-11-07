@@ -25,6 +25,7 @@ import {
   Check,
   Clock,
   Eye,
+  PaperPlane,
   Plus,
   Trash,
   User,
@@ -35,13 +36,14 @@ import { useFormatters } from '../../../hooks/useFormatters';
 import { accent } from '../../../utils/theme';
 import {
   activateOnEnterOrSpace,
+  getDeliveryState,
   getPaginationItems,
   getTokenActions,
   getTokenKey,
   getTokenReference,
   isPast,
 } from '../tokenModel';
-import { TokenStatusBadge } from './TokenStatus';
+import { DeliveryStatusBadge, TokenStatusBadge } from './TokenStatus';
 import {
   ActionSlot,
   Avatar,
@@ -207,6 +209,7 @@ export const TokensTable = ({
     email: t('tokens.table.email', 'Email'),
     reference: t('tokens.table.reference', 'Reference'),
     status: t('tokens.table.status', 'Status'),
+    delivery: t('tokens.table.delivery', 'Delivery'),
     created: t('tokens.table.created', 'Created'),
     expiresAt: t('tokens.table.expiresAt', 'Valid until'),
     actions: t('tokens.table.actions', 'Actions'),
@@ -277,6 +280,16 @@ export const TokensTable = ({
                   <CellLabel>{labels.reference}</CellLabel>
                   <Flex direction="column" alignItems="flex-start" gap={1}>
                     <ReferenceChip>#{getTokenReference(token)}</ReferenceChip>
+                    {/* Login e-mail delivery is metadata of the token, like the
+                        "Used" and IP lines: an eighth column or a second badge
+                        in the status column would widen the 1024-1440px table. */}
+                    <Flex alignItems="center" gap={1} title={labels.delivery}>
+                      <MetaIcon aria-hidden="true">
+                        <PaperPlane focusable="false" />
+                      </MetaIcon>
+                      <VisuallyHidden>{labels.delivery}:</VisuallyHidden>
+                      <DeliveryStatusBadge state={getDeliveryState(token)} />
+                    </Flex>
                     {token.is_used && token.used_at ? (
                       <Flex alignItems="center" gap={1}>
                         <MetaIcon $accent={accent.success} aria-hidden="true">
