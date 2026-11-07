@@ -1,18 +1,12 @@
-import React from 'react';
-
 /**
- * LicenseGuard — formerly a full-screen activation modal that blocked
- * children until the admin had registered a license key.
+ * LicenseGuard used to be a full-screen activation modal that blocked its
+ * children until a license key was registered.
  *
- * In the marketplace build the guard is intentionally a pass-through:
- * the plugin is fully usable without any activation, so blocking the
- * Settings/Tokens pages behind a key would be a paywall, which is not
- * what we ship. License-key activation lives entirely on the dedicated
- * "License" settings page now.
+ * The plugin is fully usable without activation, so the guard is a
+ * pass-through. License-key handling lives on the License settings page.
+ * The export stays so the page wrappers keep their import.
  *
- * The component is kept as a stable export so existing imports in
- * `pages/Settings/index.jsx` and `pages/Tokens/index.jsx` keep working
- * without each consumer having to be touched.
+ * @param {{children?: import('react').ReactNode}} props
  */
 const LicenseGuard = ({ children }) => <>{children}</>;
 

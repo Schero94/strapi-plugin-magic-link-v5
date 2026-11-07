@@ -1,17 +1,12 @@
-import { PLUGIN_ID } from '../pluginId';
+import { getTranslation } from './getTranslation';
 
 /**
- * Fügt das Plugin-Präfix zum Übersetzungsschlüssel hinzu
- * @param {string} id - Übersetzungsschlüssel
- * @returns {string} - Vollständiger Übersetzungsschlüssel mit Plugin-Präfix
+ * @deprecated Use `getTranslation` from './getTranslation', or the `t` helper
+ * from `useMagicLinkIntl()`, which also passes the English defaultMessage.
+ *
+ * @param {string} id - translation key with or without the plugin prefix
+ * @returns {string} prefixed message id
  */
-const getTrad = (id) => {
-  // Wenn der Schlüssel bereits das Plugin-Präfix enthält, füge es nicht nochmal hinzu
-  if (id.startsWith(`${PLUGIN_ID}.`)) {
-    return id;
-  }
-  
-  return `${PLUGIN_ID}.${id}`;
-};
+const getTrad = (id) => getTranslation(id);
 
-export default getTrad; 
+export default getTrad;
