@@ -81,8 +81,8 @@
     },
     "delivery_status": {
       "type": "enumeration",
-      "enum": ["sent", "rejected", "failed", "bounced", "complained"],
-      "description": "Login e-mail outcome: sent (provider accepted), rejected (refused before acceptance), failed, then bounced or complained when provider feedback arrives. Empty for tokens created without e-mail or before 6.x delivery tracking."
+      "enum": ["sent", "rejected", "failed", "queued", "bounced", "complained"],
+      "description": "Login e-mail outcome: sent (provider accepted), rejected (refused before acceptance), failed, queued (Magic Mail 4.4 outbox holds it, not yet accepted), then bounced or complained when provider feedback arrives. Empty for tokens created without e-mail or before 6.x delivery tracking."
     },
     "delivery_channel": {
       "type": "enumeration",

@@ -28,6 +28,10 @@ const {
   getMagicMailRouter,
   isMagicMailPreSendFailure,
   describeMagicMailError,
+  buildMagicMailSendOptions,
+  sendViaMagicMail,
+  isMagicMailQueuedResult,
+  isMagicMailUncertain,
 } = require('../utils/magic-mail-delivery');
 const {
   classifyDeliveryError,
@@ -628,8 +632,10 @@ module.exports = ({ strapi }) => {
     /**
      * Sends the login e-mail through Magic Mail, Email Designer 5 or the
      * Strapi e-mail plugin (in that order of preference) and records the
-     * outcome on the token (sent, rejected or failed, see
+     * outcome on the token (sent, rejected, failed or queued, see
      * utils/delivery-status.js). Errors are re-thrown after recording.
+     * `queued` means Magic Mail 4.4 captured the mail in its outbox and will
+     * retry it until the token expires; no other provider sends it.
      *
      * @param {object} token - Token record with `_plaintextToken`.
      * @param {{username?: string}} [options] - Recipient details.
@@ -644,6 +650,10 @@ module.exports = ({ strapi }) => {
         const { status, reason } = classifyDeliveryError(error);
         await this.recordDelivery(token, { status, reason, channel: attempt.channel });
         throw error;
+      }
+      if (attempt.channel === 'magic-mail' && isMagicMailQueuedResult(result)) {
+        await this.recordDelivery(token, { status: 'queued', channel: attempt.channel });
+        return token;
       }
       await this.recordDelivery(token, {
         status: 'sent',
@@ -739,29 +749,54 @@ module.exports = ({ strapi }) => {
             }
           }
 
-          const sent = await magicMailRouter.send({
-            to: token.email,
-            from,
-            replyTo,
-            subject,
-            text,
-            html,
-            headers,
-            // Authentication mail: transactional routing, and neither an
-            // open-tracking pixel nor rewritten (tracked) login links.
-            type: 'transactional',
-            enableTracking: false,
-            skipLinkTracking: true,
-            links: [{ original: loginUrl, label: 'Magic Link Login', track: false }],
-            templateId: templateReferenceId || numericTemplateId,
-            templateReferenceId,
-            templateData: templatePayload,
-            data: templatePayload,
+          // Magic Mail 4.4 outbox: a captured mail never goes out after the
+          // token expired and is stored once per token (no queue: true).
+          const sendOptions = buildMagicMailSendOptions(strapi, {
+            purpose: 'login-link',
+            id: token.documentId ?? token.id,
+            expiresAt: token.expires_at,
           });
-          strapi.log.debug('[magic-link] Login e-mail sent via Magic Mail');
+          const sent = await sendViaMagicMail(
+            magicMailRouter,
+            {
+              to: token.email,
+              from,
+              replyTo,
+              subject,
+              text,
+              html,
+              headers,
+              // Authentication mail: transactional routing, and neither an
+              // open-tracking pixel nor rewritten (tracked) login links.
+              type: 'transactional',
+              enableTracking: false,
+              skipLinkTracking: true,
+              links: [{ original: loginUrl, label: 'Magic Link Login', track: false }],
+              templateId: templateReferenceId || numericTemplateId,
+              templateReferenceId,
+              templateData: templatePayload,
+              data: templatePayload,
+            },
+            sendOptions
+          );
+          if (isMagicMailQueuedResult(sent)) {
+            // Not accepted yet; Magic Mail owns the retry. Another provider
+            // would deliver a second, still valid login link.
+            strapi.log.warn(
+              '[magic-link] Magic Mail queued the login e-mail for a retry; not using another provider'
+            );
+          } else {
+            strapi.log.debug('[magic-link] Login e-mail sent via Magic Mail');
+          }
           return sent;
         } catch (error) {
           const reason = describeMagicMailError(error);
+          if (isMagicMailUncertain(error)) {
+            strapi.log.error(
+              `[magic-link] Magic Mail recorded the login e-mail as uncertain in its outbox (${reason}); not retrying with another provider`
+            );
+            throw error;
+          }
           if (!isMagicMailPreSendFailure(error)) {
             // The provider may already have accepted the message: another
             // provider could deliver a second, still valid login link.

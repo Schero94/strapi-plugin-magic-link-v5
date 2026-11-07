@@ -20,7 +20,9 @@ export const PAGE_SIZES = Object.freeze([10, 25, 50, 100]);
 /**
  * Login e-mail outcome per token (server/src/utils/delivery-status.js).
  * `bounced` and `complained` arrive later from provider feedback
- * (server/src/services/delivery-feedback.js). `unknown` covers tokens issued
+ * (server/src/services/delivery-feedback.js). `queued` means Magic Mail 4.4
+ * holds the mail in its outbox and has not handed it to a provider yet.
+ * `unknown` covers tokens issued
  * without e-mail and rows from before 6.x delivery tracking (delivery_status
  * is empty).
  */
@@ -28,6 +30,7 @@ export const DELIVERY_STATES = Object.freeze([
   'sent',
   'rejected',
   'failed',
+  'queued',
   'bounced',
   'complained',
   'unknown',
@@ -102,7 +105,7 @@ export const normalizeToken = (token = {}) => {
 
 /**
  * @param {object} token
- * @returns {'sent'|'rejected'|'failed'|'bounced'|'complained'|'unknown'}
+ * @returns {'sent'|'rejected'|'failed'|'queued'|'bounced'|'complained'|'unknown'}
  */
 export const getDeliveryState = (token) => {
   const status = token?.delivery_status;

@@ -239,6 +239,8 @@ module.exports = {
 
       try {
         await otpService.sendOTPEmail(email, otpEntry.code, {
+          otpId: otpEntry.id,
+          expiresAt: otpEntry.expiresAt,
           locale: i18n.getLocaleFromContext(ctx),
           expiryMinutes: minutesOf(otpSettings.expiry),
         });
@@ -414,6 +416,8 @@ module.exports = {
 
       try {
         await otpService.sendOTPEmail(email, otpEntry.code, {
+          otpId: otpEntry.id,
+          expiresAt: otpEntry.expiresAt,
           locale: i18n.getLocaleFromContext(ctx),
           expiryMinutes: minutesOf(otpSettings.expiry),
         });

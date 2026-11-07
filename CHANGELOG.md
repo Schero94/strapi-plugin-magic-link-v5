@@ -1,3 +1,22 @@
+## [Unreleased]
+
+Next release: **7.1.0** (minor). Login links and OTP codes work with the Magic Mail 4.4 outbox: a captured login mail is never sent after the link or code expired, never stored twice, and never sent a second time by another provider.
+
+### Added
+
+- Delivery status **Queued** (`delivery_status: "queued"`): Magic Mail 4.4 captured the login e-mail in its outbox (owner setting _Queue failed sends_) and has not handed it to a provider yet. New badge and filter option in **Tokens**, translated into en, de, fr, es and pt. The token content type gets the additional enum value; the column is a string, so no data migration is needed and existing rows keep their status.
+
+### Fixed
+
+- Login links and OTP codes sent through Magic Mail 4.4 pass `notAfter` set to the token or code expiry and a stable idempotency key (SHA-256 of the token `documentId` or the OTP row id, scoped `magic-link`, never derived from the token or code). Before, with _Queue failed sends_ on, a captured login mail could be retried for up to 24 hours (Magic Mail's default `queue.maxAgeHours`), long after the link expired. Magic Link never sends with `queue: true`; a token or code without a future expiry is sent with `queue: false`.
+- A queued result from Magic Mail is recorded as `queued` and no longer counts as `sent`, and Magic Link does not fall back to Email Designer or the Strapi e-mail plugin (that would deliver a second valid link).
+- A Magic Mail error that carries `magicMailOutboxId` (the outcome is uncertain, the provider may have accepted the mail) never falls back and is recorded as `failed` with the reason `MAGIC_MAIL_UNCERTAIN`.
+- Magic Mail before 4.4 (no `queue` service) is detected and called exactly as before, with one argument.
+
+### Migration
+
+- Nothing to do. Custom code that reads `delivery_status` should accept the new value `queued`. A queued token keeps **Queued** after Magic Mail delivers or drops the mail; Magic Mail's outbox shows the final outcome.
+
 # [7.0.0](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v6.2.1...v7.0.0) (2026-11-07)
 
 
@@ -16,7 +35,7 @@ Drop calls to them; see the README section "Upgrading from 6.x to 7.0.0".
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
-## [Unreleased]
+## 7.0.0 details (written before the release)
 
 Next release: **7.0.0** (major). The optional registration key of 6.x is gone, together with its admin page, its two admin routes, its service and every call to the old key server. Magic links, e-mail OTP, TOTP and backup codes, sessions, `context` and delivery status work as before.
 

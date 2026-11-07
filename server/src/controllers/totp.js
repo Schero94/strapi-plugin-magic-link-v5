@@ -290,6 +290,8 @@ module.exports = {
     });
     try {
       await otpService.sendOTPEmail(user.email, entry.code, {
+        otpId: entry.id,
+        expiresAt: entry.expiresAt,
         locale: i18n.getLocaleFromContext(ctx),
         purpose: 'setup',
         expiryMinutes: EMAIL_CODE_TTL_SECONDS / 60,

@@ -11,6 +11,8 @@
  * | sent     | the provider accepted the message (not proof of inbox delivery) |
  * | rejected | the message or recipient was refused before acceptance       |
  * | failed   | transport, credential or provider error; nothing was accepted |
+ * |          | (reason MAGIC_MAIL_UNCERTAIN: the provider may have accepted it) |
+ * | queued   | Magic Mail 4.4 captured it in its outbox; not yet accepted    |
  *
  * Error shapes this relies on (installed versions, checked 2026-11-07):
  * - nodemailer 10.3.1 (`dist/cjs/errors.d.ts`, `smtp-connection`): `code`
@@ -24,7 +26,7 @@
  * contain the address, the login link or provider response bodies.
  */
 
-const DELIVERY_STATUSES = Object.freeze(['sent', 'rejected', 'failed']);
+const DELIVERY_STATUSES = Object.freeze(['sent', 'rejected', 'failed', 'queued']);
 /** Set later by provider feedback (stage 2, services/delivery-feedback.js). */
 const FEEDBACK_STATUSES = Object.freeze(['bounced', 'complained']);
 const DELIVERY_CHANNELS = Object.freeze(['magic-mail', 'email-designer', 'email']);
@@ -69,6 +71,10 @@ const httpStatusOf = (error) => {
  */
 const classifyDeliveryError = (error) => {
   if (!error || typeof error !== 'object') return { status: 'failed', reason: 'UNKNOWN' };
+  // Magic Mail 4.4 recorded an ambiguous outcome as uncertain in its outbox.
+  if (typeof error.magicMailOutboxId === 'string' && error.magicMailOutboxId) {
+    return { status: 'failed', reason: 'MAGIC_MAIL_UNCERTAIN' };
+  }
 
   const code =
     typeof error.code === 'string' && /^[A-Z0-9_]{1,64}$/.test(error.code) ? error.code : null;
