@@ -28,6 +28,7 @@ Passwordless login for Strapi 5. Your users type their e-mail address, click the
 - [Delivery status](#delivery-status)
 - [Security model](#security-model)
 - [Running behind a proxy or in a cluster](#running-behind-a-proxy-or-in-a-cluster)
+- [Running several instances (Railway replicas, pm2 cluster)](#running-several-instances-railway-replicas-pm2-cluster)
 - [Migrating from strapi-plugin-passwordless](#migrating-from-strapi-plugin-passwordless)
 - [Troubleshooting](#troubleshooting)
 - [Upgrading from 5.x to 6.0.0](#upgrading-from-5x-to-600)
@@ -640,8 +641,11 @@ Stored in the plugin store and edited in **Settings > Magic Link > Settings**. U
 module.exports = ({ env }) => ({
   'magic-link': {
     config: {
-      // Shared rate limits for several Strapi instances (rate-limiter-flexible Redis store).
+      // Rate limits are stored in the Strapi database by default and shared by
+      // all instances. Optional: Redis as the fast path (the database stays
+      // its fallback), or 'memory' for a single process only.
       rateLimit: { redis: { storeClient: redisClient, useRedisPackage: true } },
+      // rateLimit: { store: 'memory' },
       // Disable all calls to the license server.
       license: { remoteLookup: false },
       // Optional: login links may only point at these origins. A changed
@@ -808,12 +812,85 @@ Without `maxIpsCount`, clients can spoof `X-Forwarded-For`. The plugin logs a wa
 
 **IP bans** match like the rate limits: IPv4 (and IPv4-mapped IPv6) exactly, IPv6 per /64 network. Banning one IPv6 address bans its whole /64, and unbanning any address of that /64 removes the ban.
 
-**Several instances:**
+**Several instances:** see the next section.
 
-- Limits are in memory by default. For shared limits, set `rateLimit.redis` in the plugin config.
-- The session list, the JWT blocklist and the ban list are stored in the plugin store. Writes are serialised within one process only, so concurrent writes from several instances can still overwrite each other (AUTH-14, not solved). In practice: two admins revoking sessions or banning IPs on different instances at the same moment can lose one of the two changes; repeat the action and check the list afterwards. Logins only append session records and are not affected by a lost revocation, but a lost revocation leaves that token valid.
-- Each instance caches the JWT blocklist for up to 2 seconds, so a revocation reaches other instances within that time.
-- Login tokens and OTP codes are single use across instances (conditional database updates).
+## Running several instances (Railway replicas, pm2 cluster)
+
+Magic Link works with any number of Strapi processes on **one shared database**, for example 2 Railway replicas with 4 pm2 cluster workers each (8 processes). Requests may land on any process; sticky sessions are not needed and Redis is optional. Every piece of shared state lives in the database, and every write that reads before it writes runs under a database lock.
+
+**1. One database for all processes.** Use PostgreSQL (recommended) or MySQL/MariaDB. SQLite works with several processes on the same machine and file (one writer at a time), but not across machines.
+
+**2. The same secrets in every process.** Strapi's own (`APP_KEYS`, `API_TOKEN_SALT`, `ADMIN_JWT_SECRET`, `JWT_SECRET`, `TRANSFER_TOKEN_SALT`, `ENCRYPTION_KEY`) and Magic Link's (`MAGIC_LINK_ENCRYPTION_KEY`, `MAGIC_LINK_OTP_PEPPER`). A process with a different `JWT_SECRET` rejects tokens issued by the others, and a different `MAGIC_LINK_ENCRYPTION_KEY` cannot read authenticator secrets.
+
+**3. The real client IP.** Behind Railway's edge proxy, set `proxy: { koa: true, maxIpsCount: 1 }` in `config/server.js` (see above).
+
+**4. Start the processes.**
+
+Railway: set the service's replica count to 2 in its scaling settings. Every replica runs the same start command.
+
+pm2 cluster mode, `ecosystem.config.js` in the Strapi project:
+
+```js
+module.exports = {
+  apps: [
+    {
+      name: 'strapi',
+      // Cluster mode needs a Node.js script, not `npm start`.
+      script: './node_modules/@strapi/strapi/bin/strapi.js',
+      args: 'start',
+      instances: 4, // or 'max'
+      exec_mode: 'cluster',
+      env: { NODE_ENV: 'production' },
+    },
+  ],
+};
+```
+
+Start it with `pm2 start ecosystem.config.js`. On Railway with pm2 inside each replica, add `pm2` to the project dependencies and use `pm2-runtime start ecosystem.config.js` as the start command (pm2-runtime keeps the container in the foreground); 2 replicas with `instances: 4` give 8 processes.
+
+**5. Plugin config.** Nothing is required. The defaults are shared through the database:
+
+```js
+// config/plugins.js
+module.exports = ({ env }) => ({
+  'magic-link': {
+    config: {
+      // Default: counters in the table magic_link_rate_limits of the Strapi
+      // database, shared by every process. Optional Redis fast path; the
+      // database limiter stays its fallback when Redis is down:
+      // rateLimit: { redis: { storeClient: redisClient, useRedisPackage: true } },
+    },
+  },
+});
+```
+
+Do not set `rateLimit: { store: 'memory' }` with several processes: each process would then count on its own, so every limit would be multiplied by the number of processes.
+
+**What is shared, and how**
+
+| State                                                    | Mechanism                                                                                                                                                                      |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Login links, e-mail OTP codes, TOTP replay, backup codes | Conditional database updates: a link or code is accepted exactly once across all processes.                                                                                    |
+| JWT blocklist, session list, IP bans, settings           | Plugin-store keys written under a cluster-wide lock: PostgreSQL `pg_advisory_xact_lock`, MySQL `GET_LOCK`, SQLite's write lock. No revocation, ban or settings change is lost. |
+| Rate limits, including the always-on second-factor limit | Database table `magic_link_rate_limits` (rate-limiter-flexible), or Redis with the database as fallback.                                                                       |
+| TOTP and backup-code guesses                             | Additionally counted on the enrolment row: 10 attempts without a success lock the factor for 15 minutes, whatever limiter backend is used.                                     |
+| New accounts from magic-link requests                    | Created under a lock, so one address never gets two accounts.                                                                                                                  |
+| Second-factor challenge start                            | Compare-and-set on the token, so parallel opens of one link send one e-mail code.                                                                                              |
+| Account claim (unconfirmed account)                      | Per-account lock; only the first login ends earlier sessions.                                                                                                                  |
+| Delivery webhooks                                        | Status changes are conditional updates; replay markers and the per-caller limit use the shared limiter store.                                                                  |
+| Cleanup jobs and startup migrations                      | Run by one process at a time (a lease in the plugin store, or the cluster lock).                                                                                               |
+
+**Short, documented windows**
+
+- Each process caches the JWT blocklist for 2 seconds: a revocation reaches the other processes within 2 seconds.
+- Each process re-reads the rate-limit settings every 5 seconds: changed limits and an admin "reset counters" reach the other processes within 5 seconds.
+- The block counters on the admin Security page are per process (`statsScope: 'process'`); the limits themselves are shared.
+- License lookups are cached per process for 10 minutes.
+- Delivery feedback through Magic Mail relies on Magic Mail emitting its event in the process that received the provider webhook (Strapi's event hub is per process). Every process subscribes, so this holds today.
+
+**Upgrading an existing multi-instance install:** the first start merges plugin-store rows that earlier releases could have duplicated (list keys are merged, other keys keep the oldest row) and creates the `magic_link_rate_limits` table. Rate-limit counters start empty once.
+
+The behaviour is tested with 8 processes against SQLite and PostgreSQL 16 (`npm run test:cluster`, see `tests/cluster/run.cjs`). MySQL uses the same code paths with `GET_LOCK` and `RateLimiterMySQL`; it is covered by unit tests, not by a live run.
 
 ## Migrating from strapi-plugin-passwordless
 
