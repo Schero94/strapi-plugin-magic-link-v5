@@ -3,8 +3,9 @@
 # - every action is pinned to a full commit SHA (Dependabot keeps them current);
 # - the workflow token is read-only by default; only the release job may write
 #   contents (tag, GitHub release, CHANGELOG commit) and request an OIDC token;
-# - npm publishes through trusted publishing (OIDC), so no npm token exists and
-#   provenance is attached automatically;
+# - npm auth: trusted publishing (OIDC) first; until a trusted publisher is set up
+#   on npmjs.com the exchange returns 404, so the NPM_TOKEN secret is the fallback
+#   (same setup as Magic Session Manager); provenance stays on;
 # - dependencies install without lifecycle scripts and without a cache.
 name: Release
 
@@ -60,5 +61,7 @@ jobs:
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: 'true'
         run: npx --no-install semantic-release
