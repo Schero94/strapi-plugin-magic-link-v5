@@ -1,3 +1,16 @@
+## [6.2.1](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v6.2.0...v6.2.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **sessions:** keep claim revocations final and read pending legacy session lists ([d66c2cb](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/d66c2cb1f99a1c07773c919fb8b434a156fa4b4f))
+
+
+### Performance Improvements
+
+* **sessions:** store one JWT session row per login instead of a locked list ([6147105](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/6147105e168915d1621be3f81be73384cd424e10))
+* **sessions:** store one JWT session row per login instead of a locked list ([#24](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/24)) ([27b8361](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/27b836193f3a23eaa3456fa7a5def5b8e249ccda))
+
 ## [Unreleased]
 
 Next release: **6.2.1** (patch). No breaking changes; the admin JWT Sessions view and its API keep their shape.
