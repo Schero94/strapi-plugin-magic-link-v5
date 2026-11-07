@@ -31,8 +31,8 @@ short version is the upgrade guide.
 
 * **Node.js 22 or newer** (`engines.node` is `>=22.0.0 <=26.x.x`, the range
   Strapi 5.61 declares). Node 18 and 20 are no longer supported.
-* **Strapi 5.24.0 or newer** (`@strapi/strapi` and `@strapi/utils` peers
-  `^5.24.0`). 5.24.0 is the first release with the users-permissions session
+* **Strapi 5.24.0 or newer** (`@strapi/strapi`, `@strapi/utils` and, new,
+  `@strapi/plugin-users-permissions` peers `^5.24.0`). 5.24.0 is the first release with the users-permissions session
   manager that refresh-mode logins use.
 * **E-mail only.** WhatsApp and SMS delivery are removed from the API, the
   settings, the admin panel, the translations and the documentation (details
