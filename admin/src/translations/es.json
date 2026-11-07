@@ -4,11 +4,11 @@
   "magic-link.Form.title.Settings": "Configuración",
   "magic-link.Form.title.License": "Licencia",
   "magic-link.Form.title.Upgrade": "Actualizar",
-  
+
   "magic-link.status.active": "ACTIVO",
   "magic-link.status.inactive": "INACTIVO",
-  
-  "magic-link.settings.page.title": "⚙️ Configuración de Magic Link",
+
+  "magic-link.settings.page.title": "Configuración de Magic Link",
   "magic-link.settings.page.subtitle": "Configure la autenticación sin contraseña para sus usuarios",
   "magic-link.settings.permission.readOnly": "Solo tienes permiso de lectura. No puedes guardar cambios.",
   "magic-link.settings.save.button": "Guardar cambios",
@@ -17,21 +17,21 @@
   "magic-link.settings.save.error": "Error al guardar la configuración",
   "magic-link.settings.load.loading": "Cargando configuración...",
   "magic-link.settings.load.error": "Error al cargar la configuración",
-  
-  "magic-link.settings.language.label": "🌐 Idioma de la interfaz",
+
+  "magic-link.settings.language.label": "Idioma de la interfaz",
   "magic-link.settings.language.hint": "Seleccione el idioma para la interfaz de administración",
   "magic-link.settings.language.en": "English",
   "magic-link.settings.language.de": "Deutsch",
   "magic-link.settings.language.fr": "Français",
   "magic-link.settings.language.es": "Español",
   "magic-link.settings.language.pt": "Português",
-  
+
   "magic-link.settings.info.header": "Notas importantes de configuración",
   "magic-link.settings.info.line1": "Todos los cambios surten efecto inmediatamente después de guardar",
   "magic-link.settings.info.line2": "Asegúrese de que todas las URLs estén correctamente configuradas",
   "magic-link.settings.info.line3": "Pruebe la configuración después de guardar con un token de prueba",
   "magic-link.settings.info.line4": "Las tarjetas verdes muestran funciones ACTIVAS, las grises están INACTIVAS",
-  
+
   "magic-link.settings.section.general": "Configuración general",
   "magic-link.settings.section.general.description": "Configuración básica para Magic Link",
   "magic-link.settings.section.auth": "Autenticación",
@@ -40,105 +40,117 @@
   "magic-link.settings.section.email.description": "Configure plantillas de correo e información del remitente",
   "magic-link.settings.section.advanced": "Configuración avanzada",
   "magic-link.settings.section.advanced.description": "Opciones de configuración adicionales",
-  
+  "magic-link.settings.section.rateLimit": "Seguridad y limitación de velocidad",
+  "magic-link.settings.section.rateLimit.description": "Protección contra abusos y ataques de fuerza bruta",
+
   "magic-link.settings.features.title": "CARACTERÍSTICAS PRINCIPALES",
   "magic-link.settings.features.subtitle": "Activar o desactivar las características principales del plugin Magic Link",
-  
+
   "magic-link.settings.feature.enabled.title": "Activar Magic Link",
   "magic-link.settings.feature.enabled.description": "Activa o desactiva todo el sistema Magic Link. Cuando está desactivado, no se pueden crear ni usar Magic Links.",
-  
+
   "magic-link.settings.feature.createUser.title": "Crear usuarios automáticamente",
   "magic-link.settings.feature.createUser.description": "Crea automáticamente una nueva cuenta de usuario si la dirección de correo no existe aún en su sistema.",
-  
+
   "magic-link.settings.feature.staysValid.title": "Uso múltiple del token",
   "magic-link.settings.feature.staysValid.description": "El token puede usarse varias veces. Menos seguro, pero más conveniente si los usuarios deben abrir el enlace varias veces.",
-  
+
   "magic-link.settings.time.title": "CONFIGURACIÓN DE TIEMPO",
-  "magic-link.settings.expire.label": "⏱️ Tiempo de expiración del Magic Link",
+  "magic-link.settings.expire.label": "Tiempo de expiración del Magic Link",
   "magic-link.settings.expire.hint": "¿Cuánto tiempo permanece válido el Magic Link antes de expirar?",
   "magic-link.settings.expire.placeholder": "3600",
-  "magic-link.settings.expire.recommendation": "💡 Recomendación: 3600 segundos (1 hora) es óptimo para seguridad y facilidad de uso",
-  
-  "magic-link.settings.tokenLength.label": "🔐 Longitud del token (Seguridad)",
+  "magic-link.settings.expire.recommendation": "Recomendación: 3600 segundos (1 hora) es óptimo para seguridad y facilidad de uso",
+
+  "magic-link.settings.tokenLength.label": "Longitud del token (Seguridad)",
   "magic-link.settings.tokenLength.hint": "Cuanto más largo sea el token, más seguro es contra ataques de fuerza bruta",
   "magic-link.settings.tokenLength.placeholder": "20",
-  "magic-link.settings.tokenLength.recommendation": "✓ Seguro: 20-40 caracteres. Actual: {length} caracteres",
-  
+  "magic-link.settings.tokenLength.recommendation": "Seguro: 20-40 caracteres. Actual: {length} caracteres",
+
   "magic-link.settings.security.title": "CONFIGURACIÓN DE SEGURIDAD",
-  "magic-link.settings.maxAttempts.label": "🚫 Intentos máximos de inicio de sesión",
+  "magic-link.settings.maxAttempts.label": "Intentos máximos de inicio de sesión",
   "magic-link.settings.maxAttempts.hint": "¿Cuántos intentos fallidos se permiten antes de que un usuario sea bloqueado?",
   "magic-link.settings.maxAttempts.placeholder": "5",
-  "magic-link.settings.maxAttempts.warning": "⚠️ Nota: En 0, esta función está desactivada (intentos ilimitados)",
-  
+  "magic-link.settings.maxAttempts.warning": "Nota: En 0, esta función está desactivada (intentos ilimitados)",
+
+  "magic-link.settings.context.title": "CONTROL DE CAMPOS DE CONTEXTO",
+  "magic-link.settings.context.whitelist.label": "Lista blanca (campos permitidos)",
+  "magic-link.settings.context.whitelist.hint": "Lista de campos de contexto permitidos, separados por comas. Vacío = todos permitidos.",
+  "magic-link.settings.context.whitelist.placeholder": "redirectTo, role, source",
+  "magic-link.settings.context.whitelist.info": "Si se define, SOLO se aceptan estos campos en el contexto. Los demás se ignoran.",
+  "magic-link.settings.context.blacklist.label": "Lista negra (campos bloqueados)",
+  "magic-link.settings.context.blacklist.hint": "Lista de campos de contexto bloqueados, separados por comas.",
+  "magic-link.settings.context.blacklist.placeholder": "password, secret, apiKey, token",
+  "magic-link.settings.context.blacklist.info": "Estos campos se eliminan SIEMPRE del contexto, incluso si están en la lista blanca.",
+
   "magic-link.settings.api.title": "CONFIGURACIÓN DE API",
-  "magic-link.settings.loginPath.label": "🔗 Ruta de API de inicio de sesión",
+  "magic-link.settings.loginPath.label": "Ruta de API de inicio de sesión",
   "magic-link.settings.loginPath.hint": "El punto final de API por el cual los usuarios inician sesión con el Magic Link",
   "magic-link.settings.loginPath.placeholder": "/magic-link/login",
   "magic-link.settings.loginPath.fullPath": "Ruta completa: http://localhost:1337/api{path}?loginToken=XXX",
-  
-  "magic-link.settings.confirmationUrl.label": "🌐 URL de confirmación (¡Importante!)",
+
+  "magic-link.settings.confirmationUrl.label": "URL de confirmación (¡Importante!)",
   "magic-link.settings.confirmationUrl.hint": "La URL base utilizada en el correo. Los usuarios hacen clic en ella para iniciar sesión.",
   "magic-link.settings.confirmationUrl.placeholder": "https://su-app.com/auth/magic-link",
-  "magic-link.settings.confirmationUrl.example": "📧 Ejemplo de enlace de correo: {url}?loginToken=abc123...",
-  
-  "magic-link.settings.callbackUrl.label": "↪️ URL de callback (Después del inicio de sesión)",
+  "magic-link.settings.confirmationUrl.example": "Ejemplo de enlace de correo: {url}?loginToken=abc123...",
+
+  "magic-link.settings.callbackUrl.label": "URL de callback (Después del inicio de sesión)",
   "magic-link.settings.callbackUrl.hint": "¿A dónde deben ser redirigidos los usuarios después de un inicio de sesión exitoso? (Opcional)",
   "magic-link.settings.callbackUrl.placeholder": "https://su-app.com/dashboard",
   "magic-link.settings.callbackUrl.note": "Si está vacío: Los usuarios permanecen en la página de inicio de sesión",
-  
+
   "magic-link.settings.auth.options.title": "OPCIONES DE AUTENTICACIÓN",
   "magic-link.settings.auth.options.subtitle": "Configure cómo se autentican y gestionan los usuarios",
-  
+
   "magic-link.settings.auth.verifyEmail.title": "Verificación de correo",
   "magic-link.settings.auth.verifyEmail.description": "Requiere que los usuarios confirmen su dirección de correo antes de poder iniciar sesión. Aumenta la seguridad.",
-  
+
   "magic-link.settings.auth.welcomeEmail.title": "Correo de bienvenida",
   "magic-link.settings.auth.welcomeEmail.description": "Envía automáticamente un correo de bienvenida a los usuarios recién registrados.",
-  
+
   "magic-link.settings.auth.useJwt.title": "Usar JWT Token",
   "magic-link.settings.auth.useJwt.description": "Usa JWT (JSON Web Tokens) para autenticación en lugar de cookies de sesión. Recomendado para aplicaciones modernas.",
-  
+
   "magic-link.settings.auth.storeLoginInfo.title": "Almacenar datos de inicio de sesión",
   "magic-link.settings.auth.storeLoginInfo.description": "Almacena la dirección IP e información del navegador para cada inicio de sesión para monitoreo de seguridad.",
-  
+
   "magic-link.settings.auth.management.title": "GESTIÓN DE USUARIOS",
-  "magic-link.settings.auth.strategy.label": "👤 Estrategia de creación de usuario",
+  "magic-link.settings.auth.strategy.label": "Estrategia de creación de usuario",
   "magic-link.settings.auth.strategy.email": "Solo correo - La cuenta se crea solo con la dirección de correo",
   "magic-link.settings.auth.strategy.emailUsername": "Correo + Nombre de usuario - El nombre de usuario se genera automáticamente desde el correo",
   "magic-link.settings.auth.strategy.manual": "Manual - Sin creación automática, los usuarios deben existir previamente",
   "magic-link.settings.auth.strategy.current": "Actualmente seleccionado: {strategy}",
-  
-  "magic-link.settings.auth.jwtExpiration.label": "🕒 Período de validez del JWT Token",
+
+  "magic-link.settings.auth.jwtExpiration.label": "Período de validez del JWT Token",
   "magic-link.settings.auth.jwtExpiration.hint": "¿Cuánto tiempo permanece válido un JWT token después del inicio de sesión?",
   "magic-link.settings.auth.jwtExpiration.placeholder": "30d",
-  "magic-link.settings.auth.jwtExpiration.examples": "✓ Ejemplos: 1h (1 hora) • 7d (7 días) • 30d (30 días) • 90d (3 meses)",
+  "magic-link.settings.auth.jwtExpiration.examples": "Ejemplos: 1h (1 hora) • 7d (7 días) • 30d (30 días) • 90d (3 meses)",
   "magic-link.settings.auth.jwtExpiration.invalid": "Introduce un número seguido de h o d, por ejemplo, 1h o 30d.",
-  
-  "magic-link.settings.email.sender.title": "📨 INFORMACIÓN DEL REMITENTE",
+
+  "magic-link.settings.email.sender.title": "INFORMACIÓN DEL REMITENTE",
   "magic-link.settings.email.sender.subtitle": "Esta información aparece en los correos enviados a los usuarios",
-  
-  "magic-link.settings.email.fromName.label": "👤 Nombre del remitente",
+
+  "magic-link.settings.email.fromName.label": "Nombre del remitente",
   "magic-link.settings.email.fromName.hint": "El nombre mostrado a los usuarios en su correo",
   "magic-link.settings.email.fromName.placeholder": "Mi App",
-  "magic-link.settings.email.fromName.example": "Ejemplo: \"Mi App\" aparece como \"Mi App <noreply@...>\"",
-  
-  "magic-link.settings.email.fromEmail.label": "📧 Correo del remitente",
+  "magic-link.settings.email.fromName.example": "Ejemplo: \"Mi App\" aparece como \"Mi App '<'noreply@...>\"",
+
+  "magic-link.settings.email.fromEmail.label": "Correo del remitente",
   "magic-link.settings.email.fromEmail.hint": "La dirección de correo desde la cual se envían todos los Magic Links",
   "magic-link.settings.email.fromEmail.placeholder": "noreply@su-app.com",
   "magic-link.settings.email.fromEmail.note": "Debe ser una dirección de correo válida y configurada",
-  
-  "magic-link.settings.email.responseEmail.label": "💬 Correo de respuesta",
+
+  "magic-link.settings.email.responseEmail.label": "Correo de respuesta",
   "magic-link.settings.email.responseEmail.hint": "Dirección de correo para respuestas de usuarios (opcional)",
   "magic-link.settings.email.responseEmail.placeholder": "soporte@su-app.com",
   "magic-link.settings.email.responseEmail.note": "Si los usuarios responden al correo, va aquí",
   "magic-link.settings.email.invalidEmail": "Introduce una dirección de correo válida o deja el campo vacío.",
-  
-  "magic-link.settings.email.subject.label": "✉️ Línea de asunto del correo",
+
+  "magic-link.settings.email.subject.label": "Línea de asunto del correo",
   "magic-link.settings.email.subject.hint": "La línea de asunto que los usuarios ven en su correo",
   "magic-link.settings.email.subject.placeholder": "Su Magic Link para iniciar sesión",
   "magic-link.settings.email.subject.note": "Formule claramente para que los usuarios no marquen el correo como spam",
-  
-  "magic-link.settings.email.designer.title": "📧 Integración de Email Designer",
+
+  "magic-link.settings.email.designer.title": "Integración de Email Designer",
   "magic-link.settings.email.designer.subtitle": "Use plantillas de correo profesionales de Strapi Email Designer v5",
   "magic-link.settings.email.designer.installed": "¡Email Designer v5 está instalado y listo para usar!",
   "magic-link.settings.email.designer.useTemplate": "Usar plantilla de Email Designer",
@@ -147,52 +159,64 @@
   "magic-link.settings.email.designer.placeholder": "Elija una plantilla...",
   "magic-link.settings.email.designer.templatesAvailable": "{count} plantilla(s) disponible(s)",
   "magic-link.settings.email.designer.noTemplates": "No se encontraron plantillas. Crea una en Email Designer primero.",
-  "magic-link.settings.email.designer.variables": "Variables de plantilla: Use {{user.email}}, {{user.username}}, {{magicLink}} y {{token}} en su plantilla de Email Designer",
+  "magic-link.settings.email.designer.variables": "Variables de plantilla: Use '{{user.email}}', '{{user.username}}', '{{magicLink}}' y '{{token}}' en su plantilla de Email Designer",
   "magic-link.settings.email.designer.fallbackBadge": "Solo respaldo",
   "magic-link.settings.email.designer.fallbackDescription": "Estas plantillas se usan como respaldo si Email Designer falla",
 
-  "magic-link.settings.email.templates.title": "📝 PLANTILLAS DE CORREO",
+  "magic-link.settings.email.templates.title": "PLANTILLAS DE CORREO",
   "magic-link.settings.email.templates.subtitle": "Diseñe los correos enviados a los usuarios. Use marcadores de posición para contenido dinámico.",
-  
-  "magic-link.settings.email.placeholders.title": "📌 Marcadores disponibles (clic para copiar):",
-  "magic-link.settings.email.placeholders.url": "<%= URL %>",
+
+  "magic-link.settings.email.placeholders.title": "Marcadores disponibles (clic para copiar):",
+  "magic-link.settings.email.placeholders.clickToCopy": "Haga clic para copiar",
+  "magic-link.settings.email.placeholders.copyLabel": "Copiar",
+  "magic-link.settings.email.placeholders.url": "'{{URL}}'",
   "magic-link.settings.email.placeholders.url.description": "→ Su URL de confirmación",
   "magic-link.settings.email.placeholders.url.example": "Ejemplo: https://su-app.com/auth/magic-link",
-  "magic-link.settings.email.placeholders.code": "<%= CODE %>",
+  "magic-link.settings.email.placeholders.code": "'{{CODE}}'",
   "magic-link.settings.email.placeholders.code.description": "→ El token Magic Link generado",
   "magic-link.settings.email.placeholders.code.example": "Único para cada usuario e inicio de sesión",
+  "magic-link.settings.email.placeholders.expiry": "'{{EXPIRY_TEXT}}'",
+  "magic-link.settings.email.placeholders.expiry.description": "→ Texto de caducidad dinámico",
+  "magic-link.settings.email.placeholders.expiry.example": "Ejemplo: 1 hora / 30 minutos",
+  "magic-link.settings.email.placeholders.link": "'{{LOGIN_URL}}'",
+  "magic-link.settings.email.placeholders.link.description": "→ Enlace de inicio de sesión completo (URL + token)",
+  "magic-link.settings.email.placeholders.link.example": "Example: https://yourapp.com/...loginToken=abc123",
+  "magic-link.settings.email.placeholders.username": "'{{USER}}'",
+  "magic-link.settings.email.placeholders.username.description": "→ Nombre de usuario",
+  "magic-link.settings.email.placeholders.username.example": "johndoe",
+  "magic-link.settings.email.placeholders.email": "'{{EMAIL}}'",
+  "magic-link.settings.email.placeholders.email.description": "→ Dirección de correo electrónico del usuario",
+  "magic-link.settings.email.placeholders.email.example": "user@example.com",
   "magic-link.settings.email.placeholders.copied": "¡{placeholder} copiado al portapapeles!",
-  
-  "magic-link.settings.email.html.title": "🎨 Plantilla de correo HTML",
+
+  "magic-link.settings.email.html.title": "Plantilla de correo HTML",
   "magic-link.settings.email.html.badge": "Plantilla principal",
-  "magic-link.settings.email.html.description": "Plantilla HTML para sus correos Magic Link. Use los marcadores <%= URL %> y <%= CODE %>",
-  "magic-link.settings.email.html.loadDefault": "📋 Cargar plantilla predeterminada",
+  "magic-link.settings.email.html.description": "Plantilla HTML para sus correos de Magic Link. Use los marcadores '{{LOGIN_URL}}' y '{{EXPIRY_TEXT}}'",
+  "magic-link.settings.email.html.loadDefault": "Cargar plantilla predeterminada",
   "magic-link.settings.email.html.filename": "editor.html",
-  "magic-link.settings.email.html.placeholder": "<p>Hola, <a href='<%= URL %>?loginToken=<%= CODE %>'>Haga clic aquí para iniciar sesión</a></p>",
-  "magic-link.settings.email.html.copy": "📋 Copiar plantilla",
-  "magic-link.settings.email.html.info": "ℹ️ Información de plantilla",
+  "magic-link.settings.email.html.placeholder": "'<p>Hola, <a href=\"{{LOGIN_URL}}\">Haga clic aquí para iniciar sesión</a></p>'",
+  "magic-link.settings.email.html.copy": "Copiar plantilla",
+  "magic-link.settings.email.html.info": "Información de plantilla",
   "magic-link.settings.email.html.stats": "La plantilla tiene {lines} líneas y {chars} caracteres",
   "magic-link.settings.email.html.defaultLoaded": "¡Plantilla predeterminada simple cargada!",
-  
-  "magic-link.settings.email.text.title": "📄 Plantilla de correo de texto",
+
+  "magic-link.settings.email.text.title": "Plantilla de correo de texto",
   "magic-link.settings.email.text.badge": "Respaldo",
   "magic-link.settings.email.text.description": "Versión de texto (sin HTML) como respaldo para clientes de correo más antiguos",
-  "magic-link.settings.email.text.loadDefault": "📋 Cargar plantilla predeterminada",
+  "magic-link.settings.email.text.loadDefault": "Cargar plantilla predeterminada",
   "magic-link.settings.email.text.filename": "editor.txt",
-  "magic-link.settings.email.text.placeholder": "Hola, haga clic aquí para iniciar sesión: <%= URL %>?loginToken=<%= CODE %>",
-  "magic-link.settings.email.text.copy": "📋 Copiar plantilla",
+  "magic-link.settings.email.text.placeholder": "Hola, haga clic aquí para iniciar sesión: '{{LOGIN_URL}}'",
+  "magic-link.settings.email.text.copy": "Copiar plantilla",
   "magic-link.settings.email.text.defaultLoaded": "¡Plantilla predeterminada simple cargada!",
-  
-  "magic-link.settings.advanced.title": "🔧 OPCIONES ADICIONALES",
+
+  "magic-link.settings.advanced.title": "OPCIONES ADICIONALES",
   "magic-link.settings.advanced.subtitle": "Características avanzadas para casos de uso especiales",
-  "magic-link.settings.advanced.publicRegistration.title": "🌍 Magic Links en registro público",
+  "magic-link.settings.advanced.publicRegistration.title": "Magic Links en registro público",
   "magic-link.settings.advanced.publicRegistration.description": "Permite a los usuarios iniciar sesión con Magic Links a través de formularios de registro públicos sin haber creado una cuenta previamente.",
-  
-  "magic-link.settings.footer.quickhelp": "💡 Ayuda rápida",
+
+  "magic-link.settings.footer.quickhelp": "Ayuda rápida",
   "magic-link.settings.footer.reminder": "No olvide: ¡Después de guardar, cree un token de prueba y pruebe el Magic Link!",
-  
-  "magic-link.settings.section.rateLimit": "Seguridad y limitación de velocidad",
-  "magic-link.settings.section.rateLimit.description": "Protección contra abusos y ataques de fuerza bruta",
+
   "magic-link.settings.rateLimit.title": "LIMITACIÓN DE VELOCIDAD",
   "magic-link.settings.rateLimit.subtitle": "Previene abusos limitando el número de solicitudes por IP y correo",
   "magic-link.settings.rateLimit.enable.title": "Activar limitación de velocidad",
@@ -217,38 +241,45 @@
 
   "magic-link.tokens.title": "Tokens Magic Link",
   "magic-link.tokens.page.title": "Gestión de tokens",
-  "magic-link.tokens.page.subtitle": "Gestione sus tokens Magic Link y sesiones JWT con estilo",
-  
+  "magic-link.tokens.page.subtitle": "Gestione tokens Magic Link, códigos OTP, sesiones JWT y bloqueos de IP",
+
   "magic-link.tokens.stats.total": "Total",
   "magic-link.tokens.stats.active": "Activo",
   "magic-link.tokens.stats.expired": "Expirado",
   "magic-link.tokens.stats.used": "Usado",
-  
+
   "magic-link.tokens.tabs.magicLinks": "Tokens Magic Link",
   "magic-link.tokens.tabs.jwtSessions": "Sesiones JWT",
   "magic-link.tokens.tabs.ipBans": "Bloqueos de IP",
-  
+
   "magic-link.tokens.actions.newToken": "Nuevo token",
   "magic-link.tokens.actions.refresh": "Actualizar",
   "magic-link.tokens.actions.settings": "Configuración",
   "magic-link.tokens.actions.bulkDelete": "Eliminar seleccionados",
   "magic-link.tokens.actions.clearSelection": "Borrar selección",
-  
+  "magic-link.tokens.actions.resend": "Reenviar",
+  "magic-link.tokens.actions.reactivate": "Nuevo token",
+  "magic-link.tokens.actions.extend": "Prolongar",
+  "magic-link.tokens.actions.block": "Bloquear",
+  "magic-link.tokens.actions.activate": "Activar",
+  "magic-link.tokens.actions.delete": "Eliminar",
+  "magic-link.tokens.actions.viewDetails": "Ver detalles",
+
   "magic-link.tokens.search.placeholder": "Buscar por correo o token...",
   "magic-link.tokens.search.clear": "Borrar",
-  
+
   "magic-link.tokens.filter.all": "Mostrar todo",
   "magic-link.tokens.filter.active": "Solo activos",
   "magic-link.tokens.filter.expired": "Solo expirados",
   "magic-link.tokens.filter.used": "Solo usados",
   "magic-link.tokens.filter.status": "Filtrar por estado",
-  
+
   "magic-link.tokens.pageSize.10": "10 entradas",
   "magic-link.tokens.pageSize.25": "25 entradas",
   "magic-link.tokens.pageSize.50": "50 entradas",
   "magic-link.tokens.pageSize.100": "100 entradas",
   "magic-link.tokens.pageSize.label": "Entradas por página",
-  
+
   "magic-link.tokens.table.email": "Correo",
   "magic-link.tokens.table.token": "Token",
   "magic-link.tokens.table.reference": "Referencia",
@@ -258,12 +289,13 @@
   "magic-link.tokens.table.expiresAt": "Válido hasta",
   "magic-link.tokens.table.actions": "Acciones",
   "magic-link.tokens.table.sortBy": "Ordenar por",
-  
+
   "magic-link.tokens.status.active": "Activo",
   "magic-link.tokens.status.expired": "Expirado",
   "magic-link.tokens.status.used": "Usado",
-  
+
   "magic-link.tokens.details.title": "Detalles del token",
+  "magic-link.tokens.details.reference": "Referencia",
   "magic-link.tokens.details.token": "Token",
   "magic-link.tokens.details.magicLink": "URL del Magic Link",
   "magic-link.tokens.details.curlCommand": "Comando cURL (Postman/Terminal)",
@@ -271,25 +303,29 @@
   "magic-link.tokens.details.created": "Creado",
   "magic-link.tokens.details.expiresAt": "Válido hasta",
   "magic-link.tokens.details.usedAt": "Usado",
+  "magic-link.tokens.details.lastUsedAt": "Último uso",
   "magic-link.tokens.details.unlimited": "Ilimitado",
   "magic-link.tokens.details.never": "Nunca",
-  "magic-link.tokens.details.expiredSuffix": " (Expirado)",
+  "magic-link.tokens.details.expiredSuffix": "(Expirado)",
   "magic-link.tokens.details.close": "Cerrar",
-  "magic-link.tokens.details.clickToCopy": "🔗 Clic para copiar",
-  "magic-link.tokens.details.clickToCopyCurl": "💻 Clic para copiar",
-  
+  "magic-link.tokens.details.clickToCopy": "Clic para copiar",
+  "magic-link.tokens.details.clickToCopyCurl": "Clic para copiar",
+  "magic-link.tokens.details.technicalInfo": "Información técnica",
+  "magic-link.tokens.details.context": "Datos de contexto",
+  "magic-link.tokens.details.actions": "Acciones",
+
   "magic-link.tokens.user.new": "Nuevo usuario",
   "magic-link.tokens.user.id": "ID de usuario: {id}",
-  
+
   "magic-link.tokens.selected": "{count} token(s) seleccionado(s)",
-  
+
   "magic-link.tokens.empty.title": "No se encontraron tokens",
   "magic-link.tokens.empty.description": "Cree su primer token Magic Link o cambie sus criterios de filtro",
   "magic-link.tokens.empty.createFirst": "Crear primer token",
   "magic-link.tokens.empty.resetFilters": "Restablecer filtros",
-  
+
   "magic-link.tokens.loading": "Cargando datos de tokens...",
-  
+
   "magic-link.tokens.notifications.refreshed": "Los datos se han actualizado",
   "magic-link.tokens.notifications.deleted": "Token eliminado correctamente",
   "magic-link.tokens.notifications.bulkDeleted": "{count} tokens eliminados",
@@ -312,11 +348,18 @@
   "magic-link.tokens.notifications.extendError": "Error al extender token",
   "magic-link.tokens.notifications.validationError": "Por favor ingrese una dirección de correo",
   "magic-link.tokens.notifications.validation": "Validación",
-  
+  "magic-link.tokens.notifications.resendSuccess": "Magic Link enviado de nuevo",
+  "magic-link.tokens.notifications.resendError": "Error al reenviar",
+  "magic-link.tokens.notifications.reactivateSuccess": "Nuevo token creado",
+  "magic-link.tokens.notifications.reactivateError": "Error al reactivar",
+  "magic-link.tokens.notifications.blockSuccess": "Token bloqueado",
+  "magic-link.tokens.notifications.blockError": "Error al bloquear el token",
+  "magic-link.tokens.notifications.activateSuccess": "Token activado",
+
   "magic-link.tokens.pagination.previous": "Anterior",
   "magic-link.tokens.pagination.next": "Siguiente",
 
-  "magic-link.tokens.create.title": "✨ Crear token Magic Link",
+  "magic-link.tokens.create.title": "Crear token Magic Link",
   "magic-link.tokens.create.email.label": "Dirección de correo *",
   "magic-link.tokens.create.email.placeholder": "usuario@ejemplo.com",
   "magic-link.tokens.create.email.hint": "El Magic Link será enviado a esta dirección de correo",
@@ -325,13 +368,19 @@
   "magic-link.tokens.create.sendEmail.label": "Enviar correo automáticamente",
   "magic-link.tokens.create.sendEmail.hint": "El usuario recibe inmediatamente un correo con el Magic Link",
   "magic-link.tokens.create.context.label": "Contexto JSON (Opcional)",
-  "magic-link.tokens.create.context.placeholder": "{ \"clave\": \"valor\" }",
+  "magic-link.tokens.create.context.placeholder": "'{ \"clave\": \"valor\" }'",
   "magic-link.tokens.create.context.hint": "Datos adicionales para pasar con el token (debe ser JSON válido)",
   "magic-link.tokens.create.context.error": "Formato JSON inválido",
   "magic-link.tokens.create.submit": "Crear token",
   "magic-link.tokens.create.cancel": "Cancelar",
-  
-  "magic-link.tokens.extend.title": "🕒 Extender token",
+
+  "magic-link.tokens.created.title": "Token creado",
+  "magic-link.tokens.created.warning": "Importante: esta es la única vez que puede ver el token completo. Cópielo ahora si necesita enviarlo manualmente a un usuario. Después de cerrar este diálogo, solo se mostrará una versión enmascarada.",
+  "magic-link.tokens.created.plaintextToken": "Token completo (copiable)",
+  "magic-link.tokens.created.copyLink": "Copiar enlace",
+  "magic-link.tokens.created.done": "Listo",
+
+  "magic-link.tokens.extend.title": "Extender token",
   "magic-link.tokens.extend.currentExpiry": "Actualmente válido hasta",
   "magic-link.tokens.extend.selectExtension": "Seleccionar extensión",
   "magic-link.tokens.extend.customDays": "Número personalizado de días",
@@ -344,7 +393,7 @@
   "magic-link.tokens.extend.newExpiry": "Nueva fecha de expiración",
   "magic-link.tokens.extend.submit": "Extender token",
   "magic-link.tokens.extend.cancel": "Cancelar",
-  
+
   "magic-link.jwt.stats.total": "Total",
   "magic-link.jwt.stats.active": "Activo",
   "magic-link.jwt.stats.expired": "Expirado",
@@ -373,7 +422,7 @@
   "magic-link.jwt.notifications.cleanupSuccess": "Sesiones limpiadas correctamente",
   "magic-link.jwt.notifications.cleanupError": "Error al limpiar las sesiones",
   "magic-link.jwt.notifications.refreshSuccess": "Los datos se han actualizado",
-  
+
   "magic-link.ipban.stats.total": "IPs bloqueadas",
   "magic-link.ipban.title": "Direcciones IP bloqueadas",
   "magic-link.ipban.actions.ban": "Bloquear IP",
@@ -397,7 +446,7 @@
   "magic-link.ipban.notifications.banError": "Error al bloquear IP",
   "magic-link.ipban.notifications.unbanError": "Error al desbloquear IP",
   "magic-link.ipban.notifications.refreshSuccess": "Lista de IP actualizada",
-  
+
   "magic-link.common.loading": "Cargando...",
   "magic-link.common.loadingSessions": "Cargando sesiones JWT...",
   "magic-link.common.loadingBannedIPs": "Cargando direcciones IP bloqueadas...",
@@ -436,12 +485,29 @@
   "magic-link.settings.compatibility.title": "COMPATIBILIDAD DE PLUGINS",
   "magic-link.settings.compatibility.subtitle": "Activa los modos de compatibilidad para una migración sin problemas desde otros plugins",
   "magic-link.settings.compatibility.info.title": "Migración Fácil",
-  "magic-link.settings.compatibility.info.description": "Estas configuraciones te permiten seguir usando las llamadas API existentes de otros plugins sin modificar tu código frontend.",
+  "magic-link.settings.compatibility.info.description": "Estas configuraciones le permiten seguir usando las llamadas API existentes de otros plugins sin modificar su código frontend.",
   "magic-link.settings.compatibility.passwordless.title": "Compatibilidad con Plugin Passwordless",
   "magic-link.settings.compatibility.passwordless.description": "Activa las rutas /api/passwordless/* para migrar desde strapi-plugin-passwordless",
   "magic-link.settings.compatibility.emailDesigner.title": "Integración Email Designer 5",
   "magic-link.settings.compatibility.emailDesigner.description": "Usa plantillas de correo profesionales de strapi-plugin-email-designer-5",
   "magic-link.settings.compatibility.migration.title": "Nota de Migración",
-  "magic-link.settings.compatibility.migration.description": "Después de una migración exitosa, puedes cambiar gradualmente a la API de Magic Link (/api/magic-link/*) y luego desactivar los modos de compatibilidad."
-}
+  "magic-link.settings.compatibility.migration.description": "Después de una migración exitosa, puedes cambiar gradualmente a la API de Magic Link (/api/magic-link/*) y luego desactivar los modos de compatibilidad.",
 
+  "magic-link.common.confirm": "Confirmar",
+  "magic-link.common.delete": "Eliminar",
+  "magic-link.common.save": "Guardar",
+  "magic-link.common.pageTitle": "{page} | Magic Link",
+  "magic-link.common.clipboard.copied": "Copiado al portapapeles",
+  "magic-link.common.clipboard.failed": "No se pudo copiar. Seleccione el texto y cópielo manualmente.",
+  "magic-link.common.search.clear": "Borrar búsqueda",
+  "magic-link.common.unsaved.title": "¿Descartar los cambios no guardados?",
+  "magic-link.common.unsaved.description": "Tiene cambios sin guardar. Si continúa, se perderán.",
+  "magic-link.common.unsaved.confirm": "Descartar cambios",
+  "magic-link.common.unsaved.cancel": "Seguir editando",
+  "magic-link.common.unsaved.badge": "Cambios sin guardar",
+  "magic-link.common.permissions.loadError": "No se pudieron cargar sus permisos. Vuelva a cargar la página para intentarlo de nuevo.",
+  "magic-link.common.permissions.readOnly": "Tiene acceso de solo lectura. Las acciones que modifican datos están ocultas.",
+  "magic-link.common.error.generic": "Se ha producido un error. Inténtelo de nuevo.",
+  "magic-link.common.emptyValue": "-",
+  "magic-link.common.language.followAdmin": "Igual que la interfaz de administración"
+}

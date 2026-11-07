@@ -1,6 +1,11 @@
 /**
- * Beautiful Email Templates for Magic Link
- * Inspired by modern email designs
+ * Built-in email templates for the Settings template gallery.
+ *
+ * Templates use the safe {{VARIABLE}} placeholder syntax that the server
+ * renderer substitutes (values are HTML-escaped in HTML bodies; nothing is
+ * executed). Variables used here:
+ *   {{LOGIN_URL}}   - complete login link (frontend or confirmation URL + token)
+ *   {{EXPIRY_TEXT}} - human readable link lifetime, e.g. "1 hour"
  */
 
 export const EMAIL_TEMPLATES = {
@@ -46,7 +51,7 @@ export const EMAIL_TEMPLATES = {
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding: 20px 0;">
-                    <a href="<%= URL %>?loginToken=<%= CODE %>" 
+                    <a href="{{LOGIN_URL}}" 
                        style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; padding: 16px 48px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 16px; box-shadow: 0 4px 14px rgba(102, 126, 234, 0.4);">
                       Sign In Securely
                     </a>
@@ -56,7 +61,7 @@ export const EMAIL_TEMPLATES = {
               
               <p style="color: #718096; line-height: 1.6; margin: 30px 0 0; font-size: 14px;">
                 Or copy and paste this link into your browser:<br>
-                <a href="<%= URL %>?loginToken=<%= CODE %>" style="color: #667eea; word-break: break-all;"><%= URL %>?loginToken=<%= CODE %></a>
+                <a href="{{LOGIN_URL}}" style="color: #667eea; word-break: break-all;">{{LOGIN_URL}}</a>
               </p>
             </td>
           </tr>
@@ -66,7 +71,7 @@ export const EMAIL_TEMPLATES = {
             <td style="background-color: #f7fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
               <p style="color: #718096; margin: 0 0 10px; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                This link expires in <%= EXPIRY_TEXT %>
+                This link expires in {{EXPIRY_TEXT}}
               </p>
               <p style="color: #a0aec0; margin: 0; font-size: 12px;">
                 If you didn't request this, you can safely ignore this email.
@@ -79,7 +84,7 @@ export const EMAIL_TEMPLATES = {
   </table>
 </body>
 </html>`,
-    text: `Magic Link Login\n\nClick to login:\n<%= URL %>?loginToken=<%= CODE %>\n\nThis link expires in <%= EXPIRY_TEXT %>.\n\nIf you didn't request this, you can safely ignore this email.`
+    text: `Magic Link Login\n\nClick to login:\n{{LOGIN_URL}}\n\nThis link expires in {{EXPIRY_TEXT}}.\n\nIf you didn't request this, you can safely ignore this email.`
   },
 
   minimal: {
@@ -113,13 +118,13 @@ export const EMAIL_TEMPLATES = {
                 Click the button below to sign in to your account
               </p>
               
-              <a href="<%= URL %>?loginToken=<%= CODE %>" 
+              <a href="{{LOGIN_URL}}" 
                  style="display: inline-block; background-color: #0EA5E9; color: #ffffff; padding: 16px 40px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
                 Sign In
               </a>
               
               <p style="color: #9CA3AF; margin: 40px 0 0; font-size: 14px;">
-                Link expires in 1 hour
+                Link expires in {{EXPIRY_TEXT}}
               </p>
             </td>
           </tr>
@@ -129,7 +134,7 @@ export const EMAIL_TEMPLATES = {
   </table>
 </body>
 </html>`,
-    text: `Your Magic Link\n\nClick to sign in:\n<%= URL %>?loginToken=<%= CODE %>\n\nLink expires in <%= EXPIRY_TEXT %>.`
+    text: `Your Magic Link\n\nClick to sign in:\n{{LOGIN_URL}}\n\nLink expires in {{EXPIRY_TEXT}}.`
   },
 
   professional: {
@@ -170,7 +175,7 @@ export const EMAIL_TEMPLATES = {
               <table width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 30px;">
                 <tr>
                   <td align="center" style="padding: 10px 0;">
-                    <a href="<%= URL %>?loginToken=<%= CODE %>" 
+                    <a href="{{LOGIN_URL}}" 
                        style="display: inline-block; background-color: #1E40AF; color: #ffffff; padding: 14px 32px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 15px;">
                       Verify & Sign In
                     </a>
@@ -183,8 +188,8 @@ export const EMAIL_TEMPLATES = {
                 <tr>
                   <td>
                     <p style="color: #1E40AF; margin: 0; font-size: 13px; line-height: 1.5;">
-                      <strong>🔒 Security Notice:</strong><br>
-                      This link will expire in 60 minutes. For your security, do not share this link with anyone.
+                      <strong>Security Notice:</strong><br>
+                      This link will expire in {{EXPIRY_TEXT}}. For your security, do not share this link with anyone.
                     </p>
                   </td>
                 </tr>
@@ -210,7 +215,7 @@ export const EMAIL_TEMPLATES = {
   </table>
 </body>
 </html>`,
-    text: `SECURE ACCESS\n\nHello,\n\nYou have requested secure access to your account.\n\nClick to verify and sign in:\n<%= URL %>?loginToken=<%= CODE %>\n\nSecurity Notice:\nThis link will expire in <%= EXPIRY_TEXT %>. Do not share this link.\n\nIf you did not request this, please disregard this email.`
+    text: `SECURE ACCESS\n\nHello,\n\nYou have requested secure access to your account.\n\nClick to verify and sign in:\n{{LOGIN_URL}}\n\nSecurity Notice:\nThis link will expire in {{EXPIRY_TEXT}}. Do not share this link.\n\nIf you did not request this, please disregard this email.`
   },
 
   dark: {
@@ -245,7 +250,7 @@ export const EMAIL_TEMPLATES = {
           <tr>
             <td style="padding: 40px 30px;">
               <p style="color: #E2E8F0; line-height: 1.6; margin: 0 0 24px; font-size: 16px;">
-                Hey there! 👋
+                Hey there!
               </p>
               <p style="color: #CBD5E1; line-height: 1.6; margin: 0 0 32px; font-size: 15px;">
                 Click the magic button below to access your account. No passwords, no hassle.
@@ -255,7 +260,7 @@ export const EMAIL_TEMPLATES = {
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding: 20px 0;">
-                    <a href="<%= URL %>?loginToken=<%= CODE %>" 
+                    <a href="{{LOGIN_URL}}" 
                        style="display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%); color: #ffffff; padding: 16px 48px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 16px; box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
                       Launch Access
@@ -266,7 +271,7 @@ export const EMAIL_TEMPLATES = {
               
               <p style="color: #94A3B8; line-height: 1.6; margin: 32px 0 0; font-size: 13px; text-align: center;">
                 Or paste this URL in your browser:<br>
-                <span style="color: #818CF8; word-break: break-all;"><%= URL %>?loginToken=<%= CODE %></span>
+                <span style="color: #818CF8; word-break: break-all;">{{LOGIN_URL}}</span>
               </p>
             </td>
           </tr>
@@ -275,7 +280,7 @@ export const EMAIL_TEMPLATES = {
           <tr>
             <td style="background-color: #0F172A; padding: 24px 30px; text-align: center; border-top: 1px solid #334155;">
               <p style="color: #64748B; margin: 0 0 8px; font-size: 13px;">
-                ⏰ Expires in 1 hour
+                Expires in {{EXPIRY_TEXT}}
               </p>
               <p style="color: #475569; margin: 0; font-size: 12px;">
                 Didn't request this? Just ignore this email.
@@ -288,7 +293,7 @@ export const EMAIL_TEMPLATES = {
   </table>
 </body>
 </html>`,
-    text: `Magic Link\n\nHey there!\n\nClick the link below to access your account:\n<%= URL %>?loginToken=<%= CODE %>\n\nExpires in <%= EXPIRY_TEXT %>.\n\nDidn't request this? Just ignore this email.`
+    text: `Magic Link\n\nHey there!\n\nClick the link below to access your account:\n{{LOGIN_URL}}\n\nExpires in {{EXPIRY_TEXT}}.\n\nDidn't request this? Just ignore this email.`
   },
 
   playful: {
@@ -333,7 +338,7 @@ export const EMAIL_TEMPLATES = {
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding: 10px 0 30px;">
-                    <a href="<%= URL %>?loginToken=<%= CODE %>" 
+                    <a href="{{LOGIN_URL}}" 
                        style="display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #F59E0B 0%, #DC2626 100%); color: #ffffff; padding: 18px 54px; border-radius: 16px; text-decoration: none; font-weight: 700; font-size: 18px; box-shadow: 0 8px 16px rgba(245, 158, 11, 0.4); text-transform: uppercase; letter-spacing: 0.5px;">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="8 12 12 16 16 12"></polyline><line x1="12" y1="8" x2="12" y2="16"></line></svg>
                       Click Here!
@@ -355,7 +360,7 @@ export const EMAIL_TEMPLATES = {
               </table>
               
               <p style="color: #6B7280; line-height: 1.6; margin: 20px 0 0; font-size: 13px; text-align: center;">
-                Can't click? Copy & paste: <span style="color: #F59E0B; word-break: break-all;"><%= URL %>?loginToken=<%= CODE %></span>
+                Can't click? Copy & paste: <span style="color: #F59E0B; word-break: break-all;">{{LOGIN_URL}}</span>
               </p>
             </td>
           </tr>
@@ -365,7 +370,7 @@ export const EMAIL_TEMPLATES = {
             <td style="background: linear-gradient(135deg, #FEF3C7 0%, #FECACA 100%); padding: 24px; text-align: center;">
               <p style="color: #B91C1C; margin: 0 0 8px; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block; vertical-align: middle;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                Hurry! Link expires in <%= EXPIRY_TEXT %>
+                Hurry! Link expires in {{EXPIRY_TEXT}}
               </p>
               <p style="color: #DC2626; margin: 0; font-size: 12px;">
                 Not you? No worries, just delete this email!
@@ -378,20 +383,40 @@ export const EMAIL_TEMPLATES = {
   </table>
 </body>
 </html>`,
-    text: `Your Magic Link is Ready!\n\nLet's get you signed in!\n\nClick here:\n<%= URL %>?loginToken=<%= CODE %>\n\nPro Tip: Save this email for quick access later!\n\nHurry! Link expires in <%= EXPIRY_TEXT %>.\n\nNot you? No worries, just delete this email!`
+    text: `Your Magic Link is Ready!\n\nLet's get you signed in!\n\nClick here:\n{{LOGIN_URL}}\n\nPro Tip: Save this email for quick access later!\n\nHurry! Link expires in {{EXPIRY_TEXT}}.\n\nNot you? No worries, just delete this email!`
   }
 };
 
-// Helper to get template list for dropdown
-export const getTemplateList = () => {
-  return Object.entries(EMAIL_TEMPLATES).map(([key, template]) => ({
+/** Legacy lodash placeholders (5.x) mapped to the 6.0 syntax. */
+const LEGACY_PLACEHOLDER = /<%=\s*([A-Za-z_]+)\s*%>/g;
+const LEGACY_LINK = /<%=\s*URL\s*%>\?loginToken=<%=\s*CODE\s*%>/g;
+
+/**
+ * Converts 5.x templates (`<%= URL %>?loginToken=<%= CODE %>`, `<%= VAR %>`)
+ * to the 6.0 placeholder syntax. Nothing is evaluated; unknown text is kept.
+ *
+ * @param {unknown} template - stored HTML or text template
+ * @returns {string} template using {{VARIABLE}} placeholders
+ */
+export const toPlaceholderSyntax = (template) =>
+  String(template ?? '')
+    .replace(LEGACY_LINK, '{{LOGIN_URL}}')
+    .replace(LEGACY_PLACEHOLDER, (_match, name) => `{{${name.toUpperCase()}}}`);
+
+/**
+ * Template options for the gallery select.
+ * @returns {{value: string, label: string, preview: string}[]}
+ */
+export const getTemplateList = () =>
+  Object.entries(EMAIL_TEMPLATES).map(([key, template]) => ({
     value: key,
     label: template.name,
-    preview: template.preview
+    preview: template.preview,
   }));
-};
 
-// Helper to get template by key
-export const getTemplate = (key) => {
-  return EMAIL_TEMPLATES[key] || EMAIL_TEMPLATES.modern;
-};
+/**
+ * @param {string} key - template key from getTemplateList()
+ * @returns {{name: string, preview: string, html: string, text: string}} the template, or "modern"
+ */
+export const getTemplate = (key) =>
+  Object.hasOwn(EMAIL_TEMPLATES, key) ? EMAIL_TEMPLATES[key] : EMAIL_TEMPLATES.modern;
