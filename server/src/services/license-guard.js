@@ -231,7 +231,7 @@ module.exports = ({ strapi }) => {
      * @returns {Promise<{tier: string, features: object, hasKey: boolean}>}
      */
     async getLicenseTierInfo() {
-      let hasKey = false;
+      let hasKey;
       try {
         const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
         hasKey = Boolean(await pluginStore.get({ key: 'licenseKey' }));

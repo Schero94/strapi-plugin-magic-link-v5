@@ -134,16 +134,17 @@ const OTPCodes = () => {
 
   useEffect(() => {
     if (isLoadingPermissions) return undefined;
-    if (!canRead) {
-      setIsLoading(false);
-      return undefined;
-    }
+    // Without read access nothing is fetched; the loader is derived below.
+    if (!canRead) return undefined;
     let active = true;
-    fetchCodes().then((ok) => {
+    // State is set only after the request settles (no cascading render).
+    const load = async () => {
+      const ok = await fetchCodes();
       if (!active) return;
       setIsLoading(false);
       if (!ok) notify('danger', t('otp.notifications.loadError', 'OTP codes could not be loaded.'));
-    });
+    };
+    load();
     return () => {
       active = false;
     };
@@ -326,7 +327,7 @@ const OTPCodes = () => {
 
   const heading = <VisuallyHidden tag="h2">{t('otp.title', 'OTP codes')}</VisuallyHidden>;
 
-  if (isLoadingPermissions || isLoading) {
+  if (isLoadingPermissions || (canRead && isLoading)) {
     return (
       <Box>
         {heading}

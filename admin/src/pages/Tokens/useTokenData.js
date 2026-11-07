@@ -12,7 +12,8 @@ import { defaultTtlFromSettings, normalizeToken } from './tokenModel';
 export const useTokenList = ({ enabled }) => {
   const { get } = useFetchClient();
   const [tokens, setTokens] = useState([]);
-  const [isLoading, setIsLoading] = useState(Boolean(enabled));
+  // Starts busy: the first fetch runs as soon as RBAC allows reading.
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const mounted = useRef(true);
 
@@ -23,9 +24,9 @@ export const useTokenList = ({ enabled }) => {
     };
   }, []);
 
-  const refetch = useCallback(async () => {
-    if (!enabled) return false;
-    setIsLoading(true);
+  // Sets state only after the request settles, so the mount effect does not
+  // cascade renders; refetch() shows the loader first.
+  const fetchTokens = useCallback(async () => {
     try {
       const response = await get('/magic-link/tokens');
       const raw = response?.data?.data ?? response?.data ?? [];
@@ -40,14 +41,24 @@ export const useTokenList = ({ enabled }) => {
     } finally {
       if (mounted.current) setIsLoading(false);
     }
-  }, [enabled, get]);
+  }, [get]);
+
+  const refetch = useCallback(() => {
+    if (!enabled) return Promise.resolve(false);
+    setIsLoading(true);
+    return fetchTokens();
+  }, [enabled, fetchTokens]);
 
   useEffect(() => {
-    if (enabled) refetch();
-    else setIsLoading(false);
-  }, [enabled, refetch]);
+    if (!enabled) return;
+    // fetchTokens sets state only after the request settles.
+    const load = async () => {
+      await fetchTokens();
+    };
+    load();
+  }, [enabled, fetchTokens]);
 
-  return { tokens, isLoading, error, refetch };
+  return { tokens, isLoading: enabled && isLoading, error, refetch };
 };
 
 /**
@@ -62,10 +73,7 @@ export const useTokenSettings = ({ enabled }) => {
   const [settings, setSettings] = useState(null);
 
   useEffect(() => {
-    if (!enabled) {
-      setSettings(null);
-      return undefined;
-    }
+    if (!enabled) return undefined;
     let active = true;
     get('/magic-link/settings')
       .then((response) => {
@@ -81,5 +89,7 @@ export const useTokenSettings = ({ enabled }) => {
     };
   }, [enabled, get]);
 
-  return { settings, defaultTtlHours: defaultTtlFromSettings(settings?.expire_period) };
+  // Without settings.read the defaults apply, even if settings were loaded before.
+  const visible = enabled ? settings : null;
+  return { settings: visible, defaultTtlHours: defaultTtlFromSettings(visible?.expire_period) };
 };

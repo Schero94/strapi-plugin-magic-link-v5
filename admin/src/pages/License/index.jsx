@@ -625,20 +625,20 @@ const LicenseView = () => {
   const [status, setStatus] = useState('loading');
   const [licenseData, setLicenseData] = useState(null);
   const [loadError, setLoadError] = useState(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  // The first load starts with the effect below, so the page mounts busy.
+  const [isRefreshing, setIsRefreshing] = useState(true);
   const [revealed, setRevealed] = useState(false);
   const [alertDismissed, setAlertDismissed] = useState(false);
   const requestRef = useRef(null);
 
-  const fetchLicenseStatus = useCallback(
-    async ({ initial = false } = {}) => {
+  // Only sets state after the request settles, so the mount effect does not
+  // trigger cascading renders. UI resets for a manual refresh happen in the
+  // click handler (refreshLicenseStatus).
+  const loadLicenseStatus = useCallback(
+    async () => {
       requestRef.current?.abort();
       const controller = new AbortController();
       requestRef.current = controller;
-      if (initial) setStatus('loading');
-      setIsRefreshing(true);
-      setRevealed(false);
-      setAlertDismissed(false);
 
       try {
         const response = await get('/magic-link/license/status', { signal: controller.signal });
@@ -661,11 +661,22 @@ const LicenseView = () => {
     [get]
   );
 
+  const refreshLicenseStatus = useCallback(() => {
+    setIsRefreshing(true);
+    setRevealed(false);
+    setAlertDismissed(false);
+    return loadLicenseStatus();
+  }, [loadLicenseStatus]);
+
   useEffect(() => {
     if (!canReadSettings) return undefined;
-    fetchLicenseStatus({ initial: true });
+    // loadLicenseStatus sets state only after its request settles.
+    const load = async () => {
+      await loadLicenseStatus();
+    };
+    load();
     return () => requestRef.current?.abort();
-  }, [canReadSettings, fetchLicenseStatus]);
+  }, [canReadSettings, loadLicenseStatus]);
 
   const pageTitle = <PluginPageTitle>{t('license.pageTitle', 'License')}</PluginPageTitle>;
 
@@ -785,7 +796,7 @@ const LicenseView = () => {
               variant="danger-light"
               size="S"
               startIcon={<ArrowClockwise aria-hidden="true" />}
-              onClick={() => fetchLicenseStatus()}
+              onClick={refreshLicenseStatus}
               loading={isRefreshing}
             >
               {t('license.retry', 'Try again')}
@@ -828,7 +839,7 @@ const LicenseView = () => {
             <GradientButton
               size="L"
               startIcon={<ArrowClockwise aria-hidden="true" />}
-              onClick={() => fetchLicenseStatus()}
+              onClick={refreshLicenseStatus}
               loading={isRefreshing && status !== 'loading'}
               disabled={status === 'loading'}
             >

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button, Flex, Typography } from '@strapi/design-system';
 import { Check, Lock, Plus, Trash } from '@strapi/icons';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
@@ -68,12 +68,15 @@ export const MagicLinksPanel = ({
     [filtered, safePage, pageSize]
   );
 
-  useEffect(() => {
-    if (page !== safePage) setPage(safePage);
-  }, [page, safePage]);
+  // Adjust state during render instead of in effects
+  // (https://react.dev/learn/you-might-not-need-an-effect): keep the page in
+  // range, and drop selected or opened tokens that no longer exist after a
+  // refetch.
+  if (page !== safePage) setPage(safePage);
 
-  // Drop selected or opened tokens that no longer exist after a refetch.
-  useEffect(() => {
+  const [seenTokens, setSeenTokens] = useState(tokens);
+  if (seenTokens !== tokens) {
+    setSeenTokens(tokens);
     const existing = new Set(tokens.map(getTokenKey));
     setSelectedKeys((keys) => {
       const next = keys.filter((key) => existing.has(key));
@@ -82,7 +85,7 @@ export const MagicLinksPanel = ({
     setDetailsToken((current) =>
       current ? (tokens.find((token) => getTokenKey(token) === getTokenKey(current)) ?? null) : current
     );
-  }, [tokens]);
+  }
 
   const resetView = () => {
     setPage(1);

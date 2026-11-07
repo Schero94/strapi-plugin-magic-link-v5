@@ -45,7 +45,7 @@ const stubs = {
         children,
         action
       ),
-    Button: ({ children, onClick, ...props }) =>
+    Button: ({ children, onClick: _onClick, ...props }) =>
       React.createElement(
         'button',
         { type: 'button', 'aria-pressed': props['aria-pressed'] },

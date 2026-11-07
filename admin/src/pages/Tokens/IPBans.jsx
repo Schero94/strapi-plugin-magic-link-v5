@@ -125,16 +125,17 @@ const IPBans = () => {
 
   useEffect(() => {
     if (isLoadingPermissions) return undefined;
-    if (!canRead) {
-      setIsLoading(false);
-      return undefined;
-    }
+    // Without read access nothing is fetched; the loader is derived below.
+    if (!canRead) return undefined;
     let active = true;
-    fetchBannedIPs().then((ok) => {
+    // State is set only after the request settles (no cascading render).
+    const load = async () => {
+      const ok = await fetchBannedIPs();
       if (!active) return;
       setIsLoading(false);
       if (!ok) notify('danger', t('ipban.notifications.loadError', 'Banned IP addresses could not be loaded.'));
-    });
+    };
+    load();
     return () => {
       active = false;
     };
@@ -205,7 +206,7 @@ const IPBans = () => {
 
   const heading = <VisuallyHidden tag="h2">{t('ipban.title', 'Banned IP addresses')}</VisuallyHidden>;
 
-  if (isLoadingPermissions || isLoading) {
+  if (isLoadingPermissions || (canRead && isLoading)) {
     return (
       <Box>
         {heading}

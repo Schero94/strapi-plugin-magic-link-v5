@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Button,
   Checkbox,
@@ -37,13 +37,19 @@ const CreateTokenModal = ({ isOpen, defaultTtl, onClose, onSubmit }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const returnFocus = useReturnFocus(isOpen);
 
-  useEffect(() => {
+  // Reset the form whenever the dialog opens or the default TTL changes while
+  // it is open. Adjusting state during render avoids an extra effect pass
+  // (https://react.dev/learn/you-might-not-need-an-effect).
+  const [resetKey, setResetKey] = useState(null);
+  const nextResetKey = isOpen ? `open:${defaultTtl}` : null;
+  if (resetKey !== nextResetKey) {
+    setResetKey(nextResetKey);
     if (isOpen) {
       setForm(initialForm(defaultTtl));
       setSubmitted(false);
       setIsSubmitting(false);
     }
-  }, [isOpen, defaultTtl]);
+  }
 
   const isDirty =
     isOpen &&

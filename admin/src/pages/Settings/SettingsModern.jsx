@@ -285,8 +285,10 @@ const SettingsModern = () => {
 
   /* ---------------- Data loading ---------------- */
 
-  const loadSettings = useCallback(async () => {
-    setLoadState('loading');
+  // The fetchers below set state only after the request settles, so the mount
+  // effect does not cascade renders. The initial state is already "loading";
+  // retries and refreshes set it in their handlers.
+  const fetchSettings = useCallback(async () => {
     try {
       const res = await get('/magic-link/settings');
       const payload = res?.data ?? {};
@@ -306,9 +308,14 @@ const SettingsModern = () => {
     }
   }, [get]);
 
-  /** Refreshes only the rate-limit statistics (never the form). */
-  const loadStats = useCallback(async () => {
-    setRateLimitStats((current) => ({ status: 'loading', data: current.data }));
+  /** Retry after a failed load: shows the loader, then fetches again. */
+  const retrySettings = useCallback(() => {
+    setLoadState('loading');
+    return fetchSettings();
+  }, [fetchSettings]);
+
+  /** Fetches only the rate-limit statistics (never the form). */
+  const fetchStats = useCallback(async () => {
     try {
       const res = await get('/magic-link/rate-limit/stats');
       setRateLimitStats({ status: 'ready', data: res?.data?.data ?? {} });
@@ -317,9 +324,14 @@ const SettingsModern = () => {
     }
   }, [get]);
 
+  /** Refreshes the rate-limit statistics and shows their loader meanwhile. */
+  const loadStats = useCallback(() => {
+    setRateLimitStats((current) => ({ status: 'loading', data: current.data }));
+    return fetchStats();
+  }, [fetchStats]);
+
   /** Number of users with an authenticator app (optional server feature). */
-  const loadEnrollment = useCallback(async () => {
-    setEnrollment({ status: 'loading', summary: null });
+  const fetchEnrollment = useCallback(async () => {
     try {
       const res = await get('/magic-link/totp/enrollment-summary');
       const summary = parseEnrollmentSummary(res?.data);
@@ -331,10 +343,12 @@ const SettingsModern = () => {
 
   useEffect(() => {
     if (!canReadSettings) return;
-    loadSettings();
-    loadStats();
-    loadEnrollment();
-  }, [canReadSettings, loadSettings, loadStats, loadEnrollment]);
+    // The fetchers set state only after their requests settle.
+    const load = async () => {
+      await Promise.all([fetchSettings(), fetchStats(), fetchEnrollment()]);
+    };
+    load();
+  }, [canReadSettings, fetchSettings, fetchStats, fetchEnrollment]);
 
   useEffect(() => {
     if (!integrations.emailDesignerInstalled) return undefined;
@@ -533,7 +547,7 @@ const SettingsModern = () => {
         <Page.Error
           content={t('settings.load.error', 'Settings could not be loaded.')}
           action={
-            <Button variant="secondary" startIcon={<ArrowClockwise />} onClick={loadSettings}>
+            <Button variant="secondary" startIcon={<ArrowClockwise />} onClick={retrySettings}>
               {t('settings.retry', 'Try again')}
             </Button>
           }

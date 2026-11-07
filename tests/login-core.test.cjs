@@ -411,6 +411,7 @@ test('TOTP-only login never confirms the account and respects e-mail confirmatio
   await auth.loginWithTOTP(ctx);
   assert.equal(ctx.status, 400);
   assert.equal(ctx.body.error.key, 'credentials.invalid');
+  assert.deepEqual(fixture.state.edits, [], 'a rejected TOTP-only login must not confirm the account');
 
   fixture = createLoginCoreStrapi({
     users: [unconfirmed],

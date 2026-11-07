@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import styled from 'styled-components';
 import { Box, Button, Field, Flex, Modal, NumberInput, Typography } from '@strapi/design-system';
 import { Check, Clock } from '@strapi/icons';
@@ -44,13 +44,18 @@ const ExtendTokenModal = ({ token, onClose, onSubmit }) => {
   const [customDays, setCustomDays] = useState(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
+  // Reset the choice for every token the dialog opens with. Adjusting state
+  // during render avoids an extra effect pass
+  // (https://react.dev/learn/you-might-not-need-an-effect).
+  const [shownToken, setShownToken] = useState(null);
+  if (shownToken !== token) {
+    setShownToken(token);
+    if (token) {
       setPreset(7);
       setCustomDays(undefined);
       setIsSubmitting(false);
     }
-  }, [isOpen, token]);
+  }
 
   if (!token) return null;
 
