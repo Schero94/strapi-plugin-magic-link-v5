@@ -28,6 +28,23 @@ const fakeJwt = (payload, expiresIn = '30d') => {
   return `${b64({ alg: 'none' })}.${b64({ ...payload, iat, exp: iat + seconds })}.sig${Math.random().toString(36).slice(2)}`;
 };
 
+/**
+ * Deterministic JWT-shaped string like jsonwebtoken.sign: the same claims in
+ * the same second give the same token; `options.jwtid` becomes `jti`.
+ *
+ * @param {object} payload - Claims.
+ * @param {object} [options] - Sign options (expiresIn, jwtid).
+ * @returns {string} Fake JWT.
+ */
+const deterministicJwt = (payload, options = {}) => {
+  const match = /^(\d+)([smhd])$/.exec(options.expiresIn || '30d');
+  const seconds = match ? Number(match[1]) * DURATION[match[2]] : 30 * 86400;
+  const iat = Math.floor(Date.now() / 1000);
+  const claims = { ...payload, iat, exp: iat + seconds };
+  if (options.jwtid) claims.jti = options.jwtid;
+  return `${b64({ alg: 'HS256' })}.${b64(claims)}.sig`;
+};
+
 const matchesWhere = (row, where = {}) =>
   Object.entries(where).every(([key, condition]) => {
     if (key === '$or') return condition.some((sub) => matchesWhere(row, sub));
@@ -53,6 +70,7 @@ const createLoginCoreStrapi = ({
   config = {},
   totp = {},
   rateLimit = { allowed: true },
+  deterministicJwts = false,
 } = {}) => {
   const state = {
     tokens: [],
@@ -232,7 +250,9 @@ const createLoginCoreStrapi = ({
               ? {
                   issue: (payload, options = {}) => {
                     state.issued.push({ payload, options });
-                    return fakeJwt(payload, options.expiresIn);
+                    return deterministicJwts
+                      ? deterministicJwt(payload, options)
+                      : fakeJwt(payload, options.expiresIn);
                   },
                 }
               : {

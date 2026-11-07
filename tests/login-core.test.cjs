@@ -374,6 +374,31 @@ test('direct login sanitizes the user, honours the JWT lifetime and records the 
   assert.equal(ctx.responseHeaders['Referrer-Policy'], 'no-referrer');
 });
 
+test('two logins of one user in the same second get distinct JWTs, so revoking one session spares the other', async () => {
+  // HTTP acceptance 2026-11-07 (Strapi 5.61, legacy-support): without a jti,
+  // jsonwebtoken produced byte-identical tokens for both logins, the session
+  // records shared one hash and revoking one session ended both.
+  const { magicLinkService, state } = createLoginCoreStrapi({
+    users: [VICTIM],
+    deterministicJwts: true,
+  });
+  const first = await createLink(magicLinkService, VICTIM.email);
+  const second = await createLink(magicLinkService, VICTIM.email);
+
+  const a = createCtx({ method: 'POST', body: { loginToken: first } });
+  const b = createCtx({ method: 'POST', body: { loginToken: second } });
+  await Promise.all([auth.login(a), auth.login(b)]);
+
+  assert.equal(a.status, 200);
+  assert.equal(b.status, 200);
+  const [jtiA, jtiB] = state.issued.map((entry) => entry.options.jwtid);
+  assert.match(jtiA, /^[0-9a-f-]{36}$/);
+  assert.notEqual(jtiA, jtiB);
+  assert.notEqual(a.body.jwt, b.body.jwt);
+  const hashes = state.stores['magic-link'].jwt_sessions.sessions.map((s) => s.jwtTokenHash);
+  assert.equal(new Set(hashes).size, 2);
+});
+
 test('use_jwt_token=false confirms the login without minting a token (STR-M07)', async () => {
   const { magicLinkService, state } = createLoginCoreStrapi({
     users: [VICTIM],

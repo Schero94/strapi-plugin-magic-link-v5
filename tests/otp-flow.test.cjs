@@ -359,11 +359,9 @@ test('OTP verify binds to the stored token hash and issues a recorded session (S
   assert.equal(state.consumed, 1);
   assert.equal(ctx.response.jwt, 'local-jwt');
   assert.ok(ctx.response.expires_at, 'the response carries the real expiry');
-  assert.deepEqual(
-    state.issued[0].options,
-    { expiresIn: '2h' },
-    'the configured lifetime is honoured'
-  );
+  const { jwtid, ...signOptions } = state.issued[0].options;
+  assert.deepEqual(signOptions, { expiresIn: '2h' }, 'the configured lifetime is honoured');
+  assert.match(jwtid, /^[0-9a-f-]{36}$/, 'every legacy JWT gets a unique jti');
   assert.deepEqual(
     ctx.response.context,
     { redirectTo: '/account' },

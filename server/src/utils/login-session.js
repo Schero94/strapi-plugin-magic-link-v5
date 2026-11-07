@@ -194,6 +194,13 @@ const issueRefreshSession = async (strapi, ctx, user) => {
 /**
  * Issues a legacy users-permissions JWT with the configured plugin lifetime.
  *
+ * Every token gets a random `jti` (jsonwebtoken 9 `jwtid` sign option, which
+ * the users-permissions 5.61 jwt service passes through to `jwt.sign`).
+ * Without it, two logins of the same user within one second produce
+ * byte-identical JWTs that share one session hash, so revoking one session
+ * in the admin panel also ends the other. `jti` is a reserved context key
+ * (utils/context-policy.js), so the payload never carries its own.
+ *
  * @param {object} strapi - Strapi instance.
  * @param {object} user - User entity.
  * @param {object} payload - Additional claims.
@@ -203,7 +210,10 @@ const issueRefreshSession = async (strapi, ctx, user) => {
 const issueLegacyJwt = async (strapi, user, payload, settings) => {
   const jwtService = strapi.plugin('users-permissions').service('jwt');
   const expiresIn = getConfiguredExpiresIn(settings);
-  const jwt = await jwtService.issue({ ...payload, id: user.id }, expiresIn ? { expiresIn } : {});
+  const jwt = await jwtService.issue(
+    { ...payload, id: user.id },
+    { ...(expiresIn ? { expiresIn } : {}), jwtid: crypto.randomUUID() }
+  );
   return { jwt, expiresAt: decodeJwtExpiry(jwt) };
 };
 

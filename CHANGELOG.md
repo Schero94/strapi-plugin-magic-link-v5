@@ -337,6 +337,9 @@ short version is the upgrade guide.
   `noreply@example.com`; the default expiry text reads "1 hour".
 * Server error messages are translated (de, en, es, fr, pt); unknown
   `?locale=` values fall back to English.
+* Legacy-mode JWTs carry a random `jti`. Two logins of the same user within
+  one second used to get byte-identical tokens, so revoking one session in
+  the admin panel also ended the other.
 
 ### BREAKING CHANGES (MFA: e-mail OTP, TOTP, backup codes)
 
