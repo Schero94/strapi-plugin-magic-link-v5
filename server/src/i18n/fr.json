@@ -27,7 +27,13 @@
     "otp.deliveryFailed": "Le code de vérification n'a pas pu être envoyé. Veuillez demander un nouveau code",
     "totp.loginDisabled": "La connexion avec un code d'authentification n'est pas activée",
     "credentials.invalid": "Identifiants invalides",
-    "login.failed": "La connexion n'a pas pu être finalisée. Veuillez réessayer"
+    "login.failed": "La connexion n'a pas pu être finalisée. Veuillez réessayer",
+    "totp.notEnrolled": "Aucune application d'authentification n'est configurée pour ce compte",
+    "totp.currentCodeRequired": "Saisissez un code de votre application d'authentification actuelle pour continuer",
+    "totp.noPendingSetup": "Aucune configuration d'application d'authentification n'est en cours. Veuillez recommencer la configuration",
+    "totp.invalidEmailCode": "Le code reçu par e-mail est invalide ou a expiré",
+    "totp.alreadyEnrolled": "Une application d'authentification est déjà configurée pour ce compte",
+    "auth.required": "Veuillez vous connecter pour continuer"
   },
   "success": {
     "token.created": "Magic Link envoyé avec succès",

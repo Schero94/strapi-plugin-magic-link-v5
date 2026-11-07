@@ -2,6 +2,11 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const { useTestSecrets } = require('./helpers/mfa-strapi.cjs');
+
+// bootstrap() refuses to start without MAGIC_LINK_ENCRYPTION_KEY and
+// MAGIC_LINK_OTP_PEPPER (AUTH-23); use synthetic values.
+useTestSecrets();
 
 const createMagicLinkService = require('../server/src/services/magic-link');
 const bootstrap = require('../server/src/bootstrap');

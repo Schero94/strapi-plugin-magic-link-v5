@@ -228,16 +228,22 @@ test('TOTP challenge is bound to the server-side user and issues one session', a
   assert.equal(state.issued.length, 1);
 });
 
-test('required MFA without an enrolled authenticator is refused with a translated error', async () => {
+test('required MFA without an enrolled authenticator starts enrolment and issues no session', async () => {
   const { magicLinkService, state } = createLoginCoreStrapi({ users: [VICTIM], settings: { mfa_mode: 'required', otp_enabled: true } });
   const plaintext = await createLink(magicLinkService, VICTIM.email);
 
-  const ctx = await login(plaintext, { headers: { 'accept-language': 'de-DE' } });
-  assert.equal(ctx.status, 403);
-  assert.equal(ctx.body.error.key, 'mfa.setupRequired');
-  assert.match(ctx.body.error.message, /Zwei-Faktor/);
+  const ctx = await login(plaintext);
+  assert.equal(ctx.body.requiresTOTPSetup, true);
+  assert.equal(ctx.body.loginToken, plaintext);
+  assert.equal(ctx.body.jwt, undefined);
+  assert.equal(state.tokens[0].challenge.type, 'totp-setup');
   assert.equal(state.issued.length, 0);
   assert.equal(state.otpMails.length, 0);
+
+  // Re-opening the link answers with the same enrolment challenge.
+  const again = await login(plaintext);
+  assert.equal(again.body.requiresTOTPSetup, true);
+  assert.equal(state.issued.length, 0);
 });
 
 test('repeated link opens in OTP mode send one code while it is valid (AUTH-25)', async () => {

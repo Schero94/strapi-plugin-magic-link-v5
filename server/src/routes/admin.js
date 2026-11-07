@@ -260,7 +260,17 @@ module.exports = {
       config: { policies: adminPolicy() },
     },
 
-    // ─────────────────────── TOTP Management (Advanced) ───────────────────────
+    // ─────────────────────── TOTP ───────────────────────
+    // Number of end users with an authenticator (Settings > MFA).
+    {
+      method: 'GET',
+      path: '/totp/enrollment-summary',
+      handler: 'otp.enrollmentSummary',
+      config: { policies: settingsPolicy(SETTINGS_READ_ACTION) },
+    },
+    // The admin user's OWN authenticator. Enrolments are namespaced to the
+    // admin principal (`admin:<id>`) and never act as an end user's second
+    // factor. Re-setup, disable and new backup codes need a current code.
     {
       method: 'POST',
       path: '/otp/totp/setup',

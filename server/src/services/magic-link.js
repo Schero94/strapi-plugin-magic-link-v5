@@ -36,7 +36,8 @@ const TOKEN_PREFIX_LENGTH = 8;
 // Admin-created tokens of older releases may be 16 characters long; they are
 // still accepted for lookup, new tokens are generated with TOKEN_LENGTH.min+.
 const MIN_LOOKUP_LENGTH = 16;
-const CHALLENGE_TYPES = ['otp', 'totp'];
+// 'totp-setup': required MFA, the user enrols an authenticator during login.
+const CHALLENGE_TYPES = ['otp', 'totp', 'totp-setup'];
 const BLOCKLIST_KEY = 'blocked_jwt_tokens';
 const SESSIONS_KEY = 'jwt_sessions';
 // Fallback when a revoked token's expiry is unknown: keep the entry for one
@@ -387,7 +388,7 @@ module.exports = ({ strapi }) => {
      * The state is written to the private `challenge` attribute only.
      *
      * @param {object} token - Token record.
-     * @param {object} challenge - { type: 'otp'|'totp', userId, userDocumentId, otpSentAt? }.
+     * @param {object} challenge - { type: 'otp'|'totp'|'totp-setup', userId, userDocumentId, otpSentAt? }.
      * @returns {Promise<boolean>} Whether the token was still usable.
      */
     async startChallenge(token, challenge) {
@@ -414,7 +415,7 @@ module.exports = ({ strapi }) => {
      *
      * @param {string} plaintextToken - Login token.
      * @param {string} email - E-mail the caller acts for.
-     * @param {'otp'|'totp'} expectedChallenge - Challenge type.
+     * @param {'otp'|'totp'|'totp-setup'} expectedChallenge - Challenge type.
      * @returns {Promise<object|null>} Token record or null.
      */
     async validateBindingForChallenge(plaintextToken, email, expectedChallenge = 'otp') {
@@ -435,7 +436,7 @@ module.exports = ({ strapi }) => {
      * when reusable links are enabled, so one challenge yields one session.
      *
      * @param {object} token - Token record (with server challenge).
-     * @param {'otp'|'totp'} challengeType - Expected challenge.
+     * @param {'otp'|'totp'|'totp-setup'} challengeType - Expected challenge.
      * @param {object} [requestInfo] - IP and user agent.
      * @returns {Promise<boolean>} True only for the request that consumed it.
      */

@@ -89,5 +89,58 @@ module.exports = {
         policies: ['plugin::magic-link.ip-ban-check'],
       },
     },
+    // Authenticator enrolment during a login that requires MFA. Public: the
+    // proof is the loginToken of a pending `totp-setup` challenge.
+    {
+      method: 'POST',
+      path: '/totp/enroll',
+      handler: 'totp.enroll',
+      config: {
+        auth: false,
+        policies: ['plugin::magic-link.ip-ban-check'],
+      },
+    },
+    {
+      method: 'POST',
+      path: '/totp/enroll/confirm',
+      handler: 'totp.enrollConfirm',
+      config: {
+        auth: false,
+        policies: ['plugin::magic-link.ip-ban-check'],
+      },
+    },
+    // Authenticator self-service for logged-in users. These use the
+    // users-permissions JWT: grant the "totp" actions to the Authenticated
+    // role (Settings > Users & Permissions > Roles > Magic-link).
+    {
+      method: 'GET',
+      path: '/totp/status',
+      handler: 'totp.status',
+      config: { policies: ['plugin::magic-link.ip-ban-check'] },
+    },
+    {
+      method: 'POST',
+      path: '/totp/setup',
+      handler: 'totp.setup',
+      config: { policies: ['plugin::magic-link.ip-ban-check'] },
+    },
+    {
+      method: 'POST',
+      path: '/totp/confirm',
+      handler: 'totp.confirm',
+      config: { policies: ['plugin::magic-link.ip-ban-check'] },
+    },
+    {
+      method: 'POST',
+      path: '/totp/disable',
+      handler: 'totp.disable',
+      config: { policies: ['plugin::magic-link.ip-ban-check'] },
+    },
+    {
+      method: 'POST',
+      path: '/totp/backup-codes',
+      handler: 'totp.backupCodes',
+      config: { policies: ['plugin::magic-link.ip-ban-check'] },
+    },
   ],
 };

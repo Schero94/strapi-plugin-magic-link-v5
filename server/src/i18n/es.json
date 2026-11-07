@@ -27,7 +27,13 @@
     "otp.deliveryFailed": "No se pudo enviar el código de verificación. Solicite un código nuevo",
     "totp.loginDisabled": "El inicio de sesión con un código de autenticación no está activado",
     "credentials.invalid": "Credenciales no válidas",
-    "login.failed": "No se pudo completar el inicio de sesión. Inténtelo de nuevo"
+    "login.failed": "No se pudo completar el inicio de sesión. Inténtelo de nuevo",
+    "totp.notEnrolled": "No hay ninguna aplicación de autenticación configurada para esta cuenta",
+    "totp.currentCodeRequired": "Introduzca un código de su aplicación de autenticación actual para continuar",
+    "totp.noPendingSetup": "No hay ninguna configuración de aplicación de autenticación en curso. Inicie la configuración de nuevo",
+    "totp.invalidEmailCode": "El código del correo electrónico no es válido o ha caducado",
+    "totp.alreadyEnrolled": "Ya hay una aplicación de autenticación configurada para esta cuenta",
+    "auth.required": "Inicie sesión para continuar"
   },
   "success": {
     "token.created": "Magic Link enviado exitosamente",

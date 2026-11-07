@@ -5,7 +5,7 @@
     "singularName": "totp-config",
     "pluralName": "totp-configs",
     "displayName": "TOTP Configuration",
-    "description": "Stores TOTP configuration for users"
+    "description": "Authenticator enrolments, namespaced by principal type (users-permissions user or admin user)"
   },
   "options": {
     "draftAndPublish": false
@@ -19,10 +19,18 @@
     }
   },
   "attributes": {
+    "principalType": {
+      "type": "enumeration",
+      "enum": ["users-permissions", "admin", "legacy"]
+    },
+    "principalKey": {
+      "type": "string",
+      "unique": true,
+      "private": true
+    },
     "userId": {
       "type": "integer",
-      "required": true,
-      "unique": true
+      "required": true
     },
     "email": {
       "type": "email",
@@ -30,15 +38,36 @@
     },
     "secret": {
       "type": "string",
-      "required": true,
       "private": true
     },
     "enabled": {
       "type": "boolean",
       "default": false
     },
+    "algorithm": {
+      "type": "string"
+    },
+    "digits": {
+      "type": "integer"
+    },
+    "period": {
+      "type": "integer"
+    },
+    "pending": {
+      "type": "json",
+      "private": true
+    },
     "backupCodes": {
       "type": "json",
+      "private": true
+    },
+    "backupCodesVersion": {
+      "type": "integer",
+      "private": true
+    },
+    "revision": {
+      "type": "integer",
+      "default": 0,
       "private": true
     },
     "lastUsed": {

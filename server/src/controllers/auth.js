@@ -11,6 +11,9 @@
  * - TOTP takes precedence over e-mail OTP: a user with an enabled
  *   authenticator always gets the TOTP challenge (the link click already
  *   proves e-mail ownership), so enabling OTP can never weaken MFA.
+ * - Required MFA without an authenticator starts a `totp-setup` challenge:
+ *   the user enrols through /totp/enroll and /totp/enroll/confirm
+ *   (controllers/totp.js) before any session is issued.
  * - Tokens are consumed with conditional updates (single use is atomic).
  * - Sessions are issued through utils/login-session.js, which honours the
  *   users-permissions jwtManagement mode and sanitizes the user.
@@ -162,6 +165,14 @@ const totpChallengeResponse = (token, loginToken) => ({
   loginToken,
 });
 
+const totpSetupChallengeResponse = (token, loginToken) => ({
+  requiresTOTPSetup: true,
+  message: 'Set up an authenticator app to continue',
+  email: token.email,
+  loginToken,
+  enrollEndpoint: '/api/magic-link/totp/enroll',
+});
+
 /**
  * Reads the login token from a POST body (preferred) or the legacy GET query.
  *
@@ -230,6 +241,9 @@ module.exports = {
       if (pendingChallenge.type === 'totp') {
         return ctx.send(totpChallengeResponse(token, loginToken));
       }
+      if (pendingChallenge.type === 'totp-setup') {
+        return ctx.send(totpSetupChallengeResponse(token, loginToken));
+      }
       const expirySeconds = Number.isFinite(settings.otp_expiry) ? settings.otp_expiry : 300;
       const sentAt = new Date(pendingChallenge.otpSentAt || 0).getTime();
       if (Number.isFinite(sentAt) && Date.now() - sentAt < expirySeconds * 1000) {
@@ -247,7 +261,15 @@ module.exports = {
     const challenge = await resolveChallenge(settings, user);
 
     if (challenge === 'setup-required') {
-      return i18n.sendError(ctx, 'mfa.setupRequired', 403, {}, { code: 'TOTP_SETUP_REQUIRED' });
+      // The link click proves the mailbox; the user enrols an authenticator
+      // before any session exists (controllers/totp.js enroll*).
+      const started = await magicLink.startChallenge(token, {
+        type: 'totp-setup',
+        userId: user.id,
+        userDocumentId: user.documentId,
+      });
+      if (!started) return i18n.sendError(ctx, 'token.invalid', 400);
+      return ctx.send(totpSetupChallengeResponse(token, loginToken));
     }
 
     if (challenge === 'totp') {
@@ -335,7 +357,7 @@ module.exports = {
    */
   async verifyMFATOTP(ctx) {
     setNoStoreHeaders(ctx);
-    const { loginToken, totpCode } = parseBody(mfaVerifyTotpSchema, ctx.request.body);
+    const { loginToken, totpCode, backupCode } = parseBody(mfaVerifyTotpSchema, ctx.request.body);
 
     if (!(await allowRequest(ctx, ctx.request.ip, 'otp'))) return undefined;
     if (!(await allowRequest(ctx, limiterKey('totp-challenge', loginToken), 'otp'))) return undefined;
@@ -376,7 +398,8 @@ module.exports = {
       return i18n.sendError(ctx, 'challenge.invalid', 400);
     }
 
-    const verification = await otpService.verifyTOTP(user.id, totpCode, false);
+    // A backup code is the recovery path when the authenticator is lost.
+    const verification = await otpService.verifySecondFactor(user.id, { totpCode, backupCode });
     if (!verification?.valid) {
       return i18n.sendError(ctx, 'mfa.invalidCode', 400);
     }
@@ -392,9 +415,12 @@ module.exports = {
       user,
       settings,
       context: filterContext(token.context, settings),
-      source: 'Magic Link + TOTP (MFA)',
+      source: verification.method === 'backup-code' ? 'Magic Link + backup code (MFA)' : 'Magic Link + TOTP (MFA)',
       claims: { mfaVerified: true },
-      extras: { mfaVerified: true },
+      extras: {
+        mfaVerified: true,
+        ...(verification.method === 'backup-code' ? { backupCodesRemaining: verification.remaining } : {}),
+      },
     });
     return ctx.send(body);
   },
@@ -412,8 +438,12 @@ module.exports = {
     setNoStoreHeaders(ctx);
     const { email, totpCode } = parseBody(loginWithTotpSchema, ctx.request.body);
 
+    // Per IP, per (account, IP) pair and a looser per-account budget: one
+    // client cannot lock a victim out with a handful of requests, and many
+    // clients together still cannot brute-force one account (AUTH-26).
     if (!(await allowRequest(ctx, ctx.request.ip, 'login'))) return undefined;
-    if (!(await allowRequest(ctx, limiterKey('totp-login', email), 'otp'))) return undefined;
+    if (!(await allowRequest(ctx, limiterKey('totp-login', `${email}|${ctx.request.ip}`), 'otp'))) return undefined;
+    if (!(await allowRequest(ctx, limiterKey('totp-login-account', email), 'login'))) return undefined;
 
     const magicLink = plugin().service('magic-link');
     const otpService = plugin().service('otp');
@@ -425,6 +455,8 @@ module.exports = {
     const user = await findUserByEmail(email);
     const status = user && !user.blocked ? await otpService.getTOTPStatus(user.id) : null;
     if (!user || user.blocked || !status?.configured || !status?.enabled) {
+      // Same work as a real verification, so timing does not reveal accounts.
+      await otpService.simulateVerification?.(totpCode);
       return i18n.sendError(ctx, 'credentials.invalid', 400);
     }
 
@@ -437,7 +469,7 @@ module.exports = {
       }
     }
 
-    const verification = await otpService.verifyTOTP(user.id, totpCode, false);
+    const verification = await otpService.verifyTOTP(user.id, totpCode);
     if (!verification?.valid) {
       return i18n.sendError(ctx, 'credentials.invalid', 400);
     }

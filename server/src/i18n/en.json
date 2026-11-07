@@ -27,7 +27,13 @@
     "otp.deliveryFailed": "The verification code could not be sent. Please request a new code",
     "totp.loginDisabled": "Login with an authenticator code is not enabled",
     "credentials.invalid": "Invalid credentials",
-    "login.failed": "The login could not be completed. Please try again"
+    "login.failed": "The login could not be completed. Please try again",
+    "totp.notEnrolled": "No authenticator app is set up for this account",
+    "totp.currentCodeRequired": "Enter a code from your current authenticator app to continue",
+    "totp.noPendingSetup": "No authenticator setup is in progress. Please start the setup again",
+    "totp.invalidEmailCode": "The e-mail code is invalid or has expired",
+    "totp.alreadyEnrolled": "An authenticator app is already set up for this account",
+    "auth.required": "Please log in to continue"
   },
   "success": {
     "token.created": "Magic Link sent successfully",

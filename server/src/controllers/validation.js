@@ -130,25 +130,110 @@ const otpVerifySchema = z
 
 const otpResendSchema = otpSendSchema;
 
+// Backup codes are XXXX-XXXX-XXXX-XXXX; the service normalises case and dashes.
+const backupCodeSchema = z.string().trim().min(16).max(32);
+const deviceIdSchema = z.string().min(1).max(255).optional();
+
+/**
+ * Requires exactly one of totpCode / backupCode.
+ *
+ * @param {object} value - Parsed body.
+ * @param {object} ctx - Zod refinement context.
+ */
+const exactlyOneSecondFactor = (value, ctx) => {
+  const count = Number(Boolean(value.totpCode)) + Number(Boolean(value.backupCode));
+  if (count !== 1) {
+    ctx.addIssue({ code: 'custom', path: ['totpCode'], message: 'Send either totpCode or backupCode' });
+  }
+};
+
+/** POST /verify-mfa-totp: the second factor after a magic link. */
 const mfaVerifyTotpSchema = z
   .object({
     loginToken: tokenSchema,
-    totpCode: codeSchema,
-    deviceId: z.string().min(1).max(255).optional(),
+    totpCode: codeSchema.optional(),
+    backupCode: backupCodeSchema.optional(),
+    deviceId: deviceIdSchema,
   })
-  .strict();
+  .strict()
+  .superRefine(exactlyOneSecondFactor);
 
 const loginWithTotpSchema = z
   .object({
     email: emailSchema,
     totpCode: codeSchema,
-    deviceId: z.string().min(1).max(255).optional(),
+    deviceId: deviceIdSchema,
   })
   .strict();
 
+/** Admin self-service TOTP routes (legacy body field name `token`). */
 const totpTokenOnlySchema = z
   .object({
     token: codeSchema,
+  })
+  .strict();
+
+const adminTotpSetupSchema = z
+  .object({
+    token: codeSchema.optional(),
+  })
+  .strict();
+
+/** POST /totp/enroll: start authenticator enrolment during a login. */
+const totpEnrollStartSchema = z
+  .object({
+    loginToken: tokenSchema,
+  })
+  .strict();
+
+/** POST /totp/enroll/confirm: finish enrolment during a login. */
+const totpEnrollConfirmSchema = z
+  .object({
+    loginToken: tokenSchema,
+    totpCode: codeSchema,
+    deviceId: deviceIdSchema,
+  })
+  .strict();
+
+/** POST /totp/setup (authenticated end user). */
+const totpSetupSchema = z
+  .object({
+    // Required by the controller when an authenticator is already active.
+    totpCode: codeSchema.optional(),
+  })
+  .strict();
+
+/** POST /totp/confirm (authenticated end user). */
+const totpConfirmSchema = z
+  .object({
+    totpCode: codeSchema,
+    emailCode: codeSchema,
+  })
+  .strict();
+
+/** POST /totp/disable (authenticated end user). */
+const totpDisableSchema = z
+  .object({
+    totpCode: codeSchema.optional(),
+    backupCode: backupCodeSchema.optional(),
+  })
+  .strict()
+  .superRefine(exactlyOneSecondFactor);
+
+/** POST /totp/backup-codes (authenticated end user). */
+const totpBackupCodesSchema = z
+  .object({
+    totpCode: codeSchema,
+  })
+  .strict();
+
+/** GET /otp/codes (admin) query string. */
+const otpCodesQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).max(100_000).default(1),
+    pageSize: z.coerce.number().int().min(1).max(1_000).default(10),
+    email: z.string().trim().max(320).optional(),
+    type: z.enum(['email', 'totp-setup']).optional(),
   })
   .strict();
 
@@ -279,6 +364,14 @@ module.exports = {
   mfaVerifyTotpSchema,
   loginWithTotpSchema,
   totpTokenOnlySchema,
+  adminTotpSetupSchema,
+  totpEnrollStartSchema,
+  totpEnrollConfirmSchema,
+  totpSetupSchema,
+  totpConfirmSchema,
+  totpDisableSchema,
+  totpBackupCodesSchema,
+  otpCodesQuerySchema,
   settingsUpdateSchema,
   parseBody,
 };

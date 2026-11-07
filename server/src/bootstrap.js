@@ -62,11 +62,11 @@ const { migrateSettings } = require('./utils/settings-migration');
 const { clampTokenLength } = require('./services/magic-link');
 
 module.exports = async ({ strapi }) => {
-  // Fail fast on missing production secrets. getEncryptionKey() and
-  // getOtpPepper() throw when NODE_ENV=production and their env vars are
-  // not set — eager check here turns that into a clear boot-time error
-  // instead of a runtime error on the first OTP request.
+  // Fail fast on missing or weak secrets (MAGIC_LINK_ENCRYPTION_KEY,
+  // MAGIC_LINK_OTP_PEPPER, both >= 32 characters). Only an explicit
+  // MAGIC_LINK_ALLOW_DEV_SECRETS=true outside production skips this.
   try {
+    cryptoUtilsSelfTest.assertSecretsConfigured();
     cryptoUtilsSelfTest.encrypt('self-test');
     cryptoUtilsSelfTest.hashOTP('000000');
   } catch (e) {
@@ -168,6 +168,22 @@ This link expires in {{EXPIRY_TEXT}}.`,
         strapi.log.info(`[magic-link] Removed ${migration.removedKeys} obsolete WhatsApp/SMS setting(s)`);
       }
     }
+  }
+
+  // Authenticator enrolments from before 6.0.0: namespace them by principal
+  // (users-permissions vs admin), fail closed where ownership is not
+  // provable, store per-enrolment TOTP parameters and finish a key rotation.
+  // Unmigrated rows have no principal key and are never used for a login.
+  try {
+    const totpStats = await strapi.plugin('magic-link').service('otp').migrateTotpConfigs();
+    if (totpStats.assigned || totpStats.disabled || totpStats.reencrypted) {
+      strapi.log.info(
+        `[magic-link] TOTP migration: ${totpStats.assigned} assigned, ${totpStats.disabled} disabled, ` +
+          `${totpStats.reencrypted} re-encrypted`
+      );
+    }
+  } catch {
+    strapi.log.error('[magic-link] TOTP enrolment migration failed; unmigrated enrolments stay inactive');
   }
 
   await strapi.admin.services.permission.actionProvider.registerMany(

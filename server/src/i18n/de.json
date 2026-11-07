@@ -27,7 +27,13 @@
     "otp.deliveryFailed": "Der Bestätigungscode konnte nicht gesendet werden. Bitte fordern Sie einen neuen Code an",
     "totp.loginDisabled": "Die Anmeldung mit einem Authenticator-Code ist nicht aktiviert",
     "credentials.invalid": "Ungültige Anmeldedaten",
-    "login.failed": "Die Anmeldung konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut"
+    "login.failed": "Die Anmeldung konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut",
+    "totp.notEnrolled": "Für dieses Konto ist keine Authenticator-App eingerichtet",
+    "totp.currentCodeRequired": "Geben Sie einen Code aus Ihrer aktuellen Authenticator-App ein, um fortzufahren",
+    "totp.noPendingSetup": "Es läuft keine Einrichtung einer Authenticator-App. Bitte starten Sie die Einrichtung erneut",
+    "totp.invalidEmailCode": "Der E-Mail-Code ist ungültig oder abgelaufen",
+    "totp.alreadyEnrolled": "Für dieses Konto ist bereits eine Authenticator-App eingerichtet",
+    "auth.required": "Bitte melden Sie sich an, um fortzufahren"
   },
   "success": {
     "token.created": "Magic Link erfolgreich gesendet",

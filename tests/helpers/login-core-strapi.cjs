@@ -108,6 +108,12 @@ const createLoginCoreStrapi = ({
       state.totpVerifications.push({ userId, code });
       return { valid: code === '123456' && Boolean(totp[userId]?.enabled) };
     },
+    verifySecondFactor: async (userId, { totpCode, backupCode } = {}) => {
+      state.totpVerifications.push({ userId, code: totpCode, backupCode });
+      if (backupCode) return { valid: false };
+      return { valid: totpCode === '123456' && Boolean(totp[userId]?.enabled), method: 'totp' };
+    },
+    simulateVerification: async () => {},
     createOTP: async (email, type, options) => {
       state.otpCreated.push({ email, type, options });
       return { code: '654321' };
