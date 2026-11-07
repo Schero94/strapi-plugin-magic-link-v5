@@ -404,11 +404,12 @@ test('settings.update keeps working for unchanged security fields and harmless f
   const readCtx = adminCtx(undefined, ['plugin::magic-link.settings.read']);
   global.strapi.config = { get: (_key, fallback) => fallback };
   await settingsController.getSettings(readCtx);
-  const form = { ...readCtx.response.settings, from_name: 'Example Shop', otp_length: 8 };
+  // otp_length is a security setting since the 2026-11-07 re-attack.
+  const form = { ...readCtx.response.settings, from_name: 'Example Shop', welcome_email: true };
 
   await settingsController.updateSettings(adminCtx(form));
   assert.equal(values.get('settings').from_name, 'Example Shop');
-  assert.equal(values.get('settings').otp_length, 8);
+  assert.equal(values.get('settings').welcome_email, true);
 });
 
 test('settings.security may change security fields; URLs must match allowedLinkOrigins when set', async () => {

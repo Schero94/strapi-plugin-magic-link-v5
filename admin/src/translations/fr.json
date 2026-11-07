@@ -666,6 +666,6 @@
   "magic-link.tokens.title": "Jetons Magic Link",
   "magic-link.tokens.user.id": "ID utilisateur : {id}",
   "magic-link.tokens.user.new": "Nouvel utilisateur",
-  "magic-link.settings.save.securityForbidden": "Modifier les cibles des liens, les modèles ou les règles de compte ou MFA nécessite l'autorisation « Paramètres : Sécurité ».",
+  "magic-link.settings.save.securityForbidden": "Modifier les cibles des liens, les modèles ou les règles de compte, MFA, codes ou limites de requêtes nécessite l'autorisation « Paramètres : Sécurité ».",
   "magic-link.settings.save.linkOriginNotAllowed": "Les URL des liens de connexion doivent utiliser une origine autorisée dans la configuration du serveur."
 }

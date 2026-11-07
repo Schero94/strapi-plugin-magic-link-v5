@@ -367,8 +367,10 @@ test('reset-data needs an explicit confirmation and keeps MFA settings by defaul
     plugin: () => undefined,
     log: { info() {}, warn() {}, error() {} },
   };
+  // A security admin: without settings.security a reset keeps every
+  // security setting (expire_period included), see security-reattack tests.
   const makeCtx = (body) => ({
-    state: { user: { id: 7 } },
+    state: { user: { id: 7 }, userAbility: { can: () => true } },
     request: { body },
     send(payload) {
       this.response = payload;
@@ -441,6 +443,8 @@ test('settings updates reload the live rate limiter after persisting its configu
     log: { info() {} },
   };
   const ctx = {
+    // Rate-limit values are security settings (settings.security).
+    state: { user: { id: 7 }, userAbility: { can: () => true } },
     request: {
       body: { rate_limit_enabled: true, rate_limit_max_attempts: 7, rate_limit_window_minutes: 20 },
     },

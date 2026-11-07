@@ -666,6 +666,6 @@
   "magic-link.tokens.title": "Magic Link Tokens",
   "magic-link.tokens.user.id": "User ID: {id}",
   "magic-link.tokens.user.new": "New User",
-  "magic-link.settings.save.securityForbidden": "Changing link targets, templates, account or MFA rules needs the \"Settings: Security\" permission.",
+  "magic-link.settings.save.securityForbidden": "Changing link targets, templates, account, MFA, code or rate-limit rules needs the \"Settings: Security\" permission.",
   "magic-link.settings.save.linkOriginNotAllowed": "Login link URLs must use an origin allowed in the server configuration."
 }

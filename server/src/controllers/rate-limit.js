@@ -21,9 +21,11 @@ module.exports = {
         success: true,
         data: stats,
       });
-    } catch (error) {
-      strapi.log.error('Error getting rate limit stats:', error);
-      ctx.throw(500, error);
+    } catch {
+      // Limiter errors can carry store connection details: never log or
+      // return them.
+      strapi.log.error('[magic-link] Rate-limit statistics could not be loaded');
+      ctx.throw(500, 'Failed to get rate limit stats');
     }
   },
 
@@ -40,14 +42,15 @@ module.exports = {
         message: `Cleaned up ${result.cleaned} expired entries`,
         data: result,
       });
-    } catch (error) {
-      strapi.log.error('Error cleaning up rate limits:', error);
-      ctx.throw(500, error);
+    } catch {
+      strapi.log.error('[magic-link] Rate-limit cleanup failed');
+      ctx.throw(500, 'Failed to clean up rate limits');
     }
   },
 
   /**
-   * Reset all rate limits
+   * Resets the public rate-limit counters. The always-on code-check and
+   * admin limiters are kept (services/rate-limiter.js resetAll).
    */
   async reset(ctx) {
     try {
@@ -58,9 +61,9 @@ module.exports = {
         success: true,
         message: 'All rate limits have been reset',
       });
-    } catch (error) {
-      strapi.log.error('Error resetting rate limits:', error);
-      ctx.throw(500, error);
+    } catch {
+      strapi.log.error('[magic-link] Rate-limit reset failed');
+      ctx.throw(500, 'Failed to reset rate limits');
     }
   },
 };

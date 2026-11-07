@@ -18,7 +18,8 @@
  * | plugin::magic-link.settings.read     | settings, rate-limit stats, license status, MFA summary    |
  * | plugin::magic-link.settings.update   | save/reset settings, rate-limit cleanup/reset, license key |
  * | plugin::magic-link.settings.security | checked in controller.updateSettings/resetData: changing   |
- * |                                      | link targets, templates, account, session or MFA settings  |
+ * |                                      | link targets, templates, account, session, MFA, code or    |
+ * |                                      | rate-limit settings (a reset without it keeps them)        |
  *
  * The admin UI only hides controls; these policies are authoritative.
  */

@@ -72,14 +72,21 @@ short version is the upgrade guide.
   `verify_email`, `stays_valid`, `expire_period`, `token_length`,
   `use_jwt_token`, `jwt_token_expires_in`, `context_whitelist`,
   `context_blacklist`, `mfa_mode`, `mfa_require_totp`,
-  `totp_as_primary_auth`, `otp_enabled`, `otp_strict_binding`. Sending them
-  unchanged is allowed. A refused save answers 403
-  (`error.details.key: settings.security.forbidden`, `fields`) and writes
-  nothing. `reset-data` with `resetSecurity: true` needs it as well.
+  `totp_as_primary_auth`, `otp_enabled`, `otp_strict_binding`, and the code
+  and brute-force rules `otp_length`, `otp_expiry`, `otp_max_attempts`,
+  `otp_resend_cooldown`, `totp_algorithm`, `totp_digits`, `totp_period`,
+  `rate_limit_enabled`, `rate_limit_max_attempts`,
+  `rate_limit_window_minutes`, `rate_limit_login_*` and
+  `max_login_attempts`. Sending them unchanged is allowed. A refused save
+  answers 403 (`error.details.key: settings.security.forbidden`, `fields`)
+  and writes nothing. `reset-data` with `resetSecurity: true` needs it as
+  well; a `reset-data` without it keeps every security setting and resets
+  only the others (`securitySettingsKept: true` in the response).
   Migration: the action is never granted automatically (Super Admin has
   it). Grant **Settings > Security** to the roles that should keep changing
-  link targets, templates, account or MFA rules; roles with only
-  `settings.update` keep sender, rate-limit and OTP/TOTP parameter changes.
+  link targets, templates, account, MFA, code or rate-limit rules; roles
+  with only `settings.update` keep sender, subject, welcome-mail, login-info
+  and TOTP issuer changes.
 * **Optional `allowedLinkOrigins` plugin config.** When set
   (`config/plugins.js`, e.g. `['https://app.example.com']`), a changed
   `confirmationUrl`, `frontend_url` or `callback_url` outside these origins
@@ -164,6 +171,16 @@ short version is the upgrade guide.
 * Bootstrap timers are cleared in `destroy()`, and failing background jobs
   are logged instead of causing unhandled rejections.
 * Admin logs no longer contain settings objects, e-mail addresses or tokens.
+* The always-on code-check limiter (`verify`, 10 checks per account and
+  15 minutes) and the admin limiter are no longer cleared by
+  `POST /rate-limit/reset` or by changing the public rate-limit values.
+  Before, a role with `settings.update` could reset them in a loop and give
+  unlimited guesses at TOTP, backup and e-mail codes. The reset now clears
+  only the public limiters.
+* Rate-limit admin endpoints no longer log or return limiter error details
+  (a Redis error can contain the connection URL).
+* A JWT session ended by an account claim can no longer be restored with
+  `unrevoke-jwt` (400).
 
 ### BREAKING CHANGES (login core)
 
@@ -258,6 +275,13 @@ short version is the upgrade guide.
   "forgot password". Confirmed accounts are not changed.
 
 ### Security and fixes (login core)
+
+* **Revocation could be bypassed with an upper-case path.** Strapi 5.61
+  mounts its routers with @koa/router defaults (`sensitive: false`), so
+  `GET /API/users/me` reaches the same route as `/api/users/me`. The
+  revocation middleware compared the path case-sensitively and skipped the
+  check, so a revoked JWT kept working. The Content API and admin path
+  checks now ignore case.
 
 * **Refresh mode: revocation ends the whole refresh family.** @strapi/core
   5.61 rotates a refresh token into a new session id with the same device

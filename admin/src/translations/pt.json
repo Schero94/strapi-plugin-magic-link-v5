@@ -666,6 +666,6 @@
   "magic-link.tokens.title": "Tokens Magic Link",
   "magic-link.tokens.user.id": "ID do usuário: {id}",
   "magic-link.tokens.user.new": "Novo usuário",
-  "magic-link.settings.save.securityForbidden": "Alterar destinos de links, modelos ou regras de conta ou MFA exige a permissão \"Configurações: Segurança\".",
+  "magic-link.settings.save.securityForbidden": "Alterar destinos de links, modelos ou regras de conta, MFA, códigos ou limites de pedidos exige a permissão \"Configurações: Segurança\".",
   "magic-link.settings.save.linkOriginNotAllowed": "As URLs dos links de login devem usar uma origem permitida na configuração do servidor."
 }

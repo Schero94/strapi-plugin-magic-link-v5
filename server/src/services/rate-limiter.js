@@ -9,6 +9,8 @@ const { ipRateLimitKey } = require('../utils/ip-address');
  *
  * - Limiters are built lazily from the plugin settings and rebuilt only when
  *   the limit values change, so saving unrelated settings keeps counters.
+ *   The always-on `verify` and `admin` limiters are built once per process
+ *   and survive rebuilds and the admin reset (security review 2026-11-07).
  * - Client addresses are keyed through `ipRateLimitKey`: IPv4-mapped IPv6 is
  *   folded into IPv4 and IPv6 is keyed per /64, so a client cannot dodge a
  *   limit by rotating addresses inside its own prefix.
@@ -63,6 +65,7 @@ const positive = (value, fallback) =>
 
 module.exports = ({ strapi }) => {
   let limiters = null;
+  let fixedLimiters = null;
   let limiterSignature = '';
   let cachedSettings = null;
   let settingsCacheTime = 0;
@@ -124,22 +127,12 @@ module.exports = ({ strapi }) => {
   }
 
   /**
-   * Creates the limiters for the current settings.
-   * @param {object} s - Settings object from getSettings()
+   * Creates the always-on limiters (admin actions, second-factor code
+   * checks). Their limits are fixed and do not depend on the settings.
    * @returns {object} Map of limiter instances keyed by purpose
    */
-  function buildLimiters(s) {
-    const window = s.windowMinutes * 60;
+  function buildFixedLimiters() {
     return {
-      ip: createLimiter({ keyPrefix: 'ml_ip', points: s.maxAttempts, duration: window }),
-      email: createLimiter({ keyPrefix: 'ml_email', points: s.maxAttempts, duration: window }),
-      otp: createLimiter({ keyPrefix: 'ml_otp', points: s.maxAttempts, duration: window }),
-      login: createLimiter({
-        keyPrefix: 'ml_login',
-        points: s.loginMaxAttempts,
-        duration: s.loginWindowMinutes * 60,
-        blockDuration: s.loginBlockMinutes * 60,
-      }),
       admin: createLimiter({
         keyPrefix: 'ml_admin',
         points: ADMIN_POINTS,
@@ -151,6 +144,30 @@ module.exports = ({ strapi }) => {
         duration: VERIFY_WINDOW_SECONDS,
         blockDuration: VERIFY_BLOCK_SECONDS,
       }),
+    };
+  }
+
+  /**
+   * Creates the limiters for the current settings. The always-on limiters
+   * are created once per process and reused, so neither a settings change
+   * nor an admin "reset" clears the brute-force counters for code checks.
+   * @param {object} s - Settings object from getSettings()
+   * @returns {object} Map of limiter instances keyed by purpose
+   */
+  function buildLimiters(s) {
+    const window = s.windowMinutes * 60;
+    if (!fixedLimiters) fixedLimiters = buildFixedLimiters();
+    return {
+      ip: createLimiter({ keyPrefix: 'ml_ip', points: s.maxAttempts, duration: window }),
+      email: createLimiter({ keyPrefix: 'ml_email', points: s.maxAttempts, duration: window }),
+      otp: createLimiter({ keyPrefix: 'ml_otp', points: s.maxAttempts, duration: window }),
+      login: createLimiter({
+        keyPrefix: 'ml_login',
+        points: s.loginMaxAttempts,
+        duration: s.loginWindowMinutes * 60,
+        blockDuration: s.loginBlockMinutes * 60,
+      }),
+      ...fixedLimiters,
     };
   }
 
@@ -228,7 +245,11 @@ module.exports = ({ strapi }) => {
       return { cleaned: 0 };
     },
 
-    /** Clears active counters while retaining the currently loaded policy. */
+    /**
+     * Clears the public (settings-driven) counters while retaining the
+     * currently loaded policy. The always-on `verify` and `admin` counters
+     * are kept: an admin reset must never reopen code guessing.
+     */
     async resetAll() {
       limiters = null;
       limiterSignature = '';

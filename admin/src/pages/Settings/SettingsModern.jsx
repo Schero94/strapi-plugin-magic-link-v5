@@ -497,7 +497,7 @@ const SettingsModern = () => {
             errorKey === 'settings.security.forbidden'
               ? t(
                   'settings.save.securityForbidden',
-                  'Changing link targets, templates, account or MFA rules needs the "Settings: Security" permission.'
+                  'Changing link targets, templates, account, MFA, code or rate-limit rules needs the "Settings: Security" permission.'
                 )
               : t(
                   'settings.save.linkOriginNotAllowed',

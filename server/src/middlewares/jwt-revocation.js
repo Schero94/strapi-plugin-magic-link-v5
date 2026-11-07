@@ -18,6 +18,10 @@
  * are skipped, so a store problem can never lock administrators out and the
  * admin panel never pays for a blocklist lookup. Checked requests fail
  * closed with 503 when the revocation state is unknown.
+ *
+ * Paths are compared case-insensitively: Strapi 5.61 mounts its routers with
+ * @koa/router 12 defaults (`sensitive: false`), so `/API/users/me` reaches
+ * the same Content API route as `/api/users/me` and must be checked too.
  */
 
 /**
@@ -39,7 +43,10 @@ const parseBearerToken = (header) => {
  * @param {string} path - Request path.
  * @returns {boolean} Whether the path belongs to the admin API.
  */
-const isAdminPath = (path) => path === '/admin' || String(path || '').startsWith('/admin/');
+const isAdminPath = (path) => {
+  const value = String(path || '').toLowerCase();
+  return value === '/admin' || value.startsWith('/admin/');
+};
 
 /**
  * Normalises a configured path prefix ('/api/' -> '/api', 'api' -> '/api').
@@ -51,19 +58,21 @@ const isAdminPath = (path) => path === '/admin' || String(path || '').startsWith
 const toPrefix = (value, fallback) => {
   const raw = typeof value === 'string' && value.trim() ? value.trim() : fallback;
   const withSlash = raw.startsWith('/') ? raw : `/${raw}`;
-  return withSlash.replace(/\/+$/, '') || fallback;
+  return (withSlash.replace(/\/+$/, '') || fallback).toLowerCase();
 };
 
 /**
  * Returns true when a path belongs to the Content API (REST or GraphQL),
- * the only place where users-permissions JWTs are accepted.
+ * the only place where users-permissions JWTs are accepted. The comparison
+ * ignores case like the Strapi routers do.
  *
  * @param {object} strapi - Strapi instance.
  * @param {string} path - Request path.
  * @returns {boolean} Whether the request must pass the revocation check.
  */
 const isContentApiPath = (strapi, path) => {
-  const value = String(path || '');
+  // Routers match case-insensitively, so the check must too.
+  const value = String(path || '').toLowerCase();
   if (isAdminPath(value)) return false;
   const get = (key, fallback) => {
     try {

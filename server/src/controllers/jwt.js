@@ -3,6 +3,7 @@
 const cryptoUtils = require('../utils/crypto');
 const { readJwtSessions, updateJwtSessions, cleanSessions } = require('../utils/jwt-session-store');
 const { jwtRevokeSchema, jwtUnrevokeSchema, parseBody } = require('./validation');
+const { CLAIM_REASON } = require('../utils/account-claim');
 
 const REVOKE_REASON = 'Manually revoked from admin UI';
 
@@ -139,7 +140,9 @@ module.exports = {
   /**
    * Removes a session's JWT block only after blocklist storage accepts the
    * change. Refresh-mode sessions cannot be restored, because the
-   * users-permissions session behind them was deleted on revocation.
+   * users-permissions session behind them was deleted on revocation, and
+   * neither can sessions ended by an account claim (pre-account hijacking
+   * defence, utils/account-claim.js).
    *
    * @param {import('koa').Context} ctx - Authenticated admin request context
    * @returns {Promise<void>} Sends the updated session or throws on storage failure
@@ -158,6 +161,13 @@ module.exports = {
       if (session.upSessionId) {
         return ctx.badRequest(
           'Refresh-mode sessions cannot be restored; the user has to log in again'
+        );
+      }
+      // Sessions ended because the mailbox owner claimed an unconfirmed
+      // account may belong to whoever registered the address first.
+      if (session.revokeReason === CLAIM_REASON) {
+        return ctx.badRequest(
+          'Sessions ended by an account claim cannot be restored; the user has to log in again'
         );
       }
 

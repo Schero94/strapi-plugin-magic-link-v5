@@ -54,6 +54,22 @@ const SECURITY_SETTING_KEYS = Object.freeze([
   'totp_as_primary_auth',
   'otp_enabled',
   'otp_strict_binding',
+  // Code strength and brute-force limits: weakening them is as good as
+  // switching a factor off (security review 2026-11-07).
+  'otp_length',
+  'otp_expiry',
+  'otp_max_attempts',
+  'otp_resend_cooldown',
+  'totp_algorithm',
+  'totp_digits',
+  'totp_period',
+  'rate_limit_enabled',
+  'rate_limit_max_attempts',
+  'rate_limit_window_minutes',
+  'rate_limit_login_max_attempts',
+  'rate_limit_login_window_minutes',
+  'rate_limit_login_block_minutes',
+  'max_login_attempts',
 ]);
 
 /** URL settings checked against the server-side `allowedLinkOrigins`. */
@@ -294,13 +310,17 @@ module.exports = {
    * session audit list and IP bans. Requires `{ confirm: 'RESET' }`.
    * Active JWT revocations are kept, so a revoked token never becomes valid
    * again through a reset, and the MFA settings are kept unless
-   * `resetSecurity: true` is sent.
+   * `resetSecurity: true` is sent. Without `settings.security` every
+   * security setting (link targets, templates, account, MFA, code and
+   * rate-limit rules) keeps its current value: a reset must not undo
+   * hardening that only a security admin may change.
    *
    * @param {object} ctx - Strapi Koa context.
    */
   async resetData(ctx) {
     const { resetSecurity } = parseBody(adminResetSchema, ctx.request?.body);
-    if (resetSecurity && !can(ctx, SECURITY_ACTION)) {
+    const mayChangeSecurity = can(ctx, SECURITY_ACTION);
+    if (resetSecurity && !mayChangeSecurity) {
       throw new errors.ForbiddenError(
         'Resetting the MFA settings requires the "Settings: Security" permission',
         { key: 'settings.security.forbidden', fields: [...MFA_SETTING_KEYS] }
@@ -309,9 +329,11 @@ module.exports = {
     try {
       const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
       const defaults = createDefaultSettings();
-      if (!resetSecurity) {
+      const kept = new Set(resetSecurity ? [] : MFA_SETTING_KEYS);
+      if (!mayChangeSecurity) SECURITY_SETTING_KEYS.forEach((key) => kept.add(key));
+      if (kept.size > 0) {
         const current = (await pluginStore.get({ key: 'settings' })) || {};
-        for (const key of MFA_SETTING_KEYS) {
+        for (const key of kept) {
           if (current[key] !== undefined) defaults[key] = current[key];
         }
       }
@@ -327,11 +349,12 @@ module.exports = {
       }
 
       strapi.log.warn(
-        `[magic-link] Data reset by admin ${ctx.state?.user?.id ?? 'unknown'} (${deleted?.count || 0} token(s) deleted, MFA settings ${resetSecurity ? 'reset' : 'kept'})`
+        `[magic-link] Data reset by admin ${ctx.state?.user?.id ?? 'unknown'} (${deleted?.count || 0} token(s) deleted, MFA settings ${resetSecurity ? 'reset' : 'kept'}, security settings ${mayChangeSecurity ? 'reset' : 'kept'})`
       );
       ctx.send({
         success: true,
         deletedTokens: deleted?.count || 0,
+        securitySettingsKept: !mayChangeSecurity,
         message: 'Magic Link data was reset. Revoked JWTs stay blocked until they expire.',
       });
     } catch {
