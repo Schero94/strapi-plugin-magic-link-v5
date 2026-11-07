@@ -48,8 +48,11 @@ const {
   findSessionByHash: findSessionRecordByHash,
   findUserSessions,
   markSessionsRevoked,
+  migrateLegacySessionsIfPresent,
+  setRevokeReason,
 } = require('../utils/jwt-session-store');
 const { updateStoreKey, withClusterLock } = require('../utils/cluster');
+const { CLAIM_REASON } = require('../utils/account-claim');
 const i18n = require('../utils/i18n');
 
 const TOKEN_UID = 'plugin::magic-link.token';
@@ -917,6 +920,12 @@ module.exports = ({ strapi }) => {
             existing.expiresAt = entry.expiresAt;
           }
           if (entry.upUserId) existing.upUserId = entry.upUserId;
+          // An account claim on an already revoked JWT: the block may never
+          // be lifted again (see unblockJwtTokenByHash).
+          if (entry.noRestore) {
+            existing.noRestore = true;
+            existing.reason = entry.reason;
+          }
         }
         return { value: blocklist };
       });
@@ -931,6 +940,8 @@ module.exports = ({ strapi }) => {
      */
     async findSessionByHash(tokenHash) {
       try {
+        // A record may still sit in the pre-6.2 list (rolling deploy).
+        await migrateLegacySessionsIfPresent(strapi);
         return await findSessionRecordByHash(strapi, tokenHash);
       } catch {
         return null;
@@ -1080,6 +1091,9 @@ module.exports = ({ strapi }) => {
     async revokeUserSessions(userId, reason) {
       const now = new Date();
       const nowIso = now.toISOString();
+      // Throws when a pre-6.2 list cannot be moved: the caller (account
+      // claim) then fails closed instead of missing those JWTs.
+      await migrateLegacySessionsIfPresent(strapi);
       const records = await findUserSessions(strapi, userId);
       const entries = records.map((record) => {
         const exp = new Date(record.expiresAt).getTime();
@@ -1089,6 +1103,9 @@ module.exports = ({ strapi }) => {
           userId,
           reason,
           blockedAt: nowIso,
+          // Ending every session of a user (account claim) is final: an
+          // admin restore must not lift these blocks.
+          noRestore: true,
           expiresAt: permanent
             ? null
             : new Date(
@@ -1119,11 +1136,11 @@ module.exports = ({ strapi }) => {
       }
 
       if (records.length > 0) {
-        await markSessionsRevoked(
-          strapi,
-          { userId: String(userId), jwtTokenHash: { $notNull: true } },
-          { reason, at: now }
-        );
+        const where = { userId: String(userId), jwtTokenHash: { $notNull: true } };
+        await markSessionsRevoked(strapi, where, { reason, at: now });
+        // Rows revoked earlier (e.g. manually) now carry this reason too, so
+        // the admin panel no longer offers to restore them.
+        await setRevokeReason(strapi, where, reason);
       }
       return { revoked: records.length };
     },
@@ -1133,27 +1150,34 @@ module.exports = ({ strapi }) => {
     },
 
     /**
-     * Removes a JWT hash from the blocklist.
+     * Removes a JWT hash from the blocklist. Blocks written when every
+     * session of a user was ended (account claim, `noRestore`, or the claim
+     * reason on entries from earlier releases) are kept: they may never be
+     * lifted, also not when the admin restores an earlier manual revocation
+     * of the same JWT. `kept` reports how many such blocks remain.
      *
      * @param {string} tokenHash - SHA-256 hash of the JWT.
      * @param {string|number} [userId] - Owner user id.
-     * @returns {Promise<{success: boolean}>}
+     * @returns {Promise<{success: boolean, kept: number}>}
      */
     async unblockJwtTokenByHash(tokenHash, userId) {
       try {
-        await updateStoreKey(strapi, BLOCKLIST_KEY, (stored) => ({
-          value: {
-            tokens: liveBlocklistEntries(stored).filter(
-              (entry) =>
-                !(
-                  entry.tokenHash === tokenHash &&
-                  (!userId || String(entry.userId) === String(userId))
-                )
-            ),
-          },
-        }));
+        const kept = await updateStoreKey(strapi, BLOCKLIST_KEY, (stored) => {
+          let final = 0;
+          const tokens = liveBlocklistEntries(stored).filter((entry) => {
+            const matches =
+              entry.tokenHash === tokenHash && (!userId || String(entry.userId) === String(userId));
+            if (!matches) return true;
+            if (entry.noRestore === true || entry.reason === CLAIM_REASON) {
+              final += 1;
+              return true;
+            }
+            return false;
+          });
+          return { value: { tokens }, result: final };
+        });
         blocklistCache = null;
-        return { success: true };
+        return { success: true, kept: kept || 0 };
       } catch {
         blocklistCache = null;
         strapi.log.error('[magic-link] Error unblocking JWT token');

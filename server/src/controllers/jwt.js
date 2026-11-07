@@ -8,6 +8,7 @@ const {
   listSessions,
   markSessionRestored,
   markSessionsRevoked,
+  migrateLegacySessionsIfPresent,
 } = require('../utils/jwt-session-store');
 const {
   jwtRevokeSchema,
@@ -100,6 +101,12 @@ module.exports = {
   async getSessions(ctx) {
     const query = parseBody(jwtSessionsQuerySchema, ctx.query || {});
     try {
+      // Records a previous-release replica wrote during a rolling deploy.
+      await migrateLegacySessionsIfPresent(strapi);
+    } catch {
+      strapi.log.warn('[magic-link] Pre-6.2 JWT session records could not be moved yet');
+    }
+    try {
       const now = new Date();
       const { results, total } = await listSessions(strapi, query);
       if (typeof ctx.set === 'function') ctx.set('X-Total-Count', String(total));
@@ -183,9 +190,20 @@ module.exports = {
       const restoreBlock = getRestoreBlock(session, new Date());
       if (restoreBlock) return ctx.badRequest(RESTORE_BLOCK_MESSAGES[restoreBlock]);
 
+      // Nothing to restore. A block on the JWT of a row that is not marked
+      // revoked (row update failed or still running elsewhere) stays.
+      if (!session.isRevoked) {
+        return ctx.send({ success: true, message: 'JWT session unrevoked successfully' });
+      }
+
       if (session.jwtTokenHash) {
         const magicLink = strapi.plugin('magic-link').service('magic-link');
-        await magicLink.unblockJwtTokenByHash(session.jwtTokenHash, session.userId);
+        const unblocked = await magicLink.unblockJwtTokenByHash(
+          session.jwtTokenHash,
+          session.userId
+        );
+        // An account claim ended this JWT after the manual revocation.
+        if (unblocked?.kept > 0) return ctx.badRequest(RESTORE_BLOCK_MESSAGES.accountClaim);
       }
 
       await markSessionRestored(strapi, session.id, actorId(ctx));

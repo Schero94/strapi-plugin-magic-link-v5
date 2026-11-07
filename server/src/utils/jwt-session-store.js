@@ -404,6 +404,28 @@ const markSessionsRevoked = async (
 };
 
 /**
+ * Gives already revoked rows a stronger revocation reason (e.g. an account
+ * claim after a manual revocation), so the admin panel shows why they can
+ * no longer be restored. Revocation time and actor stay as first recorded.
+ *
+ * @param {object} strapi - Strapi instance.
+ * @param {object} where - Rows to update (e.g. `{ userId }`).
+ * @param {string} reason - New revocation reason.
+ * @returns {Promise<number>} Number of rows changed.
+ */
+const setRevokeReason = async (strapi, where, reason) => {
+  const result = await sessions(strapi).updateMany({
+    where: {
+      ...where,
+      revokedAt: { $notNull: true },
+      $or: [{ revokeReason: { $null: true } }, { revokeReason: { $ne: reason } }],
+    },
+    data: { revokeReason: reason },
+  });
+  return Number(result?.count) || 0;
+};
+
+/**
  * Clears the revocation of one record (single-row conditional UPDATE).
  *
  * @param {object} strapi - Strapi instance.
@@ -530,6 +552,26 @@ const migrateLegacySessions = (strapi) =>
     return { migrated, skipped };
   });
 
+/**
+ * Moves a pre-6.2 session list into the table if one is (still) stored.
+ * Cheap when there is none (one plugin-store read, no lock). Records can
+ * appear after the start-up migration: a replica of the previous release
+ * keeps writing the old list during a rolling deploy, and a failed start-up
+ * migration leaves it in place. Lookups that decide what to revoke call
+ * this first, so no JWT recorded only in the old list is missed.
+ *
+ * @param {object} strapi - Strapi instance.
+ * @returns {Promise<{migrated: number, skipped: number}>} Counts.
+ * @throws {Error} When the list exists and cannot be moved.
+ */
+const migrateLegacySessionsIfPresent = async (strapi) => {
+  const stored = await strapi
+    .store({ type: 'plugin', name: 'magic-link' })
+    .get({ key: LEGACY_STORE_KEY });
+  if (stored === null || stored === undefined) return { migrated: 0, skipped: 0 };
+  return migrateLegacySessions(strapi);
+};
+
 module.exports = {
   AUTO_EXPIRED_REASON,
   DEFAULT_LIST_LIMIT,
@@ -551,7 +593,9 @@ module.exports = {
   markSessionRestored,
   markSessionsRevoked,
   migrateLegacySessions,
+  migrateLegacySessionsIfPresent,
   pruneSessions,
   scrubLegacyToken,
+  setRevokeReason,
   toRowData,
 };
