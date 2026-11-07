@@ -357,6 +357,10 @@ short version is the upgrade guide.
 ### Build, dependencies and release
 
 * Removed the unused `lodash` and `yup` dependencies.
+* The root `strapi-server.js` and `strapi-admin.js` load `dist/` (they
+  pointed at sources that are not published). Removed the dead
+  `.npmignore`, `.externals.json`, `.trigger-release` and the unused
+  license-tier map `server/src/config/features.js`.
 * ESLint 10 flat config with `@eslint/js` recommended,
   `eslint-plugin-react-hooks` recommended and `eslint-config-prettier`, plus
   Prettier with `lint`, `lint:fix`, `format` and `format:check` scripts.
