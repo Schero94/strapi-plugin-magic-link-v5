@@ -263,7 +263,7 @@ test('every message is valid ICU and formats without throwing', () => {
   }
   const en = readLocale('en');
   const format = (key) => new IntlMessageFormat(en[key], 'en').format();
-  assert.equal(format('magic-link.settings.email.placeholders.link'), '{{LOGIN_URL}}');
+  assert.ok(format('magic-link.settings.email.designer.variables').includes('{{magicLink}}'));
   assert.equal(format('magic-link.tokens.create.context.placeholder'), '{ "key": "value" }');
 });
 

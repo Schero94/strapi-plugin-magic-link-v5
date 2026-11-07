@@ -181,10 +181,9 @@ const wrapEmailTemplate = (content, options = {}) => {
 /**
  * Creates a clean, plain text version from HTML
  * @param {string} html - HTML content
- * @param {Object} variables - Template variables
  * @returns {string} Plain text version
  */
-const createPlainTextVersion = (html, variables = {}) => {
+const createPlainTextVersion = (html) => {
   let text = html
     // Remove HTML tags
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')

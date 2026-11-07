@@ -52,7 +52,7 @@ test('delete confirmations are translated in every supported admin locale', () =
       'utf8'
     ));
 
-    assert.ok(translations['magic-link.tokens.confirm.delete'], `${locale} has individual confirmation`);
+    assert.ok(translations['magic-link.tokens.delete.body'], `${locale} has individual confirmation`);
     assert.ok(translations['magic-link.tokens.confirm.bulkDelete'], `${locale} has bulk confirmation`);
     assert.ok(translations['magic-link.settings.permission.readOnly'], `${locale} explains read-only access`);
   }
