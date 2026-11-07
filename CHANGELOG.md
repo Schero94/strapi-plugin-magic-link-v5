@@ -15,6 +15,9 @@ Next release: **6.2.0** (minor). No breaking changes: routes, responses and sett
   - a login inserts one row without a lock; revoke, restore and "clean up expired" are conditional updates of the affected rows only;
   - retention (7 days after expiry) and a size cap of 50,000 rows are indexed deletes run by the 5-minute cleanup job (one process);
   - the admin list reads the newest 1000 rows through the primary key, unchanged for the admin UI; `GET /magic-link/jwt-sessions` also accepts `page`, `pageSize` (max 1000), `status` (`all`, `active`, `revoked`, `expired`) and `userId`, and sends the total in `X-Total-Count`.
+- An account claim can no longer be undone by restoring an earlier manual revocation of the same JWT: claim blocks are marked final (`noRestore`), the restore keeps them and answers 400, and the rows of the user show the claim as reason. Restoring a session that is not revoked no longer lifts a block on its JWT.
+- Session records that a replica of the previous release writes into the old `jwt_sessions` list during a rolling deploy (or that a failed start-up move left behind) are moved into the table before an account claim, a revocation lookup or the admin list reads it, and by the 5-minute cleanup, so no JWT is missed.
+- With the GraphQL plugin installed, Shadow CRUD is disabled for the plugin's internal content types (`token`, `otp-code`, `totp-config`, `jwt-session`): a full-access API token can no longer read or change login tokens, MFA rows or session records through `/graphql`. They were never meant to be public; use the plugin's REST routes.
 
 ### Added
 

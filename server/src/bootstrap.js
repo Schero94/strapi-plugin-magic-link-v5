@@ -27,7 +27,11 @@ const passwordlessCompat = require('./middlewares/passwordless-compat');
 const { migrateSettings } = require('./utils/settings-migration');
 const { clampTokenLength } = require('./services/magic-link');
 const { createDefaultSettings } = require('./utils/default-settings');
-const { migrateLegacySessions, pruneSessions } = require('./utils/jwt-session-store');
+const {
+  migrateLegacySessions,
+  migrateLegacySessionsIfPresent,
+  pruneSessions,
+} = require('./utils/jwt-session-store');
 const { runExclusiveJob, updateStoreKey, withClusterLock } = require('./utils/cluster');
 const { dedupeStoreKeys } = require('./utils/store-dedupe');
 const {
@@ -197,6 +201,13 @@ module.exports = async ({ strapi }) => {
     const magicLinkService = plugin().service('magic-link');
     await magicLinkService.pruneBlocklist();
     await magicLinkService.cleanupExpiredTokens();
+    // Records a previous-release replica wrote after the start-up migration
+    // (rolling deploy) or a failed start-up migration.
+    try {
+      await migrateLegacySessionsIfPresent(strapi);
+    } catch {
+      strapi.log.warn('[magic-link] Pre-6.2 JWT session records could not be moved yet');
+    }
     await pruneSessions(strapi);
     await plugin().service('rate-limiter').cleanupExpired();
   });

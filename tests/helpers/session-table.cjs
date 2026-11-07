@@ -50,6 +50,9 @@ const matches = (row, where = {}) =>
             return operand.map(comparable).includes(a);
           case '$eq':
             return a === b;
+          case '$ne':
+            // SQL: `column <> value` is not true for NULL.
+            return value !== null && a !== b;
           case '$lt':
             return value !== null && a < b;
           case '$lte':
