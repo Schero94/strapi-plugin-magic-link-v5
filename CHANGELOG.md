@@ -1,6 +1,44 @@
 ## [Unreleased]
 
-### BREAKING CHANGES
+Next release: **6.0.0** (major). Magic Link becomes e-mail only and is
+hardened throughout. Every breaking change below has migration steps; the
+short version is the upgrade guide.
+
+### Upgrade guide (5.x to 6.0.0)
+
+1. Run Node.js 22 or newer and Strapi 5.24.0 or newer (5.33.3+ when you use
+   users-permissions refresh mode).
+2. Set `MAGIC_LINK_ENCRYPTION_KEY` and `MAGIC_LINK_OTP_PEPPER` (32+ characters
+   each) on every host. If the old encryption key was shorter, or you used the
+   development fallback, also set `MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS` for the
+   first start (see "Secrets are mandatory" below).
+3. Remove WhatsApp/SMS fields from `send-link` calls and delete a leftover
+   `.whatsapp-auth` directory.
+4. Review admin roles: `access` became `read`, `manage`, `settings.read`,
+   `settings.update` and `tokens.issue` (roles with `access` get Read and
+   Manage automatically).
+5. Frontend: exchange tokens with `POST /api/magic-link/login { loginToken }`,
+   handle `requiresTOTPSetup` when MFA is required, use `expires_at` instead of
+   `expiry_formatted`, and read errors from `error.key`.
+6. Replace JavaScript in e-mail templates with `{{PLACEHOLDERS}}`.
+7. Use `https` for `frontend_url`, `confirmationUrl` and `callback_url`
+   (http only for localhost).
+8. Grant the `totp` actions to the Authenticated role for authenticator
+   self-service.
+9. Admin token API clients: send `ttl` (hours) as a top-level field.
+
+### BREAKING CHANGES (requirements)
+
+* **Node.js 22 or newer** (`engines.node` is `>=22.0.0 <=26.x.x`, the range
+  Strapi 5.61 declares). Node 18 and 20 are no longer supported.
+* **Strapi 5.24.0 or newer** (`@strapi/strapi` and `@strapi/utils` peers
+  `^5.24.0`). 5.24.0 is the first release with the users-permissions session
+  manager that refresh-mode logins use.
+* **E-mail only.** WhatsApp and SMS delivery are removed from the API, the
+  settings, the admin panel, the translations and the documentation (details
+  under "login core").
+
+### BREAKING CHANGES (admin RBAC)
 
 * **Admin RBAC split into read, manage and settings actions.** The single
   `plugin::magic-link.access` action is replaced by:
@@ -278,6 +316,43 @@
 * Deleting an OTP code from the admin works with the numeric id and answers
   404 when nothing was deleted; the new `GET /magic-link/totp/enrollment-summary`
   (Settings read) returns the number of enrolled end users.
+
+### Admin panel
+
+* The Tokens, OTP codes, JWT sessions, IP bans, Settings and License pages
+  were rebuilt on the Strapi design system with shared dialogs and theme
+  tokens. They have correct dark-mode colours and contrast, a consistent
+  spacing scale, labelled controls, keyboard-accessible tabs and pagination,
+  and no emoji.
+* Every page follows the new RBAC actions. Read-only roles see disabled or
+  hidden controls, and destructive actions use confirmation dialogs instead
+  of `window.confirm`.
+* Settings:
+  * saves only changed fields and guards unsaved changes;
+  * validates URLs, JWT lifetimes and number ranges like the server;
+  * no longer shows `login_path`, `callback_url`, `max_login_attempts` or the
+    Email Designer compatibility switch;
+  * the MFA mode is a single, lock-out safe choice.
+* Admin token creation sends `ttl` as a top-level field and offers "do not
+  send e-mail" only with `tokens.issue`.
+* The License page masks the key.
+* All texts are translated into English, German (formal), French, Spanish
+  and Portuguese, and dates follow the admin locale. A test now checks that
+  every message id used by the admin exists in all five locales.
+
+### Build, dependencies and release
+
+* Removed the unused `lodash` and `yup` dependencies.
+* ESLint 10 flat config with `@eslint/js` recommended,
+  `eslint-plugin-react-hooks` recommended and `eslint-config-prettier`, plus
+  Prettier with `lint`, `lint:fix`, `format` and `format:check` scripts.
+* GitHub Actions are pinned to commit SHAs with least-privilege tokens.
+* New pull-request CI on Node 22 and 24 runs lint, format check, tests,
+  build, verify and `npm pack --dry-run`.
+* Releases install without lifecycle scripts and publish with npm trusted
+  publishing and provenance.
+* `verify:runtime` checks the public routes, the RBAC policy on every admin
+  route and that the server bundle only loads declared dependencies.
 
 # [5.6.0](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v5.5.9...v5.6.0) (2026-10-15)
 

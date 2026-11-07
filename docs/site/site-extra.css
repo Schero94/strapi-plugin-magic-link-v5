@@ -1,0 +1,187 @@
+/* Page-specific styles for the Magic Link project site.
+   site.css is the shared workbench theme and must stay byte-identical to
+   templates/plugin-pages/site.css; everything specific to this page,
+   including dark mode, lives here. */
+
+:root {
+  --card-bg: var(--white);
+  --soft-bg: #f7f8fb;
+  --link: #4932c6;
+  --link-hover: #2d1d89;
+  --tag-ink: #3821a1;
+  --tag-bg: #eee9ff;
+}
+
+/* Badges are a list for screen readers; reset the list styles. */
+ul.badges {
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sub-title {
+  margin: 1.6rem 0 0.8rem;
+  font-size: 1.05rem;
+  letter-spacing: -0.015em;
+}
+
+/* Top links: keep a 24 px target on desktop and 32 px below 768 px. */
+.top-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+@media (max-width: 767px) {
+  .top-links a {
+    min-height: 32px;
+  }
+}
+
+/* Numbered quick-start steps */
+.steps {
+  margin: 0 0 1rem;
+  padding-left: 1.3rem;
+}
+.steps li {
+  margin-bottom: 0.4rem;
+}
+.steps li p {
+  margin: 0 0 0.2rem;
+}
+.steps .code-card {
+  margin: 0.4rem 0 1rem;
+}
+
+/* Login flow: three equal steps in one row, stacked on small screens. */
+.flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+  counter-reset: flow;
+}
+.flow li {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card-bg);
+  counter-increment: flow;
+}
+.flow li::before {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  margin-bottom: 0.6rem;
+  border-radius: 10px;
+  color: var(--tag-ink);
+  background: var(--tag-bg);
+  font-weight: 800;
+  content: counter(flow);
+}
+.flow h3 {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+}
+.flow p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* Tables */
+caption {
+  padding: 0.7rem 0.9rem;
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-align: left;
+}
+.table-wrap {
+  margin: 1rem 0;
+}
+td code,
+th code {
+  overflow-wrap: anywhere;
+}
+
+.link-list a {
+  background: var(--card-bg);
+}
+
+@media (max-width: 820px) {
+  .flow {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .top-links {
+    gap: 0.55rem;
+  }
+}
+
+/* Dark mode: follows the operating system setting. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --ink: #e9ecf5;
+    --muted: #a8b0c4;
+    --line: #2c3350;
+    --paper: #0f1322;
+    --white: #171c2f;
+    --card-bg: #171c2f;
+    --soft-bg: #1d2338;
+    --link: #a99bff;
+    --link-hover: #cfc6ff;
+    --tag-ink: #d9d2ff;
+    --tag-bg: #2b2550;
+  }
+  a {
+    color: var(--link);
+  }
+  a:hover {
+    color: var(--link-hover);
+  }
+  .skip-link {
+    background: var(--white);
+    color: var(--ink);
+  }
+  .card {
+    box-shadow: none;
+  }
+  .side-nav a {
+    color: #c3c9da;
+  }
+  .side-nav a:hover {
+    color: var(--ink);
+    background: #252c48;
+  }
+  .callout {
+    color: #cfe9ea;
+    background: #11292d;
+  }
+  .callout.warning {
+    color: #f4e2bf;
+    background: #33270d;
+  }
+  .code-card {
+    border-color: var(--line);
+    background: #0b0e1a;
+  }
+  th {
+    color: #c3c9da;
+    background: var(--soft-bg);
+  }
+  td {
+    color: #b7bed0;
+  }
+  .link-list a {
+    border-color: var(--line);
+  }
+  .footer {
+    border-top-color: var(--line);
+  }
+}

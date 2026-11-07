@@ -53,6 +53,7 @@ Please fill out this template to help us review your PR.
 - [ ] I have tested authentication functionality
 - [ ] I have tested with different auth modes (if applicable)
 - [ ] New and existing tests pass locally with my changes
+- [ ] `npm run lint`, `npm run format:check`, `npm test`, `npm run build` and `npm run verify` pass
 
 ### Test Environment
 
