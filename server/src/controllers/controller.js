@@ -1,6 +1,11 @@
 'use strict';
 
-const { settingsUpdateSchema, parseBody, SETTINGS_KEYS } = require('./validation');
+const {
+  settingsUpdateSchema,
+  adminResetSchema,
+  parseBody,
+  SETTINGS_KEYS,
+} = require('./validation');
 const { normalizeMfaSettings } = require('../utils/mfa-mode');
 const { createDefaultSettings } = require('../utils/default-settings');
 
@@ -24,6 +29,18 @@ const BOOLEAN_FIELDS = [
 ];
 
 const KNOWN_KEYS = new Set(SETTINGS_KEYS);
+
+/**
+ * Second-factor settings that a reset keeps unless the caller sends
+ * `resetSecurity: true`: resetting them would silently switch MFA off (or
+ * change which factor users must present).
+ */
+const MFA_SETTING_KEYS = Object.freeze([
+  'mfa_mode',
+  'mfa_require_totp',
+  'totp_as_primary_auth',
+  'otp_enabled',
+]);
 
 /**
  * Keeps only the settings keys of the 6.0 contract. Legacy keys (provider
@@ -155,15 +172,25 @@ module.exports = {
 
   /**
    * Resets settings to the install defaults and deletes login tokens, the
-   * session audit list and IP bans. Active JWT revocations are kept, so a
-   * revoked token never becomes valid again through a reset.
+   * session audit list and IP bans. Requires `{ confirm: 'RESET' }`.
+   * Active JWT revocations are kept, so a revoked token never becomes valid
+   * again through a reset, and the MFA settings are kept unless
+   * `resetSecurity: true` is sent.
    *
    * @param {object} ctx - Strapi Koa context.
    */
   async resetData(ctx) {
+    const { resetSecurity } = parseBody(adminResetSchema, ctx.request?.body);
     try {
       const pluginStore = strapi.store({ type: 'plugin', name: 'magic-link' });
-      await pluginStore.set({ key: 'settings', value: createDefaultSettings() });
+      const defaults = createDefaultSettings();
+      if (!resetSecurity) {
+        const current = (await pluginStore.get({ key: 'settings' })) || {};
+        for (const key of MFA_SETTING_KEYS) {
+          if (current[key] !== undefined) defaults[key] = current[key];
+        }
+      }
+      await pluginStore.set({ key: 'settings', value: defaults });
 
       const deleted = await strapi.db.query('plugin::magic-link.token').deleteMany({ where: {} });
       await pluginStore.delete({ key: 'jwt_sessions' });
@@ -175,7 +202,7 @@ module.exports = {
       }
 
       strapi.log.warn(
-        `[magic-link] Data reset by admin ${ctx.state?.user?.id ?? 'unknown'} (${deleted?.count || 0} token(s) deleted)`
+        `[magic-link] Data reset by admin ${ctx.state?.user?.id ?? 'unknown'} (${deleted?.count || 0} token(s) deleted, MFA settings ${resetSecurity ? 'reset' : 'kept'})`
       );
       ctx.send({
         success: true,

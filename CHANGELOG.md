@@ -106,6 +106,12 @@ short version is the upgrade guide.
   are dropped on the next save. `context_whitelist`/`context_blacklist`
   strings are stored as arrays. `reset-data` writes the same defaults as a
   fresh install (API login URL, no `noreply@example.com`).
+* **`POST /magic-link/reset-data` needs a confirmation.** The body must be
+  `{ "confirm": "RESET" }` (400 otherwise, nothing is deleted). The MFA
+  settings (`mfa_mode`, `mfa_require_totp`, `totp_as_primary_auth`,
+  `otp_enabled`) are kept unless `"resetSecurity": true` is sent, so a reset
+  never switches MFA off silently.
+  Migration: scripts that call the route send the confirmation body.
 * **License privacy.** The plugin no longer sends hostname, IP address, OS
   details, a device id or admin name/e-mail to the license server; only the
   license key is sent (on save and for the License page, cached 10 minutes).

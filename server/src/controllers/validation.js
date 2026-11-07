@@ -340,6 +340,18 @@ const jwtUnrevokeSchema = z
   })
   .strict();
 
+/**
+ * POST /reset-data (admin, settings.update). The explicit confirmation keeps
+ * a stray request from wiping tokens, sessions and bans; `resetSecurity`
+ * also resets the MFA settings (otherwise they are kept).
+ */
+const adminResetSchema = z
+  .object({
+    confirm: z.literal('RESET'),
+    resetSecurity: z.boolean().default(false),
+  })
+  .strict();
+
 /** POST /license/store-key (admin, settings.update). */
 const licenseStoreKeySchema = z
   .object({
@@ -544,6 +556,7 @@ module.exports = {
   jwtRevokeSchema,
   jwtUnrevokeSchema,
   licenseStoreKeySchema,
+  adminResetSchema,
   settingsUpdateSchema,
   SETTINGS_KEYS,
   TOKEN_TTL_HOURS,

@@ -305,6 +305,7 @@ test('reset-data preserves unexpired JWT revocations and writes the install defa
   };
   const ctx = {
     state: { user: { id: 7 } },
+    request: { body: { confirm: 'RESET', resetSecurity: true } },
     send(payload) {
       this.response = payload;
       return payload;
@@ -328,6 +329,65 @@ test('reset-data preserves unexpired JWT revocations and writes the install defa
   assert.deepEqual(deleteManyWhere, {});
   assert.equal(ctx.response.deletedTokens, 3);
   assert.match(ctx.response.message, /revoked jwts stay blocked/i);
+});
+
+test('reset-data needs an explicit confirmation and keeps MFA settings by default (ADM-12)', async () => {
+  const { createDefaultSettings } = require('../server/src/utils/default-settings');
+  const values = new Map([
+    [
+      'settings',
+      {
+        ...createDefaultSettings(),
+        mfa_mode: 'required',
+        mfa_require_totp: true,
+        otp_enabled: true,
+        expire_period: 120,
+      },
+    ],
+  ]);
+  let deletes = 0;
+  global.strapi = {
+    store: () => ({
+      get: async ({ key }) => values.get(key),
+      set: async ({ key, value }) => values.set(key, value),
+      delete: async ({ key }) => values.delete(key),
+    }),
+    db: {
+      query: () => ({
+        deleteMany: async () => {
+          deletes += 1;
+          return { count: 0 };
+        },
+      }),
+    },
+    plugin: () => undefined,
+    log: { info() {}, warn() {}, error() {} },
+  };
+  const makeCtx = (body) => ({
+    state: { user: { id: 7 } },
+    request: { body },
+    send(payload) {
+      this.response = payload;
+      return payload;
+    },
+    throw(status, error) {
+      throw error || new Error(String(status));
+    },
+  });
+
+  for (const body of [undefined, {}, { confirm: 'yes' }, { confirm: 'RESET', extra: 1 }]) {
+    await assert.rejects(controller.resetData(makeCtx(body)), { name: 'ValidationError' });
+  }
+  assert.equal(deletes, 0, 'nothing is deleted without the confirmation');
+  assert.equal(values.get('settings').expire_period, 120);
+
+  await controller.resetData(makeCtx({ confirm: 'RESET' }));
+  const settings = values.get('settings');
+  assert.equal(settings.expire_period, createDefaultSettings().expire_period);
+  assert.equal(settings.mfa_mode, 'required', 'a reset never switches MFA off silently');
+  assert.equal(settings.mfa_require_totp, true);
+  assert.equal(settings.otp_enabled, true);
+  assert.equal(deletes, 1);
 });
 
 test('rate-limit reset clears the live limiter instead of writing an unused plugin-store key', async () => {

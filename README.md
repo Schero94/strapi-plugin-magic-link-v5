@@ -387,7 +387,7 @@ Admin routes live under `/magic-link` on the admin server. They require an admin
 | `POST`   | `/magic-link/otp/cleanup`             | `manage`          | Remove expired codes                                                          |
 | `GET`    | `/magic-link/settings`                | `settings.read`   | Read settings                                                                 |
 | `PUT`    | `/magic-link/settings`                | `settings.update` | Save settings (only known keys, validated)                                    |
-| `POST`   | `/magic-link/reset-data`              | `settings.update` | Restore default settings                                                      |
+| `POST`   | `/magic-link/reset-data`              | `settings.update` | Restore defaults: `{ confirm: 'RESET', resetSecurity? }`                      |
 | `GET`    | `/magic-link/rate-limit/stats`        | `settings.read`   | Limiter statistics                                                            |
 | `POST`   | `/magic-link/rate-limit/cleanup`      | `settings.update` | Drop expired limiter entries                                                  |
 | `POST`   | `/magic-link/rate-limit/reset`        | `settings.update` | Reset all limits                                                              |
