@@ -137,7 +137,7 @@ const visibleApiActions = [
   },
   {
     page: 'admin/src/pages/License/index.jsx',
-    control: "get('/magic-link/license/status')",
+    control: "get('/magic-link/license/status',",
     method: 'GET', path: '/license/status', handler: 'license.getStatus',
     permission: 'plugin::magic-link.access',
   },
