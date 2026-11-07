@@ -1,3 +1,21 @@
+# [7.0.0](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v6.2.1...v7.0.0) (2026-11-07)
+
+
+### Features
+
+* remove the optional registration key and every outbound call ([fd2b097](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/fd2b097cd2df5e7f1deab2e3fbb6c018a5d3208d))
+
+
+### BREAKING CHANGES
+
+* the admin routes GET /magic-link/license/status and
+POST /magic-link/license/store-key and the server service license-guard
+are removed, and the plugin config license.remoteLookup and the variables
+MAGIC_LINK_LICENSE_LOOKUP and MAGIC_LICENSE_TIMEOUT_MS are no longer read.
+Drop calls to them; see the README section "Upgrading from 6.x to 7.0.0".
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 ## [Unreleased]
 
 Next release: **7.0.0** (major). The optional registration key of 6.x is gone, together with its admin page, its two admin routes, its service and every call to the old key server. Magic links, e-mail OTP, TOTP and backup codes, sessions, `context` and delivery status work as before.
