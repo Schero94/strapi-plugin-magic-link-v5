@@ -1,14 +1,11 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Discussions
-    url: https://github.com/begservice/strapi-plugin-magic-link-v5/discussions
-    about: Ask questions, share ideas, and discuss with the community
   - name: Documentation
-    url: https://github.com/begservice/strapi-plugin-magic-link-v5#readme
-    about: Read the full documentation and setup guide
-  - name: Existing Issues
-    url: https://github.com/begservice/strapi-plugin-magic-link-v5/issues
-    about: Check if your issue has already been reported
-  - name: Star on GitHub
-    url: https://github.com/begservice/strapi-plugin-magic-link-v5
-    about: Show your support by starring the repository
+    url: https://schero94.github.io/strapi-plugin-magic-link-v5/
+    about: Setup guide, configuration reference, API and FAQ
+  - name: Existing issues
+    url: https://github.com/Schero94/strapi-plugin-magic-link-v5/issues
+    about: Check whether your issue has already been reported
+  - name: Security vulnerability
+    url: https://github.com/Schero94/strapi-plugin-magic-link-v5/security/advisories/new
+    about: Report vulnerabilities privately, not as a public issue

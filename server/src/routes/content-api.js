@@ -1,12 +1,8 @@
 'use strict';
 
 /**
- * Content API routes
- *
- * NOTE: License gating was removed from these endpoints in the marketplace
- * refactor. All magic-link / OTP / MFA flows are available without a
- * license key. The optional license-key activation in the admin UI is
- * cosmetic / branding only and does NOT block any user-facing route.
+ * Content API routes. Every magic-link, OTP and MFA flow is available to
+ * every installation; nothing is gated.
  */
 
 module.exports = {

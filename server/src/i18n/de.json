@@ -13,10 +13,6 @@
     "session.notFound": "Sitzung nicht gefunden",
     "session.expired": "Sitzung ist abgelaufen",
     "invalid.ipAddress": "Ungültige IP-Adresse",
-    "license.required": "Gültige Lizenz erforderlich",
-    "license.invalid": "Ungültiger oder abgelaufener Lizenzschlüssel",
-    "license.notFound": "Lizenz nicht gefunden",
-    "license.emailMismatch": "E-Mail-Adresse stimmt nicht mit diesem Lizenzschlüssel überein",
     "settings.updateFailed": "Einstellungen konnten nicht aktualisiert werden",
     "settings.getFailed": "Einstellungen konnten nicht abgerufen werden",
     "unauthorized": "Nicht autorisierter Zugriff",
@@ -44,9 +40,7 @@
     "session.unrevoked": "Sitzung erfolgreich wiederhergestellt",
     "ip.banned": "IP-Adresse erfolgreich gesperrt",
     "ip.unbanned": "IP-Adresse erfolgreich entsperrt",
-    "settings.updated": "Einstellungen erfolgreich aktualisiert",
-    "license.created": "Lizenz erfolgreich erstellt",
-    "license.verified": "Lizenz erfolgreich verifiziert"
+    "settings.updated": "Einstellungen erfolgreich aktualisiert"
   },
   "mail": {
     "otp.subject": "Ihr Bestätigungscode",

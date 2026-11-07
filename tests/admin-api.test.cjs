@@ -3,7 +3,7 @@
 /**
  * Behavioural tests for the admin API: token issuing (impersonation guard),
  * token actions, JWT session revocation, the session store, IP keys, the rate
- * limiter, settings validation, license store-key and lifecycle helpers.
+ * limiter, settings validation and lifecycle helpers.
  * All data is synthetic; no network, mail or database is used.
  */
 
@@ -17,11 +17,7 @@ const { normalizeLimiterIdentifier } = require('../server/src/services/rate-limi
 const sessionStore = require('../server/src/utils/jwt-session-store');
 const cryptoUtils = require('../server/src/utils/crypto');
 const { createSessionTable } = require('./helpers/session-table.cjs');
-const {
-  settingsUpdateSchema,
-  parseBody,
-  licenseStoreKeySchema,
-} = require('../server/src/controllers/validation');
+const { settingsUpdateSchema, parseBody } = require('../server/src/controllers/validation');
 const lifecycle = require('../server/src/utils/lifecycle');
 
 const silentLog = { debug() {}, info() {}, warn() {}, error() {} };
@@ -867,7 +863,7 @@ test('token id parameters reject operator and path payloads', async () => {
   });
 });
 
-// ─────────────────────── Settings and license validation ───────────────────────
+// ─────────────────────── Settings validation ───────────────────────
 
 test('settings URL fields only accept https (http only for localhost) without credentials', () => {
   const parse = (body) => parseBody(settingsUpdateSchema, body);
@@ -893,20 +889,6 @@ test('settings updates drop unknown keys and keep known ones', () => {
     settings: { create_new_user: true, otp_length: 6, whatever: 1 },
   });
   assert.deepEqual(parsed, { otp_length: 6 });
-});
-
-test('license store-key rejects malformed keys before any network call', () => {
-  assert.throws(
-    () => parseBody(licenseStoreKeySchema, { licenseKey: '../../x?y', email: 'a@example.test' }),
-    errors.ValidationError
-  );
-  assert.deepEqual(
-    parseBody(licenseStoreKeySchema, { licenseKey: 'ABCD-1234-EFGH', email: 'A@Example.test' }),
-    {
-      licenseKey: 'ABCD-1234-EFGH',
-      email: 'a@example.test',
-    }
-  );
 });
 
 // ─────────────────────── Lifecycle ───────────────────────

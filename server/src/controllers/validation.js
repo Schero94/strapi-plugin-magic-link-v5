@@ -367,19 +367,6 @@ const adminResetSchema = z
   })
   .strict();
 
-/** POST /license/store-key (admin, settings.update). */
-const licenseStoreKeySchema = z
-  .object({
-    licenseKey: z
-      .string()
-      .trim()
-      .min(8)
-      .max(128)
-      .regex(/^[A-Za-z0-9-]+$/, 'Invalid license key format'),
-    email: emailSchema,
-  })
-  .strict();
-
 const linkUrlSchema = z
   .string()
   .max(2_048)
@@ -575,7 +562,6 @@ module.exports = {
   jwtRevokeSchema,
   jwtSessionsQuerySchema,
   jwtUnrevokeSchema,
-  licenseStoreKeySchema,
   adminResetSchema,
   settingsUpdateSchema,
   SETTINGS_KEYS,

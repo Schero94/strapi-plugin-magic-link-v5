@@ -9,8 +9,8 @@
  * | read           | plugin::magic-link.read            | View tokens, OTP codes, JWT sessions and IP bans     |
  * | manage         | plugin::magic-link.manage          | Create, block, extend and delete tokens, revoke      |
  * |                |                                    | sessions, ban and unban IPs, delete OTP codes, clean |
- * | settingsRead   | plugin::magic-link.settings.read   | View the Settings and License pages                  |
- * | settingsUpdate | plugin::magic-link.settings.update | Save settings, reset rate limits, change the license |
+ * | settingsRead   | plugin::magic-link.settings.read   | View the Settings page                               |
+ * | settingsUpdate | plugin::magic-link.settings.update | Save settings, reset rate limits                     |
  * | settingsSecurity | plugin::magic-link.settings.security | Change link targets, templates, account, MFA,  |
  * |                |                                    | code and rate-limit rules (server-enforced in        |
  * |                |                                    | addition to update)                                  |

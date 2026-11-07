@@ -15,8 +15,8 @@
  * |                                      | revoke/restore/clean sessions, delete/clean OTP codes      |
  * | plugin::magic-link.tokens.issue      | checked in tokens.create for `send_email: false`           |
  * |                                      | (the login link is returned to the admin: impersonation)   |
- * | plugin::magic-link.settings.read     | settings, rate-limit stats, license status, MFA summary    |
- * | plugin::magic-link.settings.update   | save/reset settings, rate-limit cleanup/reset, license key |
+ * | plugin::magic-link.settings.read     | settings, rate-limit stats, MFA summary                    |
+ * | plugin::magic-link.settings.update   | save/reset settings, rate-limit cleanup/reset              |
  * | plugin::magic-link.settings.security | checked in controller.updateSettings/resetData: changing   |
  * |                                      | link targets, templates, account, session, MFA, code or    |
  * |                                      | rate-limit settings (a reset without it keeps them)        |
@@ -159,20 +159,6 @@ module.exports = {
       path: '/cleanup-sessions',
       handler: 'jwt.cleanupSessions',
       config: { policies: managePolicy() },
-    },
-
-    // ─────────────────────── License ───────────────────────
-    {
-      method: 'GET',
-      path: '/license/status',
-      handler: 'license.getStatus',
-      config: { policies: settingsPolicy(SETTINGS_READ_ACTION) },
-    },
-    {
-      method: 'POST',
-      path: '/license/store-key',
-      handler: 'license.storeKey',
-      config: { policies: settingsPolicy(SETTINGS_UPDATE_ACTION) },
     },
 
     // ─────────────────────── Rate Limiting ───────────────────────

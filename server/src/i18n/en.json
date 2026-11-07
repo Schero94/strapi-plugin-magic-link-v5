@@ -13,10 +13,6 @@
     "session.notFound": "Session not found",
     "session.expired": "Session has expired",
     "invalid.ipAddress": "Invalid IP address",
-    "license.required": "Valid license required",
-    "license.invalid": "Invalid or expired license key",
-    "license.notFound": "License not found",
-    "license.emailMismatch": "Email address does not match this license key",
     "settings.updateFailed": "Could not update settings",
     "settings.getFailed": "Could not get settings",
     "unauthorized": "Unauthorized access",
@@ -44,9 +40,7 @@
     "session.unrevoked": "Session unrevoked successfully",
     "ip.banned": "IP address banned successfully",
     "ip.unbanned": "IP address unbanned successfully",
-    "settings.updated": "Settings updated successfully",
-    "license.created": "License created successfully",
-    "license.verified": "License verified successfully"
+    "settings.updated": "Settings updated successfully"
   },
   "mail": {
     "otp.subject": "Your verification code",

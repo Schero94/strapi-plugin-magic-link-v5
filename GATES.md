@@ -35,3 +35,25 @@ Existing uncommitted work is part of the baseline and must be preserved and revi
 - `max_login_attempts` is validated and security-gated but read nowhere.
 - A full page load of `/admin/plugins/magic-link/tokens` sometimes showed "no permissions" to a Super Admin (3 of about 6 reloads, likely `useRBAC` running before the permissions load). Not fixed.
 - The tests use koa and @koa/router as transitive dependencies of the Strapi dev dependencies.
+
+## 7.0.0: no registration key, no telemetry, install and docs (branch `chore/finish-free-docs`, 2026-11-07)
+
+Host for every HTTP and browser count below: isolated Strapi 5.61.0, SQLite, port 1409, Node 22.23.1, plugin installed from `npm pack` of this branch, egress blocked (`block-egress.cjs`), synthetic admin `review-admin@example.test` with a generated password.
+
+- [x] F1: The License page, its settings link, `LicenseGuard`, the `license` controller and routes, the `license-guard` service, the `remoteLookup` switch, every call to the old key server and all license translations are gone; the server makes no outbound call of its own.
+      CHECK: `node --test tests/no-license.test.cjs`
+      EVIDENCE: 2026-11-07, 9 of 9 pass (source scan decodes JSON, so `\u` escapes cannot hide a key). Built `dist/` contains no `fitlex`, `magicapi`, `license-guard` or `remoteLookup`. Host log after start and restart: zero "Egress blocked" lines.
+- [x] F2: Stored 6.x keys are deleted once at bootstrap, under a cluster lock, without logging the value.
+      EVIDENCE: unit test in `tests/no-license.test.cjs`; host: synthetic `licenseKey` and `lastValidated` rows inserted, restart logged `[magic-link] Removed 2 unused plugin-store key(s) from 6.x`, rows gone, synthetic key string absent from the log. `npm run test:cluster` with SQLite and with PostgreSQL 16 (127.0.0.1:5440, throwaway database dropped afterwards): "legacy keys: 2 rows deleted once by 8 processes", every other scenario passes.
+- [x] F3: Admin after removal.
+      EVIDENCE: Playwright (own headless Chromium, no shared MCP browser), Super Admin: the Magic Link settings section has one link (`/admin/settings/magic-link/config`); `/admin/settings/magic-link/license` renders no plugin page; with an admin token `GET /magic-link/license/status` 404, `POST /magic-link/license/store-key` 405, `GET /magic-link/settings` 200, `GET /magic-link/tokens` 200. Settings and Tokens at 1440/1024/390/320, light and dark: document overflow 0, elements outside viewport 0, clipped text 0. measure.js reports 2 low-contrast items on Tokens in light mode (header text over the brand gradient); the check cannot read gradients, the gradient stops are documented at >= 4.5:1 in `admin/src/utils/theme.js`. Console errors only from the test's own aborted external requests and the deliberate 404/405/401 probes.
+- [x] I1: No plugin-caused install warnings in a fresh Strapi 5.61 app (create-strapi-app 5.61.0 dependency set, `--ignore-scripts`).
+      EVIDENCE: yarn 1.22.22: 6.2.1 printed 4 plugin warnings (unmet peers `@strapi/design-system`, `@strapi/icons`, `@strapi/utils`, `react-intl`; 30 warnings total), this branch 0 (26 total, all Strapi's own). npm 11.21.2: 0 plugin warnings before and after (5 deprecation warnings, same as the app without the plugin). pnpm 12.18.0: 0 plugin warnings before and after; `pnpm peers check` lists only Strapi's `codemirror` peer, same as without the plugin; `strapi build` succeeds under pnpm with the optional peers. Pitfall: yarn 1 caches a local tarball by name and version, so the candidate was installed as `7.0.0-candidate.1` after removing the cached 6.2.1 entry.
+- [x] P1: package.json metadata.
+      EVIDENCE: `npm pkg fix` (npm 11.21.2) leaves the file unchanged; `npm publish --dry-run` of the packed candidate prints no normalisation warning; homepage is the Pages URL.
+- [x] D1: README and Pages.
+      EVIDENCE: workbench `check-plugin-pages.mjs` (copy pointed at this worktree): valid; `site.css` identical to `templates/plugin-pages/site.css`. Site at 320/390/1024/1440, light and dark: overflow 0, no broken image, no console error, Tab reaches the skip link first and it moves to `#main-content`. 29 external links checked: all 200 except npmjs.com (403 to scripted clients; the package page exists). Every README and site anchor resolves. Settings screenshots retaken without the License link (synthetic host above).
+- [x] V1: Gates.
+      CHECK: npm run lint && npm run format:check && npm test && npm run build && npm run verify && npm pack --dry-run
+      EVIDENCE: lint exit 0, format "All matched files use Prettier code style!", tests 410 / pass 410 / fail 0, build and verify:runtime exit 0, `strapi-plugin verify` exit 0, pack 33 files, 499.1 kB packed (6.2.1: 517.8 kB).
+- [ ] R1: Release. Not pushed, not merged. The commit carries a `BREAKING CHANGE:` footer, so semantic-release will publish 7.0.0 when it lands on `main`; that needs the owner's yes.

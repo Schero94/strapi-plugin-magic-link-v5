@@ -27,7 +27,6 @@ body:
         - Admin UI
         - API / Backend
         - Documentation
-        - License System
         - Other
     validations:
       required: true

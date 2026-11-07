@@ -177,17 +177,9 @@ const visibleApiActions = [
     handler: 'tokens.unbanIP',
     permission: 'plugin::magic-link.manage',
   },
-  {
-    page: 'admin/src/pages/License/index.jsx',
-    control: "get('/magic-link/license/status',",
-    method: 'GET',
-    path: '/license/status',
-    handler: 'license.getStatus',
-    permission: 'plugin::magic-link.settings.read',
-  },
 ];
 
-test('every API-backed control on token, settings and license pages maps to its protected route', () => {
+test('every API-backed control on token and settings pages maps to its protected route', () => {
   for (const action of visibleApiActions) {
     const ui = readSource(action.page);
     assert.ok(ui.includes(action.control), `${action.page} contains ${action.control}`);
@@ -234,6 +226,8 @@ test('dead admin routes were removed', () => {
     'POST /license/auto-create',
     'POST /license/create',
     'POST /license/ping',
+    'GET /license/status',
+    'POST /license/store-key',
   ]) {
     assert.ok(!paths.includes(removed), removed);
   }

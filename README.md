@@ -1,20 +1,42 @@
 # Magic Link for Strapi 5
 
-Passwordless login for Strapi 5. Your users type their e-mail address, click the link in their inbox and get a normal Users & Permissions session, the same kind `/api/auth/local` creates. When you need more than a link, add a second factor: an e-mailed one-time code (OTP) or an authenticator app (TOTP) with backup codes.
+Passwordless login for Strapi 5. Your users type their e-mail address, click the link in their inbox and get a normal Users & Permissions session, the same kind `/api/auth/local` creates. When a link is not enough, add a second factor: an e-mailed one-time code (OTP) or an authenticator app (TOTP) with backup codes.
 
 [![npm version](https://img.shields.io/npm/v/strapi-plugin-magic-link-v5.svg)](https://www.npmjs.com/package/strapi-plugin-magic-link-v5)
+[![npm downloads](https://img.shields.io/npm/dm/strapi-plugin-magic-link-v5.svg)](https://www.npmjs.com/package/strapi-plugin-magic-link-v5)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Strapi 5](https://img.shields.io/badge/Strapi-5.24%2B-4945FF.svg)](https://strapi.io)
+[![Strapi 5.24+](https://img.shields.io/badge/Strapi-5.24%2B-4945FF.svg)](#compatibility)
+[![Node 22 to 26](https://img.shields.io/badge/Node-22%20to%2026-339933.svg)](#compatibility)
 
-**Project site:** [schero94.github.io/strapi-plugin-magic-link-v5](https://schero94.github.io/strapi-plugin-magic-link-v5/)
+**Live docs:** [schero94.github.io/strapi-plugin-magic-link-v5](https://schero94.github.io/strapi-plugin-magic-link-v5/) · [npm](https://www.npmjs.com/package/strapi-plugin-magic-link-v5) · [Changelog](CHANGELOG.md) · [Issues](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues)
 
-![Magic Link tokens page in the Strapi admin panel](pics/tokens.png)
+![Magic Link tokens page in the Strapi admin panel](https://raw.githubusercontent.com/Schero94/strapi-plugin-magic-link-v5/main/pics/tokens.png)
+
+Free and open source (MIT). Every feature is available to every installation, and the plugin sends no telemetry and never phones home.
+
+## In one minute
+
+```bash
+npm install strapi-plugin-magic-link-v5
+echo "MAGIC_LINK_ENCRYPTION_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")" >> .env
+echo "MAGIC_LINK_OTP_PEPPER=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")" >> .env
+npm run build && npm run develop
+```
+
+With a Strapi e-mail provider configured, ask for a link:
+
+```bash
+curl -X POST http://localhost:1337/api/magic-link/send-link \
+  -H 'Content-Type: application/json' -d '{"email":"ada@example.com"}'
+```
+
+Your landing page then posts the `loginToken` from the link to `POST /api/magic-link/login` and gets `{ jwt, user }` back. The [quick start](#quick-start-5-minutes) walks through each step, including the e-mail provider and the frontend URL.
 
 ## Contents
 
 - [What you get](#what-you-get)
 - [Screenshots](#screenshots)
-- [Requirements](#requirements)
+- [Compatibility](#compatibility)
 - [Quick start (5 minutes)](#quick-start-5-minutes)
 - [Frontend integration](#frontend-integration)
 - [Second factors: e-mail OTP, TOTP and backup codes](#second-factors-e-mail-otp-totp-and-backup-codes)
@@ -27,10 +49,14 @@ Passwordless login for Strapi 5. Your users type their e-mail address, click the
 - [E-mail templates](#e-mail-templates)
 - [Delivery status](#delivery-status)
 - [Security model](#security-model)
+- [Privacy and outbound connections](#privacy-and-outbound-connections)
+- [Performance](#performance)
 - [Running behind a proxy or in a cluster](#running-behind-a-proxy-or-in-a-cluster)
 - [Running several instances (Railway replicas, pm2 cluster)](#running-several-instances-railway-replicas-pm2-cluster)
 - [Migrating from strapi-plugin-passwordless](#migrating-from-strapi-plugin-passwordless)
+- [FAQ](#faq)
 - [Troubleshooting](#troubleshooting)
+- [Upgrading from 6.x to 7.0.0](#upgrading-from-6x-to-700)
 - [Upgrading from 5.x to 6.0.0](#upgrading-from-5x-to-600)
 - [Languages, license and support](#languages-license-and-support)
 
@@ -47,7 +73,7 @@ Passwordless login for Strapi 5. Your users type their e-mail address, click the
   - A JWT session list with revocation, also for users-permissions refresh sessions.
 - **Works with your stack.** Users & Permissions (legacy JWTs and refresh-token sessions), the Strapi e-mail plugin, Magic Mail, Email Designer 5, and a `strapi-plugin-passwordless` compatibility mode.
 - **Admin panel.**
-  - Pages for tokens, OTP codes, JWT sessions, IP bans, settings and license.
+  - Pages for tokens, OTP codes, JWT sessions, IP bans and settings.
   - Light and dark mode, translated into English, German, French, Spanish and Portuguese.
   - Fine-grained admin permissions, enforced on the server.
 
@@ -57,37 +83,48 @@ Magic Link is **e-mail only**. WhatsApp and SMS delivery were removed in 6.0.0.
 
 All screenshots use synthetic data (`example.test` addresses and documentation IP ranges).
 
-| Tokens                                                        | Create a token                                           |
-| ------------------------------------------------------------- | -------------------------------------------------------- |
-| ![Tokens list with status cards and filters](pics/tokens.png) | ![Create Magic Link Token dialog](pics/create-token.png) |
+| Tokens                                                                                                                                    | Create a token                                                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| ![Tokens list with status cards and filters](https://raw.githubusercontent.com/Schero94/strapi-plugin-magic-link-v5/main/pics/tokens.png) | ![Create Magic Link Token dialog](https://raw.githubusercontent.com/Schero94/strapi-plugin-magic-link-v5/main/pics/create-token.png) |
 
-| JWT sessions                                                           | IP bans                                                     |
-| ---------------------------------------------------------------------- | ----------------------------------------------------------- |
-| ![JWT sessions with active and revoked entries](pics/jwt-sessions.png) | ![IP ban list with IPv4 and IPv6 entries](pics/ip-bans.png) |
+| JWT sessions                                                                                                                                       | IP bans                                                                                                                                 |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| ![JWT sessions with active and revoked entries](https://raw.githubusercontent.com/Schero94/strapi-plugin-magic-link-v5/main/pics/jwt-sessions.png) | ![IP ban list with IPv4 and IPv6 entries](https://raw.githubusercontent.com/Schero94/strapi-plugin-magic-link-v5/main/pics/ip-bans.png) |
 
-| Settings: general                                      | Settings: sign-in modes and MFA                          |
-| ------------------------------------------------------ | -------------------------------------------------------- |
-| ![General settings section](pics/settings-general.png) | ![Sign-in mode and MFA selection](pics/settings-mfa.png) |
+| Settings: general                                                                                                                  | Settings: sign-in modes and MFA                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| ![General settings section](https://raw.githubusercontent.com/Schero94/strapi-plugin-magic-link-v5/main/pics/settings-general.png) | ![Sign-in mode and MFA selection](https://raw.githubusercontent.com/Schero94/strapi-plugin-magic-link-v5/main/pics/settings-mfa.png) |
 
-| License                           | Dark mode                                         |
-| --------------------------------- | ------------------------------------------------- |
-| ![License page](pics/license.png) | ![Tokens page in dark mode](pics/tokens-dark.png) |
+| Dark mode                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------- |
+| ![Tokens page in dark mode](https://raw.githubusercontent.com/Schero94/strapi-plugin-magic-link-v5/main/pics/tokens-dark.png) |
 
 On phones the tables turn into cards:
 
-| Tokens on a phone                                                  | JWT sessions on a phone                                                    |
-| ------------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| ![Tokens as cards on a 390 px wide screen](pics/mobile-tokens.png) | ![JWT sessions page on a 390 px wide screen](pics/mobile-jwt-sessions.png) |
+| Tokens on a phone                                                                                                                              | JWT sessions on a phone                                                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ![Tokens as cards on a 390 px wide screen](https://raw.githubusercontent.com/Schero94/strapi-plugin-magic-link-v5/main/pics/mobile-tokens.png) | ![JWT sessions page on a 390 px wide screen](https://raw.githubusercontent.com/Schero94/strapi-plugin-magic-link-v5/main/pics/mobile-jwt-sessions.png) |
 
-## Requirements
+## Compatibility
+
+| Magic Link | Strapi                                    | Node.js  | Notes                                                                 |
+| ---------- | ----------------------------------------- | -------- | --------------------------------------------------------------------- |
+| 7.x        | 5.24.0 or newer (acceptance host: 5.61.0) | 22 to 26 | No registration key, no outbound calls of its own                     |
+| 6.x        | 5.24.0 or newer                           | 22 to 26 | Security release; see [Upgrading from 5.x](#upgrading-from-5x-to-600) |
+| 5.x        | 5.0.0 or newer                            | 18 to 22 | Releases come from `main` only; upgrade to 7.x                        |
+
+What the host needs:
 
 | Component           | Version                                                                                  |
 | ------------------- | ---------------------------------------------------------------------------------------- |
-| Strapi              | 5.24.0 or newer (tested on 5.61.0). Refresh mode with the httpOnly cookie needs 5.33.3+. |
+| Strapi              | 5.24.0 or newer. Refresh mode with the httpOnly cookie needs 5.33.3+.                    |
 | Node.js             | 22 to 26 (the range Strapi 5.61 supports)                                                |
 | Users & Permissions | Installed (default in Strapi 5)                                                          |
 | E-mail              | A configured Strapi e-mail provider, or Magic Mail                                       |
 | Environment         | `MAGIC_LINK_ENCRYPTION_KEY` and `MAGIC_LINK_OTP_PEPPER`, 32+ characters each (see below) |
+| Database            | SQLite, PostgreSQL or MySQL/MariaDB, as supported by Strapi                              |
+
+The admin panel uses the Design System, icons and `react-intl` that every Strapi 5 admin already ships. They are optional peer dependencies, so npm, yarn and pnpm install the plugin into a fresh Strapi 5 project without peer warnings.
 
 ## Quick start (5 minutes)
 
@@ -290,10 +327,11 @@ Choose the mode in **Settings > Magic Link > Settings > Sign-in modes and MFA**.
 | Link + TOTP, optional | `mfa_mode: "optional"` | Users with an authenticator enter a code; others log in     |
 | Link + TOTP, required | `mfa_mode: "required"` | Everyone enters a code; users without one enrol on the spot |
 
-**Switching to `required` while nobody is enrolled.** The settings API refuses `mfa_mode: "required"` (or the legacy `mfa_require_totp: true`) with `400` and `error.details.key: 'settings.mfa.noEnrolledUsers'` while no end user has an active authenticator, because a frontend without the enrolment step would lock everyone out. Start with `optional` so users can enrol, or, if your landing page handles `requiresTOTPSetup`, send `acknowledgeNoEnrolledUsers: true` with the update (`{ "settings": { "mfa_mode": "required" }, "acknowledgeNoEnrolledUsers": true }`). The flag is never stored. The admin panel blocks the option in the same situation.
 | TOTP only | `totp_as_primary_auth: true` | Calls `POST /login-totp { email, totpCode }`, no e-mail |
 
 A user with an active authenticator always gets the TOTP step, even when e-mail OTP is also enabled.
+
+**Switching to `required` while nobody is enrolled.** The settings API refuses `mfa_mode: "required"` (or the legacy `mfa_require_totp: true`) with `400` and `error.details.key: 'settings.mfa.noEnrolledUsers'` while no end user has an active authenticator, because a frontend without the enrolment step would lock everyone out. Start with `optional` so users can enrol, or, if your landing page handles `requiresTOTPSetup`, send `acknowledgeNoEnrolledUsers: true` with the update (`{ "settings": { "mfa_mode": "required" }, "acknowledgeNoEnrolledUsers": true }`). The flag is never stored. The admin panel blocks the option in the same situation.
 
 ### End-user TOTP enrolment
 
@@ -516,8 +554,6 @@ Admin routes live under `/magic-link` on the Strapi server (not under `/api`). T
 | `POST`   | `/magic-link/rate-limit/cleanup`      | `settings.update` | Drop expired limiter entries                                                                               |
 | `POST`   | `/magic-link/rate-limit/reset`        | `settings.update` | Reset all limits                                                                                           |
 | `GET`    | `/magic-link/totp/enrollment-summary` | `settings.read`   | `{ data: { enrolled, enrollmentDuringLogin } }`                                                            |
-| `GET`    | `/magic-link/license/status`          | `settings.read`   | License state; full key only with `settings.update`                                                        |
-| `POST`   | `/magic-link/license/store-key`       | `settings.update` | Save a license key                                                                                         |
 | `GET`    | `/magic-link/otp/totp/status`         | `read`            | The calling admin's own authenticator                                                                      |
 | `POST`   | `/magic-link/otp/totp/setup`          | `read`            | Start setup (`{ token }` when one is active)                                                               |
 | `POST`   | `/magic-link/otp/totp/verify`         | `read`            | Confirm setup, returns backup codes                                                                        |
@@ -577,13 +613,13 @@ curl -X POST http://localhost:1337/magic-link/ban-ip \
 | `plugin::magic-link.read`              | Menu entry and Tokens page: tokens, OTP codes, JWT sessions, IP bans     |
 | `plugin::magic-link.manage`            | Create, block, extend, delete tokens; revoke sessions; ban IPs; cleanups |
 | `plugin::magic-link.tokens.issue`      | Create links without e-mail (impersonation). Grant sparingly.            |
-| `plugin::magic-link.settings.read`     | Settings and License pages                                               |
-| `plugin::magic-link.settings.update`   | Save settings, rate-limit actions, license changes                       |
+| `plugin::magic-link.settings.read`     | Settings page                                                            |
+| `plugin::magic-link.settings.update`   | Save settings, rate-limit actions                                        |
 | `plugin::magic-link.settings.security` | Change security settings (see below), reset MFA settings                 |
 
 The server enforces these on every route; the admin pages hide what a role cannot do. Super Admin has all of them.
 
-**Role migration from 5.x.** 5.x had a single `plugin::magic-link.access` action. On the first start of 6.0.0, every admin role (and admin API token) that still holds it gets **Read** and **Manage**, and the old permission is removed. `tokens.issue`, `settings.read`, `settings.update` and `settings.security` are never granted automatically. After the upgrade, open each role and grant **Settings > Read** to roles that used the License page. If Strapi already dropped the unknown `access` action before the migration ran, there is nothing to migrate: grant the new actions by hand.
+**Role migration from 5.x.** 5.x had a single `plugin::magic-link.access` action. On the first start of 6.0.0, every admin role (and admin API token) that still holds it gets **Read** and **Manage**, and the old permission is removed. `tokens.issue`, `settings.read`, `settings.update` and `settings.security` are never granted automatically. After the upgrade, open each role and grant **Settings > Read** to roles that need the Settings page. If Strapi already dropped the unknown `access` action before the migration ran, there is nothing to migrate: grant the new actions by hand.
 
 **Security settings** need `settings.security` in addition to `settings.update`. They can redirect login links (and the login token in them) to another site, put the raw token into a template, or change who may log in and with which factors: `confirmationUrl`, `callback_url`, `frontend_url`, `frontend_login_path`, `login_path`, `passwordlessCompatibility`, `message_html`, `message_text`, the Email Designer and Magic Mail template fields, `enabled`, `createUserIfNotExists`, `user_creation_strategy`, `allow_magic_links_on_public_registration`, `verify_email`, `stays_valid`, `expire_period`, `token_length`, `use_jwt_token`, `jwt_token_expires_in`, `context_whitelist`, `context_blacklist`, `mfa_mode`, `mfa_require_totp`, `totp_as_primary_auth`, `otp_enabled`, `otp_strict_binding`, and the code and brute-force rules `otp_length`, `otp_expiry`, `otp_max_attempts`, `otp_resend_cooldown`, `totp_algorithm`, `totp_digits`, `totp_period`, `rate_limit_enabled`, `rate_limit_max_attempts`, `rate_limit_window_minutes`, `rate_limit_login_*`, and the sender identity `from_name`, `from_email` and `response_email`.
 
@@ -646,8 +682,6 @@ module.exports = ({ env }) => ({
       // its fallback), or 'memory' for a single process only.
       rateLimit: { redis: { storeClient: redisClient, useRedisPackage: true } },
       // rateLimit: { store: 'memory' },
-      // Disable all calls to the license server.
-      license: { remoteLookup: false },
       // Optional: login links may only point at these origins. A changed
       // confirmationUrl, frontend_url or callback_url outside the list is
       // rejected with 400 (key settings.linkOrigin.notAllowed).
@@ -667,7 +701,6 @@ module.exports = ({ env }) => ({
 | `MAGIC_LINK_OTP_PEPPER`              | yes      | Key for OTP code hashes and backup-code HMACs, 32+ characters |
 | `MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS` | no       | Old key during rotation; secrets are re-encrypted at startup  |
 | `MAGIC_LINK_ALLOW_DEV_SECRETS`       | no       | `true` allows derived development secrets outside production  |
-| `MAGIC_LINK_LICENSE_LOOKUP`          | no       | `false` disables license-server calls                         |
 
 **Rotating the encryption key:**
 
@@ -790,12 +823,41 @@ What is protected, and how:
 - **Admin**
   - Permissions are enforced on the server for every route.
   - Impersonation needs its own permission, and so do settings that redirect links or change identity rules (`settings.security`).
-  - The license key is masked for readers.
 - **Templates.** Placeholder rendering only; there is no code execution.
 
-Known limitation: in a cluster, concurrent admin writes to the session list, blocklist or ban list can overwrite each other (see [cluster notes](#running-behind-a-proxy-or-in-a-cluster)).
+Several Strapi processes on one database share every piece of this state safely; see [Running several instances](#running-several-instances-railway-replicas-pm2-cluster).
 
 Report vulnerabilities privately through [GitHub security advisories](https://github.com/Schero94/strapi-plugin-magic-link-v5/security/advisories/new).
+
+## Privacy and outbound connections
+
+Magic Link has no telemetry, no usage statistics, no update check and no registration server. It sends nothing about your installation anywhere.
+
+What leaves your server, and only because you configured it:
+
+| Connection                           | When                                                                                       |
+| ------------------------------------ | ------------------------------------------------------------------------------------------ |
+| Your e-mail provider (or Magic Mail) | A link, an OTP code or a TOTP setup code is e-mailed                                       |
+| `sns.<region>.amazonaws.com`         | Only with the SES bounce webhook: the SNS signing certificate and the subscription confirm |
+| Redis                                | Only with `rateLimit.redis`                                                                |
+
+What the plugin stores, all in your Strapi database:
+
+- Login tokens as salted hashes with an 8-character lookup prefix, expiry, status, and (with `store_login_info`, the default) the IP address and user agent of the login. Tokens are deleted 30 days after they expire.
+- E-mail OTP codes as keyed hashes, deleted once expired; TOTP secrets encrypted with AES-256-GCM; backup codes as owner-bound HMACs.
+- One record per issued JWT (hash, user, device id, expiry, revocation), kept until 7 days after expiry.
+- Rate-limit counters keyed by IP address or e-mail address, deleted about an hour after their window ends. With `rateLimit.redis` the same keys live in Redis, so addresses are visible there in clear.
+- Delivery status: a reason code such as `SMTP_550`, never the provider's message text.
+
+Plugin log lines contain no e-mail addresses, tokens or URLs with tokens.
+
+## Performance
+
+- **Logins scale with processes.** A login inserts one session row without taking a lock. Measured with 4 Strapi processes on PostgreSQL 16 and 100 simultaneous link clicks: 0.38 s for all 100 logins (see [Running several instances](#running-several-instances-railway-replicas-pm2-cluster)).
+- **Revocation checks are cached.** Each process keeps the JWT blocklist for 2 seconds, so a Content API request normally costs no extra query. Users with a revoked refresh-mode session get one session lookup per request until that session family would have expired.
+- **Rate limits** use one row per key in `magic_link_rate_limits`. Redis is an optional fast path; the database stays its fallback. Limit settings are re-read every 5 seconds.
+- **Admin lists** read the newest 1000 tokens or sessions by primary key, or one page with `?page=&pageSize=`.
+- **Housekeeping** (expired codes, revocation entries, old tokens, session records and limiter rows) runs every 5 minutes in one process at a time, not on the request path.
 
 ## Running behind a proxy or in a cluster
 
@@ -888,7 +950,6 @@ Do not set `rateLimit: { store: 'memory' }` with several processes: each process
 - Each process caches the JWT blocklist for 2 seconds: a revocation reaches the other processes within 2 seconds.
 - Each process re-reads the rate-limit settings every 5 seconds: changed limits and an admin "reset counters" reach the other processes within 5 seconds.
 - The block counters on the admin Security page are per process (`statsScope: 'process'`); the limits themselves are shared.
-- License lookups are cached per process for 10 minutes.
 - Delivery feedback through Magic Mail relies on Magic Mail emitting its event in the process that received the provider webhook (Strapi's event hub is per process). Every process subscribes, so this holds today.
 
 **Upgrading an existing multi-instance install:** the first start merges plugin-store rows that earlier releases could have duplicated (list keys are merged, other keys keep the oldest row) and creates the `magic_link_rate_limits` and `magic_link_jwt_sessions` tables. The session list of 6.1 (plugin-store key `jwt_sessions`) is moved into the table once, by one process under a lock; records already moved are skipped, plaintext JWTs of very old releases are stored as hashes only, and the key is deleted afterwards. Rate-limit counters start empty once.
@@ -904,6 +965,35 @@ The behaviour is tested with 8 processes against SQLite and PostgreSQL 16 (`npm 
 3. Your existing calls to `POST /api/passwordless/send-link` and `GET /api/passwordless/login?loginToken=` keep working. They are rewritten to the Magic Link routes and honour `api.rest.prefix`.
 
 When the setting is off, those paths are passed on to Strapi untouched.
+
+## FAQ
+
+**Does it replace the Strapi admin login?**
+No. Magic Link signs in the users of your app (Users & Permissions accounts). The Strapi admin login stays as it is.
+
+**Do I need a frontend?**
+Yes, for a good experience: a form that calls `send-link` and a landing page that posts the token to `/login`. Any framework works (Next.js, Nuxt, SvelteKit, plain HTML). Without a frontend you can point `confirmationUrl` at `GET /api/magic-link/login`, but then the token shows up in server logs.
+
+**Can new users sign up with a link?**
+Yes, when `createUserIfNotExists`, `allow_magic_links_on_public_registration` and the users-permissions sign-ups are all on. See [Auto-registration](#auto-registration).
+
+**Does it work with GraphQL?**
+The login routes are REST. The JWT they return works for GraphQL like any users-permissions JWT, and revoked tokens are rejected there too. The plugin's internal content types are hidden from GraphQL.
+
+**Can I keep password login?**
+Yes. `/api/auth/local` keeps working. Note that the Magic Link MFA settings only apply to Magic Link logins (see [Security model](#security-model)).
+
+**Is there a paid version or a key to unlock features?**
+No. Every feature is in the npm package and works without registration. 7.0.0 removed the old optional key field and deletes a stored key on its first start.
+
+**Which mail providers work?**
+Any Strapi e-mail provider (Nodemailer, SendGrid, Mailgun, Amazon SES, Postmark and others), Magic Mail, or Email Designer 5 templates. Bounce feedback is available for SendGrid, Mailgun, SES and Postmark.
+
+**Can I run several Strapi instances?**
+Yes. All state is in the database and shared safely; see [Running several instances](#running-several-instances-railway-replicas-pm2-cluster).
+
+**Where are the translations?**
+The admin panel ships English, German, French, Spanish and Portuguese. API error messages use the same languages, chosen by `?locale=` or `Accept-Language`.
 
 ## Troubleshooting
 
@@ -921,6 +1011,16 @@ When the setting is off, those paths are passed on to Strapi untouched.
 | Saving settings answers 403 `settings.security.forbidden` | The role lacks **Settings > Security** for the listed fields                                                                             |
 | Admins see no Magic Link menu after upgrading             | Grant **Read** (and **Manage**) to their role; see the upgrade guide                                                                     |
 
+## Upgrading from 6.x to 7.0.0
+
+7.0.0 removes the optional registration key and everything around it. Logins, tokens, second factors, sessions, the e-mail templates, `context` and delivery status are unchanged.
+
+1. **Nothing to do for most installs.** Update the package and restart. On the first start the plugin deletes the stored key and its timestamp from the plugin store (keys `licenseKey` and `lastValidated`), once and under a cluster lock.
+2. **Config.** Remove `license: { remoteLookup: false }` from `config/plugins.js` and `MAGIC_LINK_LICENSE_LOOKUP` / `MAGIC_LICENSE_TIMEOUT_MS` from the environment. Leftovers are ignored and do no harm.
+3. **Admin API.** `GET /magic-link/license/status` and `POST /magic-link/license/store-key` are gone (Strapi answers `404` and `405`). Only the plugin's own admin page used them.
+4. **Custom server code.** The service `strapi.plugin('magic-link').service('license-guard')` no longer exists. Its methods only returned "everything allowed", so drop the calls.
+5. **Admin navigation.** **Settings > Magic Link** now has one entry, **Settings**.
+
 ## Upgrading from 5.x to 6.0.0
 
 6.0.0 is a major release focused on security. Work through this list:
@@ -930,7 +1030,7 @@ When the setting is off, those paths are passed on to Strapi untouched.
 3. **E-mail only.** Remove WhatsApp/SMS fields from `send-link` calls. Delete a leftover `.whatsapp-auth` folder from releases up to 5.2.x.
 4. **Admin roles.** `access` became `read`, `manage`, `settings.read` and `settings.update`, plus `tokens.issue` for impersonation and `settings.security` for security settings.
    - On startup, roles holding `access` get **Read** and **Manage** automatically (see [role migration](#permissions)).
-   - Check each role, and grant **Settings > Read** to roles that used the License page.
+   - Check each role, and grant **Settings > Read** to roles that need the Settings page.
    - Grant **Settings > Security** only to roles that may change link targets, templates, account and MFA rules. It is never granted automatically.
 5. **Frontend.**
    - Exchange the token with `POST /login { loginToken }`.
@@ -951,8 +1051,9 @@ The full list with every changed field is in [CHANGELOG.md](CHANGELOG.md#unrelea
 ## Languages, license and support
 
 - **Languages.** The admin panel follows the admin interface language: English, German, French, Spanish or Portuguese, with English as the fallback. Server error messages use the same five languages.
-- **License.** MIT, see [LICENSE](LICENSE). The optional license key in the admin panel unlocks nothing, and every feature works without it. Disable license-server calls with `license.remoteLookup: false` or `MAGIC_LINK_LICENSE_LOOKUP=false`.
-- **Support.** Report bugs and request features through [GitHub issues](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues).
+- **License.** MIT, see [LICENSE](LICENSE). Free and open source, with no registration and no telemetry.
+- **Support.** Report bugs and request features through [GitHub issues](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/new/choose). Report vulnerabilities privately through [GitHub security advisories](https://github.com/Schero94/strapi-plugin-magic-link-v5/security/advisories/new).
+- **Maintenance.** Actively maintained. Releases are cut by semantic-release from `main` and published to npm with provenance; the supported line is 7.x on Strapi 5.
 
 ### Contributing
 
