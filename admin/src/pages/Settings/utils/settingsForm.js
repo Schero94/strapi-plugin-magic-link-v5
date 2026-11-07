@@ -347,6 +347,31 @@ export const getServerErrorField = (error) => {
   return match && match[1] !== '(root)' ? match[1] : null;
 };
 
+/** Server rejection keys that name the affected fields in `details.fields`. */
+const FIELD_LIST_ERRORS = Object.freeze({
+  'settings.security.forbidden': 'securityForbidden',
+  'settings.linkOrigin.notAllowed': 'linkOrigin',
+});
+
+/**
+ * Form fields named by a permission (403) or link-origin (400) rejection.
+ * Only keys of this form are returned, so unknown server keys cannot be
+ * focused or highlighted.
+ *
+ * @param {unknown} error - fetch client error
+ * @returns {{code: 'securityForbidden'|'linkOrigin', fields: string[]}|null}
+ */
+export const getServerErrorFields = (error) => {
+  const details = error?.response?.data?.error?.details;
+  const code = FIELD_LIST_ERRORS[details?.key];
+  if (!code) return null;
+  const list = Array.isArray(details.fields) ? details.fields : [];
+  const fields = list.filter(
+    (field) => typeof field === 'string' && Object.hasOwn(FIELD_SECTIONS, field)
+  );
+  return { code, fields };
+};
+
 /* ------------------------------------------------------------------ */
 /* Login modes                                                         */
 /* ------------------------------------------------------------------ */

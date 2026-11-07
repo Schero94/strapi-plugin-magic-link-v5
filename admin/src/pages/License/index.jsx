@@ -317,9 +317,13 @@ const KeyText = styled.p`
   }
 `;
 
-/* Frosted buttons: 14px bold text (DS size M) is large text, so 3:1 suffices. */
+/*
+ * Frosted buttons. 14px bold is not WCAG large text (that starts at 18.66px
+ * bold), so the label needs 4.5:1. A white frost lowered the light end of the
+ * banner to 3.6:1; a slate frost keeps >= 5.4:1, shimmer included.
+ */
 const FrostedButton = styled(Button)`
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(15, 23, 42, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.5);
   color: ${brand.onFill};
 
@@ -330,7 +334,7 @@ const FrostedButton = styled(Button)`
   }
 
   &:hover:not([aria-disabled='true']) {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(15, 23, 42, 0.32);
     border-color: ${brand.onFill};
   }
 

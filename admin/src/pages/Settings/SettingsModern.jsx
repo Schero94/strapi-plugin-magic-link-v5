@@ -36,6 +36,7 @@ import {
   buildSavePayload,
   fieldId,
   getServerErrorField,
+  getServerErrorFields,
   isSettingsDirty,
   orderedErrorKeys,
   parseEnrollmentSummary,
@@ -149,6 +150,38 @@ const FooterBox = styled.div`
   }
 `;
 
+/**
+ * "Unsaved changes" badge. The DS warning variant (warning700 on warning200)
+ * reaches only 3.6:1 in the light theme; the warning tint keeps 4.8:1 light
+ * and > 8:1 dark.
+ */
+const UnsavedBadge = styled(Badge)`
+  && {
+    background: ${tint.warning.bg};
+    box-shadow: inset 0 0 0 1px ${tint.warning.border};
+  }
+
+  && span {
+    color: ${tint.warning.fg};
+  }
+`;
+
+/** Danger marker after the title of a section that contains invalid fields. */
+const SectionErrorMark = styled.span`
+  display: inline-block;
+  margin-left: ${space(1)};
+  padding: 0 ${space(2)};
+  border-radius: ${theme.borderRadius.sm};
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.8rem;
+  text-transform: uppercase;
+  vertical-align: middle;
+  background: ${tint.danger.bg};
+  box-shadow: inset 0 0 0 1px ${tint.danger.border};
+  color: ${tint.danger.fg};
+`;
+
 /** Save button in the brand gradient (one gradient for all Magic Link pages). */
 const SaveButton = styled(Button)`
   && {
@@ -239,6 +272,21 @@ const SettingsModern = () => {
   const [isCleaning, setIsCleaning] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const focusRequest = useRef(null);
+  const [, setFocusTick] = useState(0);
+  const formRef = useRef(null);
+  const focusBeforeSave = useRef(null);
+
+  /**
+   * Focus target after a dialog closes when its opener left the DOM (the
+   * Discard button disappears once the form is clean): the open section
+   * header, else the first one.
+   */
+  const getSectionFocusTarget = useCallback(
+    () =>
+      formRef.current?.querySelector('h3 button[aria-expanded="true"]') ??
+      formRef.current?.querySelector('h3 button'),
+    []
+  );
 
   const isReady = loadState === 'ready' && settings !== null;
   const isDirty = isReady && isSettingsDirty(initialSettings, settings);
@@ -257,12 +305,25 @@ const SettingsModern = () => {
     (key) => {
       const error = clientErrors[key];
       if (!error) {
-        return serverErrors[key]
-          ? t(
+        switch (serverErrors[key]) {
+          case undefined:
+            return undefined;
+          case 'securityForbidden':
+            return t(
+              'settings.validation.securityForbidden',
+              'Changing this value needs the "Settings: Security" permission.'
+            );
+          case 'linkOrigin':
+            return t(
+              'settings.validation.linkOrigin',
+              'This origin is not in the allowed link origins of the server configuration.'
+            );
+          default:
+            return t(
               'settings.validation.server',
               'The server rejected this value. Check it and save again.'
-            )
-          : undefined;
+            );
+        }
       }
       switch (error.code) {
         case 'url':
@@ -429,6 +490,9 @@ const SettingsModern = () => {
     const section = FIELD_SECTIONS[key];
     if (section) setOpenSection(section);
     focusRequest.current = key;
+    // When the section is already open nothing else changes; this render
+    // runs the focus effect anyway.
+    setFocusTick((tick) => tick + 1);
   }, []);
 
   useEffect(() => {
@@ -445,6 +509,20 @@ const SettingsModern = () => {
     });
     return () => window.cancelAnimationFrame(frame);
   });
+
+  // After a save, return focus to the control that submitted (a field when
+  // Enter was pressed). The Save button stays disabled once the form is
+  // clean, so it falls back to the open section header. A field focus
+  // request (server rejection) runs later, in the next frame, and wins.
+  useEffect(() => {
+    if (isSaving || !focusBeforeSave.current) return;
+    const previous = focusBeforeSave.current;
+    focusBeforeSave.current = null;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    if (previous.isConnected && !previous.disabled) previous.focus();
+    else getSectionFocusTarget()?.focus();
+  }, [isSaving, getSectionFocusTarget]);
 
   const discardChanges = () => {
     setSettings(initialSettings);
@@ -470,6 +548,8 @@ const SettingsModern = () => {
       return;
     }
 
+    // Controls are disabled while saving, so the browser drops focus to <body>.
+    focusBeforeSave.current = document.activeElement;
     const payload = buildSavePayload(initialSettings, settings);
     if (language && language !== initialSettings.ui_language) payload.ui_language = language;
 
@@ -486,15 +566,18 @@ const SettingsModern = () => {
       });
     } catch (error) {
       const field = getServerErrorField(error);
-      const errorKey = error?.response?.data?.error?.details?.key;
-      if (
-        errorKey === 'settings.security.forbidden' ||
-        errorKey === 'settings.linkOrigin.notAllowed'
-      ) {
+      const rejected = getServerErrorFields(error);
+      if (rejected) {
+        // Highlight and focus the fields the server named.
+        if (rejected.fields.length > 0) {
+          const named = Object.fromEntries(rejected.fields.map((name) => [name, rejected.code]));
+          setServerErrors(named);
+          focusField(orderedErrorKeys(named)[0]);
+        }
         toggleNotification({
           type: 'danger',
           message:
-            errorKey === 'settings.security.forbidden'
+            rejected.code === 'securityForbidden'
               ? t(
                   'settings.save.securityForbidden',
                   'Changing link targets, templates, account, MFA, code or rate-limit rules needs the "Settings: Security" permission.'
@@ -505,7 +588,7 @@ const SettingsModern = () => {
                 ),
         });
       } else if (field) {
-        setServerErrors({ [field]: true });
+        setServerErrors({ [field]: 'server' });
         focusField(field);
         toggleNotification({
           type: 'danger',
@@ -644,27 +727,18 @@ const SettingsModern = () => {
       value: 'general',
       icon: Cog,
       title: t('settings.section.general', 'General'),
-      description: t(
-        'settings.section.general.description',
-        'Language, main features, link lifetime and URLs'
-      ),
       content: <GeneralSection {...sectionProps} />,
     },
     {
       value: 'auth',
       icon: Key,
       title: t('settings.section.auth', 'Authentication'),
-      description: t('settings.section.auth.description', 'User creation, JWT and login data'),
       content: <AuthSection {...sectionProps} />,
     },
     {
       value: 'mfa',
       icon: Lock,
       title: t('settings.section.mfa', 'Sign-in modes and MFA'),
-      description: t(
-        'settings.section.mfa.description',
-        'Magic link, email code or authenticator app'
-      ),
       content: (
         <MfaSection
           {...sectionProps}
@@ -677,10 +751,6 @@ const SettingsModern = () => {
       value: 'email',
       icon: Mail,
       title: t('settings.section.email', 'Email'),
-      description: t(
-        'settings.section.email.description',
-        'Sender, templates and email integrations'
-      ),
       content: (
         <EmailSection
           {...sectionProps}
@@ -694,10 +764,6 @@ const SettingsModern = () => {
       value: 'ratelimit',
       icon: Clock,
       title: t('settings.section.rateLimit', 'Rate limiting'),
-      description: t(
-        'settings.section.rateLimit.description',
-        'Protect against abuse and brute-force attacks'
-      ),
       content: (
         <RateLimitSection
           {...sectionProps}
@@ -714,10 +780,6 @@ const SettingsModern = () => {
       value: 'advanced',
       icon: Code,
       title: t('settings.section.advanced', 'Advanced'),
-      description: t(
-        'settings.section.advanced.description',
-        'Public registration and plugin compatibility'
-      ),
       content: <AdvancedSection {...sectionProps} />,
     },
   ];
@@ -726,7 +788,7 @@ const SettingsModern = () => {
   return (
     <Page.Main>
       {pageTitle}
-      <Container onSubmit={handleSave} noValidate aria-busy={isSaving}>
+      <Container ref={formRef} onSubmit={handleSave} noValidate aria-busy={isSaving}>
         <StickySaveBar>
           <Flex direction="column" gap={1} alignItems="flex-start" style={{ minWidth: 0 }}>
             <Typography variant="alpha" tag="h1" textColor="neutral800">
@@ -753,9 +815,9 @@ const SettingsModern = () => {
             ) : null}
             {isDirty ? (
               <>
-                <Badge variant="warning" role="status">
+                <UnsavedBadge role="status">
                   {t('common.unsaved.badge', 'Unsaved changes')}
-                </Badge>
+                </UnsavedBadge>
                 <Button
                   variant="tertiary"
                   size="M"
@@ -830,21 +892,19 @@ const SettingsModern = () => {
               {sections.map((section) => (
                 <Accordion.Item key={section.value} value={section.value}>
                   <Accordion.Header>
-                    <Accordion.Trigger
-                      icon={section.icon}
-                      description={
-                        invalidSections.has(section.value)
-                          ? t(
-                              'settings.section.hasErrors',
-                              '{description} (contains fields to fix)',
-                              {
-                                description: section.description,
-                              }
-                            )
-                          : section.description
-                      }
-                    >
+                    {/* DS 2.2.4 renders a trigger description only at size M, which drops
+                        the icon; the error marker is part of the title (and its name). */}
+                    <Accordion.Trigger icon={section.icon}>
                       {section.title}
+                      {invalidSections.has(section.value) ? (
+                        // The space keeps "General Fields to fix" apart in the accessible name.
+                        <>
+                          {' '}
+                          <SectionErrorMark>
+                            {t('settings.section.fieldsToFix', 'Fields to fix')}
+                          </SectionErrorMark>
+                        </>
+                      ) : null}
                     </Accordion.Trigger>
                   </Accordion.Header>
                   <Accordion.Content>{section.content}</Accordion.Content>
@@ -881,7 +941,7 @@ const SettingsModern = () => {
         onConfirm={handleRateLimitReset}
         onClose={() => setConfirmReset(false)}
       />
-      <UnsavedChangesDialog guard={guard} />
+      <UnsavedChangesDialog guard={guard} getReturnFocusFallback={getSectionFocusTarget} />
     </Page.Main>
   );
 };

@@ -362,6 +362,7 @@ export const MfaSection = ({
               type="button"
               role="radio"
               aria-checked={isActive}
+              aria-labelledby={`${id}-${key}-title`}
               aria-describedby={`${id}-${key}-description`}
               tabIndex={isActive ? 0 : -1}
               $active={isActive}
@@ -376,7 +377,12 @@ export const MfaSection = ({
                 <Icon />
               </IconBadge>
               <Flex direction="column" gap={1} alignItems="flex-start">
-                <Typography variant="omega" fontWeight="bold" textColor="neutral800">
+                <Typography
+                  id={`${id}-${key}-title`}
+                  variant="omega"
+                  fontWeight="bold"
+                  textColor="neutral800"
+                >
                   {item.title}
                 </Typography>
                 <Typography id={`${id}-${key}-description`} variant="pi" textColor="neutral600">

@@ -190,6 +190,11 @@ short version is the upgrade guide.
   `refreshMode`, `accountClaim` or `null`), with the same checks as
   `unrevoke-jwt`. Refresh-mode sessions cannot be restored because the
   users-permissions session manager deletes the session on revocation.
+* `PUT /settings` and `POST /reset-data` reject security changes without
+  `settings.security` with a `PolicyError` (403) that keeps `message` and
+  `details` (`key: 'settings.security.forbidden'`, `fields`). Strapi replaced
+  the previous `ForbiddenError` with a bare "Forbidden" and dropped the
+  details, so the admin could not say what was refused.
 
 ### BREAKING CHANGES (login core)
 
@@ -491,6 +496,21 @@ short version is the upgrade guide.
   * no horizontal table scrolling from 1024 px, phone cards without a
     second frame, wrapped IPv6 addresses and no sticky hover tint on touch;
   * the IP placeholder uses a documentation address (203.0.113.10).
+* Settings and License (browser acceptance at 320 to 1440 px, light and dark):
+  * a refused save highlights and focuses the fields: link URLs outside
+    `allowedLinkOrigins` and security fields changed without
+    `settings.security` now get a field message instead of only a toast;
+  * "Save" and "N fields need attention" move focus to the first invalid
+    field also when its section is already open, and focus returns to the
+    field (Enter) or the section header after a save or a discard instead of
+    falling to the page body;
+  * a section with invalid fields shows "Fields to fix" in its header (the
+    design-system accordion never rendered the old description text);
+  * the template gallery cards fill their grid cells (equal widths);
+  * the "Unsaved changes" badge reaches 4.8:1 (design-system warning badge:
+    3.6:1), and the License key buttons 5.4:1 (white frost: 3.6:1);
+  * the sign-in mode cards are named by their title and described by their
+    text.
 * All texts are translated into English, German (formal), French, Spanish
   and Portuguese, and dates follow the admin locale. A test now checks that
   every message id used by the admin exists in all five locales.

@@ -230,9 +230,16 @@ test('settings.update alone cannot weaken e-mail codes, TOTP parameters or rate 
     await t.test(key, async () => {
       const { values } = settingsEnv();
       const before = JSON.stringify(values.get('settings'));
-      await assert.rejects(settingsController.updateSettings(adminCtx({ [key]: value })), {
-        name: 'ForbiddenError',
-      });
+      await assert.rejects(
+        settingsController.updateSettings(adminCtx({ [key]: value })),
+        (error) => {
+          // PolicyError keeps message and details in Strapi's 403 response.
+          assert.equal(error.name, 'PolicyError');
+          assert.equal(error.details.key, 'settings.security.forbidden');
+          assert.ok(error.details.fields.includes(key));
+          return true;
+        }
+      );
       assert.equal(JSON.stringify(values.get('settings')), before, 'nothing was written');
     });
   }

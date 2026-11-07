@@ -198,7 +198,10 @@ const assertSettingsChangeAllowed = (ctx, existing, patch) => {
 
   const securityChanges = SECURITY_SETTING_KEYS.filter(changed);
   if (securityChanges.length > 0 && !can(ctx, SECURITY_ACTION)) {
-    throw new errors.ForbiddenError(
+    // PolicyError, not ForbiddenError: Strapi's authorize middleware replaces
+    // any other ForbiddenError with a bare "Forbidden" and drops `details`,
+    // so the admin UI could not name the fields (Strapi 5 error-handling docs).
+    throw new errors.PolicyError(
       'Changing login link targets, templates, account or MFA rules requires the "Settings: Security" permission',
       { key: 'settings.security.forbidden', fields: securityChanges }
     );
@@ -321,7 +324,8 @@ module.exports = {
     const { resetSecurity } = parseBody(adminResetSchema, ctx.request?.body);
     const mayChangeSecurity = can(ctx, SECURITY_ACTION);
     if (resetSecurity && !mayChangeSecurity) {
-      throw new errors.ForbiddenError(
+      // PolicyError keeps message and details in the 403 response (see above).
+      throw new errors.PolicyError(
         'Resetting the MFA settings requires the "Settings: Security" permission',
         { key: 'settings.security.forbidden', fields: [...MFA_SETTING_KEYS] }
       );

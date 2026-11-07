@@ -471,6 +471,8 @@ export const Tile = styled.button`
   flex-direction: column;
   align-items: flex-start;
   gap: ${space(2)};
+  /* A button shrinks to its content by default; fill the grid cell like a card. */
+  width: 100%;
   height: 100%;
   min-width: 0;
   padding: ${space(4)};

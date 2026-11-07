@@ -169,6 +169,28 @@ test('server validation errors name the rejected field', () => {
   assert.equal(form.getServerErrorField({ message: "Invalid request body at '(root)': x" }), null);
 });
 
+test('permission and link-origin rejections name only known form fields', () => {
+  const reject = (key, fields) => ({ response: { data: { error: { details: { key, fields } } } } });
+  assert.deepEqual(
+    form.getServerErrorFields(
+      reject('settings.linkOrigin.notAllowed', ['frontend_url', 'confirmationUrl'])
+    ),
+    { code: 'linkOrigin', fields: ['frontend_url', 'confirmationUrl'] }
+  );
+  assert.deepEqual(
+    form.getServerErrorFields(
+      reject('settings.security.forbidden', ['message_html', '__proto__', 'constructor', 'x'])
+    ),
+    { code: 'securityForbidden', fields: ['message_html'] }
+  );
+  assert.deepEqual(form.getServerErrorFields(reject('settings.security.forbidden')), {
+    code: 'securityForbidden',
+    fields: [],
+  });
+  assert.equal(form.getServerErrorFields(reject('other.key', ['frontend_url'])), null);
+  assert.equal(form.getServerErrorFields({ message: 'Network down' }), null);
+});
+
 /* ------------------------------------------------------------------ */
 /* Login modes and lock-out protection (UI-05, UI-07, UI-M03)          */
 /* ------------------------------------------------------------------ */
@@ -555,7 +577,11 @@ test('the Settings page wires RBAC, the unsaved-changes guard and confirmations'
   assert.ok(page.includes('useMagicLinkRBAC()'));
   assert.ok(page.includes('const canWriteSettings = canUpdateSettings'));
   assert.ok(page.includes('useUnsavedChangesGuard(isDirty)'));
-  assert.ok(page.includes('<UnsavedChangesDialog guard={guard} />'));
+  assert.ok(
+    /<UnsavedChangesDialog\s+guard={guard}[\s\S]*?getReturnFocusFallback={getSectionFocusTarget}/.test(
+      page
+    )
+  );
   assert.ok(page.includes('<Page.Main>'));
   assert.ok(page.includes('<PluginPageTitle>'));
   assert.ok(page.includes('tag="h1"'));

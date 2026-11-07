@@ -390,9 +390,16 @@ test('settings.update alone cannot redirect login links or weaken identity rules
     await t.test(key, async () => {
       const { values } = settingsEnv();
       const before = JSON.stringify(values.get('settings'));
-      await assert.rejects(settingsController.updateSettings(adminCtx({ [key]: value })), {
-        name: 'ForbiddenError',
-      });
+      await assert.rejects(
+        settingsController.updateSettings(adminCtx({ [key]: value })),
+        (error) => {
+          // PolicyError keeps message and details in Strapi's 403 response.
+          assert.equal(error.name, 'PolicyError');
+          assert.equal(error.details.key, 'settings.security.forbidden');
+          assert.ok(error.details.fields.includes(key));
+          return true;
+        }
+      );
       assert.equal(JSON.stringify(values.get('settings')), before, 'nothing was written');
     });
   }
@@ -441,7 +448,7 @@ test('resetting the MFA settings needs settings.security', async () => {
   settingsEnv({ mfa_mode: 'required', mfa_require_totp: true });
   await assert.rejects(
     settingsController.resetData(adminCtx({ confirm: 'RESET', resetSecurity: true })),
-    { name: 'ForbiddenError' }
+    (error) => error.name === 'PolicyError' && error.details.key === 'settings.security.forbidden'
   );
 });
 
