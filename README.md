@@ -638,3 +638,8 @@ Commits follow Conventional Commits. Releases are published by semantic-release 
 - Patch and minor updates merge automatically once lint, format check, tests, build and verify pass.
 - Major updates wait for review.
 - React, styled-components, react-intl, react-router-dom and `@strapi/*` majors are never proposed, because the Strapi admin host sets those versions.
+- `npm audit` reports GHSA-mrhx-c7xc-m3w5 (zod below 4.6.6, memory exhaustion on oversized collections) through `@strapi/utils` 5.61, which pins zod 4.4.3. Magic Link validates with its own zod 4.6.7. Until Strapi ships a fix, hosts can force the patched zod with npm `overrides`:
+
+  ```json
+  { "overrides": { "@strapi/utils": { "zod": "^4.6.6" } } }
+  ```
