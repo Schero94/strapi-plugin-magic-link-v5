@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Schero94/strapi-plugin-magic-link-v5/main/docs/site/img/icon.svg" alt="Magic Link icon" width="96" height="96" />
+</p>
+
 # Magic Link for Strapi 5
 
 Passwordless login for Strapi 5. Your users type their e-mail address, click the link in their inbox and get a normal Users & Permissions session, the same kind `/api/auth/local` creates. When a link is not enough, add a second factor: an e-mailed one-time code (OTP) or an authenticator app (TOTP) with backup codes.
