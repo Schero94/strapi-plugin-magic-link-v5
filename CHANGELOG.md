@@ -1,3 +1,10 @@
+## [7.1.1](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v7.1.0...v7.1.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* open the Tokens page at the bare plugin URL ([#30](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/30)) ([748d167](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/748d167ba489da5ef21e9740bc3cab4cc4db7848))
+
 # [7.1.0](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v7.0.0...v7.1.0) (2026-11-07)
 
 
