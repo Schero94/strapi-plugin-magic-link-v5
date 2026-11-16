@@ -64,6 +64,9 @@ test('admin registration gates the menu with read and both settings pages with s
     ['plugin::magic-link.read']
   );
   assert.equal(calls.menu[0].intlLabel.id, 'magic-link.tokens.title');
+  // Strapi's addMenuLink registers `${to}/*`. With `to` ending in `/tokens`
+  // the bare /admin/plugins/magic-link URL showed "Page not found".
+  assert.equal(calls.menu[0].to, 'plugins/magic-link');
 
   const links = calls.sections[0].links;
   assert.deepEqual(
