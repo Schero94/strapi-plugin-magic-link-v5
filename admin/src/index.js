@@ -17,8 +17,10 @@ export default {
     });
 
     // Tokens, OTP codes, JWT sessions and IP bans. Needs the read action.
+    // Strapi registers the page at `${to}/*`, so `plugins/magic-link` serves
+    // both the bare plugin URL and the older `plugins/magic-link/tokens` links.
     app.addMenuLink({
-      to: `plugins/${pluginId}/tokens`,
+      to: `plugins/${pluginId}`,
       icon: PluginIcon,
       intlLabel: {
         id: getTranslation('tokens.title'),
