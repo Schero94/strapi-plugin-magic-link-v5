@@ -1,3 +1,10 @@
+## [7.1.2](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v7.1.1...v7.1.2) (2026-11-17)
+
+
+### Bug Fixes
+
+* **readme:** make images and links work on the Strapi marketplace ([#32](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/32)) ([65ad512](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/65ad5129383243b3311f293d51f635142dc3bc04))
+
 ## [7.1.1](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v7.1.0...v7.1.1) (2026-11-16)
 
 
