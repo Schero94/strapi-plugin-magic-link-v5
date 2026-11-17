@@ -8,9 +8,10 @@ Passwordless login for Strapi 5. Your users type their e-mail address, click the
 
 [![npm version](https://img.shields.io/npm/v/strapi-plugin-magic-link-v5.svg)](https://www.npmjs.com/package/strapi-plugin-magic-link-v5)
 [![npm downloads](https://img.shields.io/npm/dm/strapi-plugin-magic-link-v5.svg)](https://www.npmjs.com/package/strapi-plugin-magic-link-v5)
+[![CI build status](https://img.shields.io/github/actions/workflow/status/Schero94/strapi-plugin-magic-link-v5/release.yml?branch=main&label=CI&logo=github)](https://github.com/Schero94/strapi-plugin-magic-link-v5/actions/workflows/release.yml?query=branch%3Amain)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/LICENSE)
-[![Strapi 5.24+](https://img.shields.io/badge/Strapi-5.24%2B-4945FF.svg)](#compatibility)
-[![Node 22 to 26](https://img.shields.io/badge/Node-22%20to%2026-339933.svg)](#compatibility)
+[![Strapi 5.24+](https://img.shields.io/badge/Strapi-5.24%2B-4945FF.svg)](https://github.com/Schero94/strapi-plugin-magic-link-v5#compatibility)
+[![Documentation site](https://img.shields.io/badge/docs-project%20site-6d4aff.svg)](https://schero94.github.io/strapi-plugin-magic-link-v5/)
 
 **Live docs:** [schero94.github.io/strapi-plugin-magic-link-v5](https://schero94.github.io/strapi-plugin-magic-link-v5/) · [npm](https://www.npmjs.com/package/strapi-plugin-magic-link-v5) · [Reference](https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/docs/reference.md) · [Changelog](https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/CHANGELOG.md) · [Issues](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues)
 
