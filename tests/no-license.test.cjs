@@ -189,16 +189,24 @@ test('package.json: accurate metadata and install-friendly peers', () => {
   }
 });
 
-test('README and Pages say nothing about a license key and Pages has the multi-instance guide', () => {
+test('README, reference and Pages say nothing about a license key and Pages has the multi-instance guide', () => {
   const site = read('docs/site/index.html');
-  // The 6.x to 7.0.0 upgrade guide names what was removed; nothing else may.
-  const fullReadme = read('README.md');
-  const upgradeStart = fullReadme.indexOf('## Upgrading from 6.x to 7.0.0');
-  const upgradeEnd = fullReadme.indexOf('## Upgrading from 5.x to 6.0.0');
-  assert.ok(upgradeStart > 0 && upgradeEnd > upgradeStart, 'README has the 7.0.0 upgrade guide');
-  const readme = fullReadme.slice(0, upgradeStart) + fullReadme.slice(upgradeEnd);
+  const readme = read('README.md');
+  // The 6.x to 7.0.0 upgrade guide in docs/reference.md names what was
+  // removed; nothing else may.
+  const fullReference = read('docs/reference.md');
+  const upgradeStart = fullReference.indexOf('## Upgrading from 6.x to 7.0.0');
+  const upgradeEnd = fullReference.indexOf('## Upgrading from 5.x to 6.0.0');
+  assert.ok(upgradeStart > 0 && upgradeEnd > upgradeStart, 'reference has the 7.0.0 upgrade guide');
+  const reference = fullReference.slice(0, upgradeStart) + fullReference.slice(upgradeEnd);
+  assert.match(
+    readme,
+    /docs\/reference\.md#upgrading-from-6x-to-700/,
+    'README links the 7.0.0 upgrade guide'
+  );
   for (const [name, text] of [
     ['README.md', readme],
+    ['docs/reference.md', reference],
     ['docs/site/index.html', site],
   ]) {
     assert.doesNotMatch(text, /license key|magicapi|fitlex|remoteLookup|License page/i, name);
