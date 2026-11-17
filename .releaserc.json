@@ -3,6 +3,7 @@
   "plugins": [
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
+    "./scripts/release-unreleased.mjs",
     "@semantic-release/changelog",
     "@semantic-release/npm",
     [
