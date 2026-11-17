@@ -49,7 +49,7 @@ jobs:
         run: |
           npm run --if-present verify
           npm run --if-present verify:runtime
-      - name: Production audit (high and critical)
+      - name: Production audit (critical)
         run: npm audit --omit=dev --audit-level=critical
 
   auto-merge:
