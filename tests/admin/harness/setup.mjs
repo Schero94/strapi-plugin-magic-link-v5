@@ -49,6 +49,15 @@ for (const key of Object.getOwnPropertyNames(window)) {
 globalThis.window = window;
 globalThis.document = window.document;
 Object.defineProperty(globalThis, 'navigator', { value: window.navigator, configurable: true });
+// Node 25+ has its own Web Storage globals (`localStorage` is undefined without
+// --localstorage-file), so the loop above would keep them: use jsdom's storage like a browser.
+for (const key of ['localStorage', 'sessionStorage']) {
+  Object.defineProperty(globalThis, key, {
+    value: window[key],
+    configurable: true,
+    writable: true,
+  });
+}
 // React DOM expects the jsdom event classes on `window` and on the global object to match.
 // Abort signals must be jsdom's: components pass them to DOM `addEventListener({ signal })`.
 for (const key of [
