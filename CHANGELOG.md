@@ -1,3 +1,13 @@
+## [Unreleased]
+
+### Fixed
+
+* The token dialogs (create, token created, details, extend, ban IP) no longer log the Radix warning "Missing `Description` or `aria-describedby={undefined}`" in the browser console. Their title is their accessible name, and they now say so.
+
+### Tests
+
+* `npm run test:admin`: StrictMode tests for every admin entry point (no duplicate requests, no leaked timers, listeners, connections or observers after unmount, no console errors or warnings), also run against React 19 in an informational CI job.
+
 ## [7.1.4](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v7.1.3...v7.1.4) (2026-11-18)
 
 

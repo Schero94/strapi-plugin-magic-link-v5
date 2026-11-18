@@ -523,8 +523,11 @@ Every release and its changes are listed in the [CHANGELOG](https://github.com/S
 ```bash
 npm ci --legacy-peer-deps
 npm run lint && npm run format:check && npm test
+npm run test:admin
 npm run build && npm run verify
 ```
+
+`npm run test:admin` renders every admin entry point (the Tokens page with its four tabs and dialogs, the Settings page) inside `React.StrictMode` with the providers of the Strapi admin, in jsdom with a fake network. It fails on a mutation sent twice, a read repeated without aborting the first one, an interval, listener, connection or observer left after unmount, and any console error or warning. A separate CI job runs the same tests against React 19 for information only: the plugin's peer range is React 18, like the Strapi 5 admin.
 
 Commits follow Conventional Commits. Releases are published by semantic-release with npm provenance.
 

@@ -39,6 +39,8 @@ jobs:
         run: npm run format:check
       - name: Tests
         run: npm test
+      - name: Admin StrictMode tests (React 18)
+        run: npm run test:admin
       - name: Build
         run: npm run build
       - name: Verify package
@@ -49,6 +51,33 @@ jobs:
         run: npm pack --dry-run
       - name: Production audit (critical)
         run: npm audit --omit=dev --audit-level=critical
+
+  # Informational: the peer range is React ^18, like the Strapi 5 admin, and stays so. This job
+  # runs the admin StrictMode tests against React 19 (RFC strapi/strapi#25739) to see problems
+  # before Strapi moves; a failure here does not block a pull request.
+  react-19:
+    name: Admin StrictMode tests on React 19 (informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --legacy-peer-deps --ignore-scripts
+      - name: Install React 19 (not saved)
+        run: npm install --no-save --legacy-peer-deps --ignore-scripts react@19 react-dom@19
+      - name: Show installed React version
+        run: node -p "'react ' + require('react/package.json').version + ', react-dom ' + require('react-dom/package.json').version"
+      - name: Admin StrictMode tests (React 19)
+        run: npm run test:admin
 
   # Several Strapi processes on one database (Railway replicas, pm2 cluster):
   # 8 Node processes run the shared-state scenarios against SQLite and

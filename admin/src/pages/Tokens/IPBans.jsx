@@ -455,7 +455,7 @@ const IPBans = () => {
             if (!open) discard.runGuarded(closeModal);
           }}
         >
-          <Modal.Content onCloseAutoFocus={returnFocus}>
+          <Modal.Content onCloseAutoFocus={returnFocus} aria-describedby={undefined}>
             <form onSubmit={handleBanIP} noValidate>
               <Modal.Header closeLabel={t('common.close', 'Close')}>
                 <Flex direction="column" alignItems="flex-start" gap={1}>

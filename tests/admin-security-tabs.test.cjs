@@ -373,7 +373,7 @@ test('security tab status badges use the shared tint StatusBadge, not DS Badge v
 test('the Ban IP modal returns focus to its opener when it closes', () => {
   const source = read('IPBans.jsx');
   assert.match(source, /useReturnFocus\(showAddModal, getReturnFocusFallback\)/);
-  assert.match(source, /<Modal\.Content onCloseAutoFocus=\{returnFocus\}>/);
+  assert.match(source, /<Modal\.Content onCloseAutoFocus=\{returnFocus\}[^>]*>/);
 });
 
 test('security tab confirm dialogs fall back to the search field when the row is gone', () => {

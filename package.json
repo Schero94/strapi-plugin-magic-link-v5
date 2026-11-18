@@ -62,6 +62,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "node --test tests/*.test.cjs",
+    "test:admin": "node --import ./tests/admin/harness/setup.mjs --test \"tests/admin/*.test.jsx\"",
     "test:cluster": "node tests/cluster/run.cjs"
   },
   "dependencies": {
@@ -90,6 +91,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.14.0",
+    "jsdom": "^31.0.1",
     "pg": "^8.23.1",
     "prettier": "^3.9.10",
     "react": "^18.3.1",

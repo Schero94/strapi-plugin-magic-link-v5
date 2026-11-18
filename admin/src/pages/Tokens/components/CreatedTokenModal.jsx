@@ -43,6 +43,7 @@ export const CreatedTokenModal = ({ data, onClose, getReturnFocusFallback }) => 
         onInteractOutside={preventClose}
         onEscapeKeyDown={preventClose}
         onCloseAutoFocus={returnFocus}
+        aria-describedby={undefined}
       >
         <ModalHero $background={brand.successGradient}>
           <Flex alignItems="center" gap={3} minWidth={0}>

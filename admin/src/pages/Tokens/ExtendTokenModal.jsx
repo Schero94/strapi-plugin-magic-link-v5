@@ -90,7 +90,11 @@ const ExtendTokenModal = ({ token, onClose, onSubmit, getReturnFocusFallback }) 
 
   return (
     <Modal.Root open={isOpen} onOpenChange={(open) => !open && requestClose()}>
-      <Modal.Content style={{ maxWidth: '48rem' }} onCloseAutoFocus={returnFocus}>
+      <Modal.Content
+        style={{ maxWidth: '48rem' }}
+        onCloseAutoFocus={returnFocus}
+        aria-describedby={undefined}
+      >
         <Modal.Header closeLabel={t('common.close', 'Close')}>
           <Flex direction="column" alignItems="flex-start" gap={1} minWidth={0}>
             <Modal.Title>{t('tokens.extend.title', 'Extend Token')}</Modal.Title>
