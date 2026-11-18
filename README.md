@@ -104,7 +104,7 @@ On screens 390 px wide the tables turn into cards.
 
 | Magic Link | Strapi                                    | Node.js  | Notes                                                                                                                                                    |
 | ---------- | ----------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 7.x        | 5.50.0 or newer (acceptance host: 5.62.0) | 22 to 26 | No registration key, no outbound calls of its own                                                                                                        |
+| 7.x        | 5.50.0 or newer (acceptance host: 5.63.0) | 22 to 26 | No registration key, no outbound calls of its own                                                                                                        |
 | 6.x        | 5.24.0 or newer                           | 22 to 26 | Security release; see [Upgrading from 5.x](https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/docs/reference.md#upgrading-from-5x-to-600) |
 | 5.x        | 5.0.0 or newer                            | 18 to 22 | Releases come from `main` only; upgrade to 7.x                                                                                                           |
 
@@ -113,7 +113,7 @@ What the host needs:
 | Component           | Version                                                                                  |
 | ------------------- | ---------------------------------------------------------------------------------------- |
 | Strapi              | 5.50.0 or newer                                                                          |
-| Node.js             | 22 to 26 (the range Strapi 5.62 supports)                                                |
+| Node.js             | 22 to 26 (the range Strapi 5.63 supports)                                                |
 | Users & Permissions | Installed (default in Strapi 5)                                                          |
 | E-mail              | A configured Strapi e-mail provider, or Magic Mail                                       |
 | Environment         | `MAGIC_LINK_ENCRYPTION_KEY` and `MAGIC_LINK_OTP_PEPPER`, 32+ characters each (see below) |
@@ -537,7 +537,7 @@ Commits follow Conventional Commits. Releases are published by semantic-release 
 - Patch and minor updates merge automatically once lint, format check, tests, build and verify pass.
 - Major updates wait for review.
 - React, styled-components, react-intl, react-router-dom and `@strapi/*` majors are never proposed, because the Strapi admin host sets those versions.
-- `npm audit` reports GHSA-mrhx-c7xc-m3w5 (zod below 4.6.6, memory exhaustion on oversized collections) through `@strapi/utils`, which pins zod 4.4.3 (5.61.0 and 5.62.0). Magic Link validates with its own zod 4.6.7. Until Strapi ships a fix, hosts can force the patched zod with npm `overrides`:
+- `npm audit` reports GHSA-mrhx-c7xc-m3w5 (zod below 4.6.6, memory exhaustion on oversized collections) through `@strapi/utils`, which pins zod 4.4.3 (5.61.0 to 5.63.0). Magic Link validates with its own zod 4.6.7. Until Strapi ships a fix, hosts can force the patched zod with npm `overrides`:
 
   ```json
   { "overrides": { "@strapi/utils": { "zod": "^4.6.6" } } }
