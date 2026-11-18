@@ -1,4 +1,10 @@
-## [Unreleased]
+## [7.1.5](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v7.1.4...v7.1.5) (2026-11-18)
+
+
+### Bug Fixes
+
+* **admin:** state that the token dialogs are labelled by their title ([#38](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/38)) ([e875b01](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/e875b0111edbd8d99b78911551abb05a6470142f))
+
 
 ### Fixed
 
