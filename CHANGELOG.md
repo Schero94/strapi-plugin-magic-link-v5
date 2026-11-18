@@ -1,3 +1,22 @@
+## [Unreleased]
+
+Release type: patch (`fix`). This corrects an untested compatibility claim; it is not a breaking change, because session revocation in refresh mode never worked on the Strapi versions now excluded, and a plain `npm install` of this plugin next to Strapi older than 5.31.3 already failed.
+
+### Fixed
+
+* **Strapi peer floor corrected from `^5.24.0` to `^5.50.0`** (`@strapi/strapi`, `@strapi/plugin-users-permissions` and the `@strapi/utils` dependency). The old floor was never tested. Revoking a session in **Magic Link > JWT Sessions** (and every other single-session revocation) calls the users-permissions session manager's `revokeSessionById`, which Strapi added in 5.50.0. Measured with the new real-host suite (`tests/host/strapi-host.test.cjs`, synthetic data, egress blocked): on Strapi 5.24.2 and 5.49.0 with `jwtManagement: 'refresh'` the admin revocation answers `500` and the refresh family stays valid; legacy mode works there. On 5.50.0 and 5.62.0 both modes pass: login, refresh, revocation, then `401` for the access and the refresh token. Separately, Strapi 5.24.0 to 5.31.2 ship `@strapi/design-system` 2.0.0 release candidates, which the plugin's optional `^2.0.0` peer does not accept, so npm 7+ refused to install the plugin there without `--legacy-peer-deps`.
+* README badge, Compatibility table, refresh-mode reference and project site now say Strapi 5.50+.
+
+### Upgrade note
+
+* Strapi 5.50.0 or later: nothing to do.
+* Strapi older than 5.50.0: upgrade Strapi first (`npx @strapi/upgrade minor`), rebuild the admin and restart. npm 7+ refuses to install this release next to an older Strapi because of the peer range; until you upgrade, stay on your current plugin version and do not rely on single-session revocation in refresh mode.
+
+### Tests
+
+* New `tests/host/strapi-host.test.cjs` boots a real Strapi from a given `node_modules` with this plugin and drives magic-link login, admin session list and revocation, and token rejection over HTTP.
+* New CI job `strapi-floor` installs Strapi and Users & Permissions 5.50.0 and runs that suite in both JWT modes, then again against the devDependency Strapi. `tests/ci-workflows.test.cjs` checks that the job's version equals the peer floor; `tests/readme-badges.test.cjs` checks the badge.
+
 ## [7.1.2](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v7.1.1...v7.1.2) (2026-11-17)
 
 

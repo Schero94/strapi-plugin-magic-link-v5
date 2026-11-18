@@ -27,7 +27,7 @@ The detailed reference for [Magic Link for Strapi 5](https://github.com/Schero94
 
 With `jwtManagement: 'refresh'` in the users-permissions config, Magic Link logins behave like `/api/auth/local`: the plugin creates the session through the users-permissions session manager.
 
-**Versions.** The users-permissions session manager and `jwtManagement` exist since Strapi 5.24.0. Strapi's own `POST /api/auth/refresh` reads the refresh token from the httpOnly cookie only from 5.33.3 on (checked in the `@strapi/plugin-users-permissions` 5.33.2 and 5.33.3 sources); on 5.24 to 5.33.2 send the refresh token in the request body instead of using the cookie.
+**Versions.** Magic Link needs Strapi 5.50.0 or newer. The users-permissions session manager and `jwtManagement` exist since Strapi 5.24.0, but revoking a single session uses `revokeSessionById`, which the session manager has only since 5.50.0. Strapi's own `POST /api/auth/refresh` reads the refresh token from the httpOnly cookie since 5.33.3, so every supported version accepts both the cookie and the request body.
 
 ```js
 // config/plugins.js

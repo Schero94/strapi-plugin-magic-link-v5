@@ -91,3 +91,58 @@ jobs:
         env:
           ML_CLUSTER_DB: postgres
           ML_CLUSTER_PG_URL: postgres://strapi:strapi-ci-only@localhost:5432/magic_link_cluster
+
+  # The @strapi/strapi peer floor (package.json ^5.50.0) runs on a real Strapi
+  # host: tests/host/strapi-host.test.cjs boots Strapi with this plugin and
+  # drives magic-link login, admin session revocation and token rejection over
+  # HTTP in both users-permissions JWT modes. Strapi 5.50.0 added the
+  # session-manager method revokeSessionById the revocation uses; on 5.49.0
+  # and older the refresh-mode revocation answers 500. The same suite also
+  # runs against the devDependency Strapi (the acceptance version).
+  strapi-floor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      STRAPI_FLOOR: 5.50.0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --legacy-peer-deps --ignore-scripts
+      - name: Build the plugin
+        run: npm run build
+      - name: Install the Strapi floor host
+        run: |
+          mkdir -p "$RUNNER_TEMP/strapi-floor"
+          cd "$RUNNER_TEMP/strapi-floor"
+          echo '{"name":"strapi-floor-host","version":"0.0.0","private":true}' > package.json
+          npm install --no-audit --no-fund \
+            "@strapi/strapi@$STRAPI_FLOOR" "@strapi/plugin-users-permissions@$STRAPI_FLOOR" better-sqlite3@12
+          for pkg in strapi core plugin-users-permissions; do
+            version=$(node -p "require('./node_modules/@strapi/$pkg/package.json').version")
+            echo "@strapi/$pkg $version"
+            test "$version" = "$STRAPI_FLOOR"
+          done
+      - name: Host suite on the floor (refresh and legacy-support)
+        env:
+          ML_HOST_REQUIRED: '1'
+          ML_HOST_STRAPI_NODE_MODULES: ${{ runner.temp }}/strapi-floor/node_modules
+        run: |
+          ML_HOST_JWT_MODE=refresh node --test tests/host/strapi-host.test.cjs
+          ML_HOST_JWT_MODE=legacy-support node --test tests/host/strapi-host.test.cjs
+      - name: Build the SQLite driver for the acceptance version (skipped by --ignore-scripts)
+        run: npm rebuild better-sqlite3
+      - name: Host suite on the devDependency Strapi (refresh and legacy-support)
+        env:
+          ML_HOST_REQUIRED: '1'
+          ML_HOST_STRAPI_NODE_MODULES: ${{ github.workspace }}/node_modules
+        run: |
+          ML_HOST_JWT_MODE=refresh node --test tests/host/strapi-host.test.cjs
+          ML_HOST_JWT_MODE=legacy-support node --test tests/host/strapi-host.test.cjs

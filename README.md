@@ -10,7 +10,7 @@ Passwordless login for Strapi 5. Your users type their e-mail address, click the
 [![npm downloads](https://img.shields.io/npm/dm/strapi-plugin-magic-link-v5.svg)](https://www.npmjs.com/package/strapi-plugin-magic-link-v5)
 [![CI build status](https://img.shields.io/github/actions/workflow/status/Schero94/strapi-plugin-magic-link-v5/release.yml?branch=main&label=CI&logo=github)](https://github.com/Schero94/strapi-plugin-magic-link-v5/actions/workflows/release.yml?query=branch%3Amain)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/LICENSE)
-[![Strapi 5.24+](https://img.shields.io/badge/Strapi-5.24%2B-4945FF.svg)](https://github.com/Schero94/strapi-plugin-magic-link-v5#compatibility)
+[![Strapi 5.50+](https://img.shields.io/badge/Strapi-5.50%2B-4945FF.svg)](https://github.com/Schero94/strapi-plugin-magic-link-v5#compatibility)
 [![Documentation site](https://img.shields.io/badge/docs-project%20site-6d4aff.svg)](https://schero94.github.io/strapi-plugin-magic-link-v5/)
 
 **Live docs:** [schero94.github.io/strapi-plugin-magic-link-v5](https://schero94.github.io/strapi-plugin-magic-link-v5/) · [npm](https://www.npmjs.com/package/strapi-plugin-magic-link-v5) · [Reference](https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/docs/reference.md) · [Changelog](https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/CHANGELOG.md) · [Issues](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues)
@@ -104,7 +104,7 @@ On screens 390 px wide the tables turn into cards.
 
 | Magic Link | Strapi                                    | Node.js  | Notes                                                                                                                                                    |
 | ---------- | ----------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 7.x        | 5.24.0 or newer (acceptance host: 5.62.0) | 22 to 26 | No registration key, no outbound calls of its own                                                                                                        |
+| 7.x        | 5.50.0 or newer (acceptance host: 5.62.0) | 22 to 26 | No registration key, no outbound calls of its own                                                                                                        |
 | 6.x        | 5.24.0 or newer                           | 22 to 26 | Security release; see [Upgrading from 5.x](https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/docs/reference.md#upgrading-from-5x-to-600) |
 | 5.x        | 5.0.0 or newer                            | 18 to 22 | Releases come from `main` only; upgrade to 7.x                                                                                                           |
 
@@ -112,7 +112,7 @@ What the host needs:
 
 | Component           | Version                                                                                  |
 | ------------------- | ---------------------------------------------------------------------------------------- |
-| Strapi              | 5.24.0 or newer. Refresh mode with the httpOnly cookie needs 5.33.3+.                    |
+| Strapi              | 5.50.0 or newer                                                                          |
 | Node.js             | 22 to 26 (the range Strapi 5.62 supports)                                                |
 | Users & Permissions | Installed (default in Strapi 5)                                                          |
 | E-mail              | A configured Strapi e-mail provider, or Magic Mail                                       |
@@ -346,7 +346,7 @@ Algorithm, digits and period are stored with each enrolment, so changing the TOT
 
 ## Refresh mode (users-permissions sessions)
 
-With `jwtManagement: 'refresh'` in the users-permissions config (Strapi 5.24.0 or newer), Magic Link logins behave like `/api/auth/local`: the response carries a short-lived `jwt` and a `refreshToken` (or an httpOnly cookie), you renew with `POST /api/auth/refresh` and log out with `POST /api/auth/logout`. Revoking a session in **Magic Link > JWT Sessions** ends the whole refresh family. Configuration, cookie behaviour and version notes are in the [refresh mode reference](https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/docs/reference.md#refresh-mode-users-permissions-sessions).
+With `jwtManagement: 'refresh'` in the users-permissions config, Magic Link logins behave like `/api/auth/local`: the response carries a short-lived `jwt` and a `refreshToken` (or an httpOnly cookie), you renew with `POST /api/auth/refresh` and log out with `POST /api/auth/logout`. Revoking a session in **Magic Link > JWT Sessions** ends the whole refresh family. Configuration, cookie behaviour and version notes are in the [refresh mode reference](https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/docs/reference.md#refresh-mode-users-permissions-sessions).
 
 In the default `legacy-support` mode the JWT lifetime comes from the plugin setting `jwt_token_expires_in` (for example `15m`, `12h`, `30d`).
 

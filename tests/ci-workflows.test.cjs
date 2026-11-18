@@ -64,3 +64,21 @@ test('every audit step name states the level it enforces', () => {
   }
   assert.equal(steps, 3, 'ci, dependency auto-merge and release each run one audit step');
 });
+
+test('a CI job runs the real-host suite on the @strapi/strapi peer floor', () => {
+  const pkg = JSON.parse(read('package.json'));
+  const ci = read('.github/workflows/ci.yml');
+  const floor = pkg.peerDependencies['@strapi/strapi'].replace(/^\^/, '');
+  assert.equal(pkg.peerDependencies['@strapi/plugin-users-permissions'], `^${floor}`);
+  assert.equal(pkg.dependencies['@strapi/utils'], `^${floor}`);
+  const job = ci.match(/STRAPI_FLOOR:\s*([\d.]+)/);
+  assert.ok(job, 'ci.yml sets STRAPI_FLOOR');
+  assert.equal(job[1], floor, 'the floor job installs exactly the peer floor');
+  assert.match(ci, /"@strapi\/strapi@\$STRAPI_FLOOR"/);
+  assert.match(ci, /ML_HOST_REQUIRED: '1'/);
+  assert.match(ci, /ML_HOST_JWT_MODE=refresh node --test tests\/host\/strapi-host\.test\.cjs/);
+  assert.match(
+    ci,
+    /ML_HOST_JWT_MODE=legacy-support node --test tests\/host\/strapi-host\.test\.cjs/
+  );
+});
