@@ -7,6 +7,7 @@
  *   rules shipped in 7.x).
  * - Server (Node, CommonJS): node globals and `strapi` as a readonly global.
  * - Tests and scripts: node globals.
+ * - Admin StrictMode harness (tests/admin): JSX, Node and browser (jsdom) globals, React Hooks.
  * - eslint-config-prettier last, so ESLint never fights Prettier.
  *
  * eslint-plugin-jsx-a11y is not used: its latest release (6.10.2, 2024-10)
@@ -80,6 +81,19 @@ export default defineConfig([
     languageOptions: {
       ecmaVersion: 'latest',
       globals: { ...globals.node },
+    },
+  },
+
+  {
+    name: 'magic-link/admin-strict-harness',
+    // Admin StrictMode harness and tests: Node test runner with a jsdom window.
+    files: ['tests/admin/**/*.{mjs,jsx}'],
+    extends: [reactHooks.configs.flat.recommended],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      parserOptions: { ecmaFeatures: { jsx: true } },
+      globals: { ...globals.node, ...globals.browser },
     },
   },
 

@@ -116,7 +116,11 @@ const CreateTokenModal = ({ isOpen, defaultTtl, onClose, onSubmit }) => {
   return (
     <>
       <Modal.Root open={isOpen} onOpenChange={(open) => !open && requestClose()}>
-        <Modal.Content style={{ maxWidth: '60rem' }} onCloseAutoFocus={returnFocus}>
+        <Modal.Content
+          style={{ maxWidth: '60rem' }}
+          onCloseAutoFocus={returnFocus}
+          aria-describedby={undefined}
+        >
           <Modal.Header closeLabel={t('common.close', 'Close')}>
             <Modal.Title>{t('tokens.create.title', 'Create Magic Link Token')}</Modal.Title>
           </Modal.Header>

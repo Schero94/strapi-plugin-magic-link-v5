@@ -74,7 +74,11 @@ export const TokenDetailsModal = ({
 
   return (
     <Modal.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <Modal.Content style={{ maxWidth: '60rem' }} onCloseAutoFocus={returnFocus}>
+      <Modal.Content
+        style={{ maxWidth: '60rem' }}
+        onCloseAutoFocus={returnFocus}
+        aria-describedby={undefined}
+      >
         <ModalHero $background={brand.violetHeroGradient}>
           <Box minWidth={0}>
             <Modal.Title>{t('tokens.details.title', 'Token Details')}</Modal.Title>
