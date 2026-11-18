@@ -1,4 +1,10 @@
-## [Unreleased]
+## [7.1.3](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v7.1.2...v7.1.3) (2026-11-18)
+
+
+### Bug Fixes
+
+* set the Strapi peer floor to 5.50.0, the first version the plugin works on ([#36](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/36)) ([0c29b7f](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/0c29b7f99467b02f99270662e23ea86860d1fe9b))
+
 
 Release type: patch (`fix`). This corrects an untested compatibility claim; it is not a breaking change, because session revocation in refresh mode never worked on the Strapi versions now excluded, and a plain `npm install` of this plugin next to Strapi older than 5.31.3 already failed.
 
