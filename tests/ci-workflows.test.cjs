@@ -41,8 +41,8 @@ test('the CI matrix tests every Node major that engines.node allows', () => {
   }
   assert.match(
     read('README.md'),
-    new RegExp(`Node-${low}%20to%20${high}`),
-    'README badge matches engines.node'
+    new RegExp(`\\| Node\\.js +\\| ${low} to ${high} `),
+    'README compatibility table matches engines.node'
   );
 });
 
