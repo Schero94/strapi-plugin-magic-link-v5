@@ -1,5 +1,5 @@
 # Checks every pull request and manual run: lint, formatting, tests, build and
-# package verification on every Node major Strapi 5.62 supports (engines.node).
+# package verification on every Node major Strapi 5.63 supports (engines.node).
 name: CI
 
 on:
