@@ -2,6 +2,7 @@
 
 const { createWebhookRawBodyMiddleware } = require('./utils/webhook-raw-body');
 const contentTypes = require('./content-types');
+const { checkStrapiVersion } = require('./utils/strapi-version');
 
 /**
  * The GraphQL plugin (when installed) generates queries and mutations for
@@ -33,9 +34,13 @@ const disableGraphqlShadowCrud = (strapi) => {
  * this phase). The middleware only touches POST requests below
  * `<rest prefix>/magic-link/delivery-webhooks/`.
  *
+ * Also logs one error when the running Strapi is older than the supported
+ * floor (`MIN_STRAPI_VERSION`, 5.50.0).
+ *
  * @param {{ strapi: object }} deps
  */
 module.exports = ({ strapi }) => {
+  checkStrapiVersion(strapi);
   const raw = strapi.config?.get?.('api.rest.prefix', '/api');
   const prefix =
     typeof raw === 'string' && /^\/?[A-Za-z0-9._~\-/]*$/.test(raw.trim())

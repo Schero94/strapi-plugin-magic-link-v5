@@ -1,3 +1,15 @@
+## [Unreleased]
+
+Release type: patch (`fix`).
+
+### Fixed
+
+* The plugin logs one clear error at start-up on Strapi older than 5.50.0 (`[magic-link] Strapi 5.x.y is not supported: Magic Link requires Strapi 5.50.0 or later …`) instead of failing later when a session is revoked in refresh mode. It does not stop Strapi and logs only the version numbers. Seen on a real Strapi 5.49.0 host; no error on 5.50.0.
+
+### Tests
+
+* `tests/strapi-version-floor.test.cjs` checks the floor constant against the peer ranges, the version comparison, and that the register hook logs exactly one error below 5.50.0 and none on 5.50.0, 5.62.0 or an unknown version.
+
 ## [7.1.3](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v7.1.2...v7.1.3) (2026-11-18)
 
 
