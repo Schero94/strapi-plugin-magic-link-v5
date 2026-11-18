@@ -1,4 +1,10 @@
-## [Unreleased]
+## [7.1.4](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v7.1.3...v7.1.4) (2026-11-18)
+
+
+### Bug Fixes
+
+* log one clear error at start-up on Strapi older than 5.50.0 ([#37](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/37)) ([f0a2707](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/f0a270729252dbe5ea35d6daca78e5208cf4a974))
+
 
 Release type: patch (`fix`).
 
