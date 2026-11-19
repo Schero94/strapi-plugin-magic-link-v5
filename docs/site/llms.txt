@@ -1,0 +1,55 @@
+# Magic Link for Strapi 5
+
+> Magic Link (npm: strapi-plugin-magic-link-v5, plugin id: magic-link) is a free, MIT-licensed Strapi 5 plugin for passwordless login. Users type their e-mail address, click the link and get a normal Users & Permissions session, the same kind `/api/auth/local` creates. Optional second factors: an e-mailed one-time code (OTP) or an authenticator app (TOTP) with backup codes.
+
+The current version is on npm (link below). The plugin sends no telemetry and makes no outbound calls of its own. It delivers by e-mail only.
+
+What it does:
+
+- Magic links by e-mail: one API call sends the link; the landing page exchanges the token for a JWT.
+- Second factors: e-mail OTP after the link click; TOTP as optional or required MFA with enrolment during sign-in, self-service for logged-in users and one-time backup codes; TOTP-only login.
+- Links are stored as salted hashes, expire, and a single-use link is consumed atomically. `send-link` answers the same way for known and unknown addresses.
+- Rate limits per IP and per address, IP bans, and an always-on limit for code checks. TOTP secrets are encrypted with AES-256-GCM.
+- A JWT session list with revocation, also for users-permissions refresh sessions. Revoked JWTs stay blocked until they expire.
+- Works with Users & Permissions (legacy JWTs and refresh-token sessions), any Strapi e-mail provider, Magic Mail, Email Designer 5, and a `strapi-plugin-passwordless` compatibility mode.
+- Admin pages for tokens, OTP codes, JWT sessions, IP bans and settings, in English, German, French, Spanish and Portuguese.
+- Several Strapi instances (Railway replicas, pm2 cluster) on one database.
+
+Public API under `/api/magic-link` (or your `api.rest.prefix`):
+
+- `POST /send-link` with `{ email, username?, context? }` sends the link.
+- `POST /login` with `{ loginToken }` returns `{ jwt, user, context }` or a challenge (`requiresOTP`, `requiresTOTP`, `requiresTOTPSetup`).
+- `POST /otp/send`, `/otp/resend`, `/otp/verify`; `POST /verify-mfa-totp`; `POST /login-totp`; `POST /totp/enroll` and `/totp/enroll/confirm`.
+- Logged-in users: `GET /totp/status`, `POST /totp/setup`, `/totp/confirm`, `/totp/disable`, `/totp/backup-codes`.
+
+Requirements:
+
+- Strapi `^5.50.0` with `@strapi/plugin-users-permissions` (acceptance host 5.63.0)
+- Node.js 22 to 26 (`>=22.0.0 <=26.x.x`)
+- A configured Strapi e-mail provider, or Magic Mail
+- `MAGIC_LINK_ENCRYPTION_KEY` and `MAGIC_LINK_OTP_PEPPER`, 32+ characters each
+- SQLite, PostgreSQL or MySQL/MariaDB
+
+Install:
+
+```bash
+npm install strapi-plugin-magic-link-v5
+echo "MAGIC_LINK_ENCRYPTION_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")" >> .env
+echo "MAGIC_LINK_OTP_PEPPER=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")" >> .env
+npm run build && npm run develop
+```
+
+Admin permissions: `plugin::magic-link.read`, `manage`, `tokens.issue`, `settings.read`, `settings.update`, `settings.security`. The login routes are public (`auth: false`) and protected by rate limits and IP bans. The Strapi admin login is not changed.
+
+## Docs
+
+- [Documentation site](https://schero94.github.io/strapi-plugin-magic-link-v5/): overview, screenshots, install, configuration, permissions, security, privacy, several instances, API, FAQ
+- [README](https://github.com/Schero94/strapi-plugin-magic-link-v5#readme): quick start, frontend integration, second factors, public API, permissions
+- [Reference](https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/docs/reference.md): every setting, security model, outbound connections, upgrading
+- [CHANGELOG](https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/CHANGELOG.md)
+- [npm package](https://www.npmjs.com/package/strapi-plugin-magic-link-v5)
+
+## Optional
+
+- [Running several instances](https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/docs/reference.md#running-several-instances-railway-replicas-pm2-cluster)
+- [Plugin hub overview](https://schero94.github.io/plugins/magic-link/)

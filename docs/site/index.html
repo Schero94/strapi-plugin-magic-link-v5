@@ -6,60 +6,184 @@
     <title>Magic Link for Strapi 5: passwordless login, OTP and TOTP MFA</title>
     <meta
       name="description"
-      content="Free, open-source passwordless login for Strapi 5: e-mail magic links, e-mail one-time codes, TOTP MFA with backup codes, refresh-token sessions and an admin panel. No telemetry."
+      content="Free passwordless login for Strapi 5: e-mail magic links, e-mail one-time codes, TOTP MFA with backup codes, session revocation and an admin panel."
     />
     <link rel="canonical" href="https://schero94.github.io/strapi-plugin-magic-link-v5/" />
-    <meta name="theme-color" content="#171b31" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="author" content="Schero D." />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#12151d" />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Magic Link for Strapi 5" />
+    <meta property="og:site_name" content="Magic Link documentation" />
+    <meta property="og:locale" content="en_US" />
     <meta
       property="og:title"
       content="Magic Link for Strapi 5: passwordless login, OTP and TOTP MFA"
     />
     <meta
       property="og:description"
-      content="Users type their e-mail, click the link and get a normal Users & Permissions session. Add e-mail OTP or an authenticator app when you need MFA. MIT licensed."
+      content="Users type their e-mail, click the link and get a normal Users &amp; Permissions session. Add e-mail OTP or an authenticator app when you need MFA. MIT licensed."
     />
     <meta property="og:url" content="https://schero94.github.io/strapi-plugin-magic-link-v5/" />
     <meta
       property="og:image"
-      content="https://schero94.github.io/strapi-plugin-magic-link-v5/img/tokens.webp"
+      content="https://schero94.github.io/strapi-plugin-magic-link-v5/img/og.jpg"
     />
-    <meta property="og:image:width" content="1440" />
-    <meta property="og:image:height" content="900" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta
       property="og:image:alt"
       content="Magic Link token management page in the Strapi admin panel"
     />
     <meta name="twitter:card" content="summary_large_image" />
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "SoftwareSourceCode",
-        "name": "Magic Link for Strapi 5",
-        "description": "Passwordless login for Strapi 5: e-mail magic links, e-mail one-time codes, TOTP MFA with backup codes and an admin panel.",
-        "codeRepository": "https://github.com/Schero94/strapi-plugin-magic-link-v5",
-        "programmingLanguage": "JavaScript",
-        "runtimePlatform": "Node.js",
-        "license": "https://opensource.org/licenses/MIT",
-        "url": "https://schero94.github.io/strapi-plugin-magic-link-v5/"
-      }
-    </script>
+    <meta
+      name="twitter:title"
+      content="Magic Link for Strapi 5: passwordless login, OTP and TOTP MFA"
+    />
+    <meta
+      name="twitter:description"
+      content="E-mail magic links, one-time codes and authenticator-app MFA for Strapi 5 Users &amp; Permissions. MIT licensed."
+    />
+    <meta
+      name="twitter:image"
+      content="https://schero94.github.io/strapi-plugin-magic-link-v5/img/og.jpg"
+    />
     <link rel="icon" href="./img/icon.svg" type="image/svg+xml" />
     <link rel="icon" href="./img/icon-128.png" type="image/png" sizes="128x128" />
     <link rel="apple-touch-icon" href="./img/icon-512.png" />
+    <link rel="alternate" type="text/plain" href="./llms.txt" title="llms.txt" />
+    <link
+      rel="preload"
+      as="image"
+      href="./img/tokens.webp"
+      type="image/webp"
+      fetchpriority="high"
+    />
     <link rel="stylesheet" href="./site.css" />
     <link rel="stylesheet" href="./site-extra.css" />
+    <script src="./site.js" defer></script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://schero94.github.io/strapi-plugin-magic-link-v5/#software",
+            "name": "Magic Link for Strapi 5",
+            "alternateName": "strapi-plugin-magic-link-v5",
+            "description": "Free Strapi 5 plugin for passwordless login: e-mail magic links that return a normal Users & Permissions session, e-mail one-time codes, TOTP MFA with backup codes, JWT session revocation and an admin panel.",
+            "applicationCategory": "DeveloperApplication",
+            "applicationSubCategory": "Strapi plugin",
+            "operatingSystem": "Node.js 22+ / Strapi 5",
+            "softwareRequirements": "Strapi ^5.50.0, @strapi/plugin-users-permissions ^5.50.0, Node.js >=22.0.0 <=26.x.x, a Strapi e-mail provider",
+            "license": "https://opensource.org/licenses/MIT",
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "url": "https://schero94.github.io/strapi-plugin-magic-link-v5/",
+            "downloadUrl": "https://www.npmjs.com/package/strapi-plugin-magic-link-v5",
+            "codeRepository": "https://github.com/Schero94/strapi-plugin-magic-link-v5",
+            "screenshot": "https://schero94.github.io/strapi-plugin-magic-link-v5/img/tokens.webp",
+            "author": {
+              "@type": "Person",
+              "name": "Schero D.",
+              "url": "https://schero94.github.io/"
+            },
+            "sameAs": [
+              "https://github.com/Schero94/strapi-plugin-magic-link-v5",
+              "https://www.npmjs.com/package/strapi-plugin-magic-link-v5",
+              "https://schero94.github.io/plugins/magic-link/"
+            ]
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Schero94",
+                "item": "https://schero94.github.io/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Plugins",
+                "item": "https://schero94.github.io/plugins/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Magic Link",
+                "item": "https://schero94.github.io/strapi-plugin-magic-link-v5/"
+              }
+            ]
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Does it replace the Strapi admin login?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. Magic Link signs in the users of your app (Users & Permissions accounts). The Strapi admin login stays as it is."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Do I need a frontend?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "For a good experience, yes: a form that calls send-link and a landing page that posts the token to /login. Any framework works."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can new users sign up with a link?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes, when createUserIfNotExists, allow_magic_links_on_public_registration and the users-permissions sign-ups are all on."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does it work with GraphQL?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "The login routes are REST. The JWT they return works for GraphQL like any users-permissions JWT, and revoked tokens are rejected there too."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is there a paid version or a key to unlock features?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. Every feature is in the npm package. 7.0.0 removed the old optional key field and deletes a stored key on its first start."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can I keep password login?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. /api/auth/local keeps working; the Magic Link MFA settings only apply to Magic Link logins."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to content</a>
     <header class="topbar">
       <div class="topbar-inner">
-        <a class="brand" href="#top" aria-label="Magic Link home">
+        <a class="brand" href="#top" aria-label="Magic Link documentation, back to top">
           <img class="brand-logo" src="./img/icon.svg" alt="" width="32" height="32" />
           <span>Magic Link</span>
         </a>
-        <nav class="top-links" aria-label="Main navigation">
+        <nav class="top-links" aria-label="Project links">
+          <a href="#install">Install</a>
           <a href="https://github.com/Schero94/strapi-plugin-magic-link-v5">GitHub</a>
           <a href="https://www.npmjs.com/package/strapi-plugin-magic-link-v5">npm</a>
           <a href="https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/CHANGELOG.md"
@@ -68,21 +192,37 @@
         </nav>
       </div>
     </header>
-    <main id="main-content">
-      <div class="hero-wrap" id="top">
-        <section class="hero" aria-labelledby="page-title">
+
+    <div class="hero-wrap" id="top">
+      <section class="hero" aria-labelledby="page-title">
+        <div class="hero-grid">
           <div class="hero-copy">
-            <p class="eyebrow">Strapi 5 plugin · Node.js 22 to 26 · MIT</p>
+            <nav class="crumbs" aria-label="Breadcrumb">
+              <ol>
+                <li><a href="https://schero94.github.io/">Schero94</a></li>
+                <li><a href="https://schero94.github.io/plugins/">Plugins</a></li>
+                <li><span aria-current="page">Magic Link docs</span></li>
+              </ol>
+            </nav>
             <h1 id="page-title">Passwordless sign-in for Strapi 5</h1>
-            <p class="lead">
-              Your users type their e-mail address, click the link and get a normal Users &amp;
-              Permissions session. When a link is not enough, add an e-mailed one-time code (OTP) or
-              an authenticator app (TOTP) with backup codes.
+            <p class="definition">
+              Magic Link is a free, MIT-licensed Strapi 5 plugin for passwordless login: users type
+              their e-mail address, click the link and get a normal Users &amp; Permissions session.
             </p>
-            <p class="hero-actions">
+            <p>
+              When a link is not enough, add an e-mailed one-time code (OTP) or an authenticator app
+              (TOTP) with backup codes.
+            </p>
+            <div class="hero-actions">
               <a class="button primary" href="#install">Install in one minute</a>
               <a class="button" href="#api">See the API</a>
-            </p>
+            </div>
+            <ul class="badges" aria-label="Project facts">
+              <li>Strapi ^5.50.0</li>
+              <li>Node.js 22 to 26</li>
+              <li>No telemetry</li>
+              <li>5 admin languages</li>
+            </ul>
             <p class="shields" aria-label="Project status badges">
               <a href="https://www.npmjs.com/package/strapi-plugin-magic-link-v5"
                 ><img
@@ -122,674 +262,708 @@
                   height="20"
               /></a>
             </p>
-            <ul class="badges" aria-label="Project facts">
-              <li><span class="badge">Free and open source</span></li>
-              <li><span class="badge">No telemetry</span></li>
-              <li><span class="badge">Works with several instances</span></li>
-              <li><span class="badge">5 admin languages</span></li>
-            </ul>
+          </div>
+          <figure class="hero-shot">
+            <img
+              src="./img/tokens.webp"
+              fetchpriority="high"
+              width="1440"
+              height="900"
+              alt="Magic Link token management in the Strapi admin: status cards for total, active, expired, used and blocked links above a searchable token table"
+            />
+          </figure>
+        </div>
+      </section>
+    </div>
+    <main class="layout" id="main-content" tabindex="-1">
+      <nav class="side-nav" aria-label="Page sections">
+        <a href="#fit">Is it a fit?</a>
+        <a href="#features">Features</a>
+        <a href="#gallery">Gallery</a>
+        <a href="#install">Install</a>
+        <a href="#configuration">Configuration</a>
+        <a href="#permissions">Permissions</a>
+        <a href="#security">Security</a>
+        <a href="#privacy">Privacy</a>
+        <a href="#performance">Performance</a>
+        <a href="#several-instances">Several instances</a>
+        <a href="#api">API</a>
+        <a href="#faq">FAQ</a>
+        <a href="#releases">Releases</a>
+      </nav>
+      <div class="content">
+        <section class="section summary" id="fit" aria-labelledby="fit-title">
+          <h2 id="fit-title">Is Magic Link the right fit?</h2>
+          <div class="fit-grid">
+            <div class="fit fit-yes">
+              <h3>Use it when</h3>
+              <ul>
+                <li>
+                  The users of your app (Users &amp; Permissions) should sign in without a password.
+                </li>
+                <li>
+                  You want a second factor: an e-mailed code or an authenticator app with backup
+                  codes.
+                </li>
+                <li>You need a list of JWT sessions that admins can revoke.</li>
+                <li>You run several Strapi instances on one database.</li>
+              </ul>
+            </div>
+            <div class="fit fit-no">
+              <h3>Skip it when</h3>
+              <ul>
+                <li>You want to change the Strapi admin login. Magic Link leaves it as it is.</li>
+                <li>You need codes by SMS or another channel. Magic Link sends e-mail only.</li>
+                <li>Your project runs Strapi older than 5.50.0.</li>
+                <li>
+                  You have no frontend to call <code>send-link</code> and post the token to
+                  <code>/login</code>.
+                </li>
+              </ul>
+            </div>
+            <div class="fit fit-req">
+              <h3>Requirements</h3>
+              <ul>
+                <li>Strapi <code>^5.50.0</code> with Users &amp; Permissions</li>
+                <li>Node.js 22 to 26</li>
+                <li>A Strapi e-mail provider, or Magic Mail</li>
+                <li>
+                  <code>MAGIC_LINK_ENCRYPTION_KEY</code> and <code>MAGIC_LINK_OTP_PEPPER</code>, 32+
+                  characters each
+                </li>
+              </ul>
+            </div>
           </div>
         </section>
-        <figure class="hero-shot">
-          <img
-            src="./img/tokens.webp"
-            width="1440"
-            height="900"
-            fetchpriority="high"
-            alt="Magic Link token management in the Strapi admin: status cards for total, active, expired, used and blocked links above a searchable token table"
-          />
-        </figure>
-      </div>
-      <div class="layout">
-        <nav class="side-nav" aria-label="Page sections">
-          <a href="#features">Features</a>
-          <a href="#gallery">Gallery</a>
-          <a href="#install">Install</a>
-          <a href="#configuration">Configuration</a>
-          <a href="#permissions">Permissions</a>
-          <a href="#security">Security</a>
-          <a href="#privacy">Privacy</a>
-          <a href="#performance">Performance</a>
-          <a href="#several-instances">Several instances</a>
-          <a href="#api">API</a>
-          <a href="#faq">FAQ</a>
-          <a href="#releases">Releases</a>
-        </nav>
-        <div class="content">
-          <section class="section" id="features" aria-labelledby="features-title">
-            <h2 id="features-title">Features</h2>
-            <p class="section-lead">
-              Passwordless authentication by e-mail, optional second factors, and an admin panel for
-              tokens, sessions and IP bans. Every feature ships in the npm package; there is no key
-              to unlock anything.
-            </p>
-            <ol class="flow" aria-label="How a login works">
-              <li>
-                <h3>Request</h3>
-                <p>Your app calls <code>POST /send-link</code> with an e-mail address.</p>
-              </li>
-              <li>
-                <h3>Click</h3>
-                <p>The user opens the link; your landing page posts the token to Strapi.</p>
-              </li>
-              <li>
-                <h3>Session</h3>
-                <p>Strapi answers with a JWT, or first asks for an OTP or TOTP code.</p>
-              </li>
-            </ol>
-            <div class="card-grid">
-              <article class="card">
-                <h3>Magic links by e-mail</h3>
-                <p>
-                  Hashed, expiring, single-use links sent through your Strapi e-mail provider, Magic
-                  Mail or Email Designer 5. The request never reveals whether an account exists.
-                </p>
-              </article>
-              <article class="card">
-                <h3>E-mail OTP</h3>
-                <p>
-                  Ask for a one-time code from a second e-mail after the link click. Attempts are
-                  limited and counted atomically.
-                </p>
-              </article>
-              <article class="card">
-                <h3>TOTP and MFA</h3>
-                <p>
-                  Optional or required authenticator apps. Users enrol during sign-in or later from
-                  their account, and get ten one-time backup codes.
-                </p>
-              </article>
-              <article class="card">
-                <h3>Native sessions</h3>
-                <p>
-                  Works with Users &amp; Permissions in legacy JWT mode and in refresh mode, where
-                  logins return a refresh token like <code>/api/auth/local</code>.
-                </p>
-              </article>
-              <article class="card">
-                <h3>Context and delivery status</h3>
-                <p>
-                  Pass a small <code>context</code> such as <code>redirectTo</code> through the
-                  link. Each e-mailed link shows whether the provider accepted, rejected or bounced
-                  it.
-                </p>
-              </article>
-              <article class="card">
-                <h3>Admin panel</h3>
-                <p>
-                  Tokens, OTP codes, JWT sessions, IP bans and settings, in five languages, light
-                  and dark mode, with permissions enforced on the server.
-                </p>
-              </article>
-            </div>
-          </section>
 
-          <section class="section" id="gallery" aria-labelledby="gallery-title">
-            <h2 id="gallery-title">Gallery</h2>
-            <p class="section-lead">
-              The admin panel follows the Strapi Design System, in light and dark mode and on small
-              screens. All screenshots use synthetic data.
-            </p>
-            <div class="gallery">
-              <figure>
-                <a href="./img/create-token.webp"
-                  ><img
-                    src="./img/create-token.webp"
-                    width="1440"
-                    height="900"
-                    loading="lazy"
-                    alt="Create Magic Link Token dialog with e-mail address, validity in hours, JSON context and a send-by-e-mail option"
-                /></a>
-                <figcaption>Create a link for a user, with lifetime and context</figcaption>
-              </figure>
-              <figure>
-                <a href="./img/jwt-sessions.webp"
-                  ><img
-                    src="./img/jwt-sessions.webp"
-                    width="1440"
-                    height="900"
-                    loading="lazy"
-                    alt="JWT sessions table with user, IP address, user agent, status and revoke actions"
-                /></a>
-                <figcaption>JWT sessions: revoke one session or a whole refresh family</figcaption>
-              </figure>
-              <figure>
-                <a href="./img/ip-bans.webp"
-                  ><img
-                    src="./img/ip-bans.webp"
-                    width="1440"
-                    height="900"
-                    loading="lazy"
-                    alt="IP bans list with three IPv4 addresses and one IPv6 address"
-                /></a>
-                <figcaption>IP bans for IPv4 addresses and IPv6 /64 networks</figcaption>
-              </figure>
-              <figure>
-                <a href="./img/settings-general.webp"
-                  ><img
-                    src="./img/settings-general.webp"
-                    width="1440"
-                    height="900"
-                    loading="lazy"
-                    alt="General settings with interface language, automatic user creation, reusable links and link lifetime"
-                /></a>
-                <figcaption>Settings: general options and link lifetime</figcaption>
-              </figure>
-              <figure>
-                <a href="./img/settings-mfa.webp"
-                  ><img
-                    src="./img/settings-mfa.webp"
-                    width="1440"
-                    height="900"
-                    loading="lazy"
-                    alt="Sign-in mode cards: magic link only, magic link plus e-mail code, magic link plus authenticator app, and authenticator-only sign-in"
-                /></a>
-                <figcaption>Settings: sign-in modes, e-mail OTP and TOTP MFA</figcaption>
-              </figure>
-              <figure>
-                <a href="./img/tokens-dark.webp"
-                  ><img
-                    src="./img/tokens-dark.webp"
-                    width="1440"
-                    height="900"
-                    loading="lazy"
-                    alt="Tokens page in dark mode"
-                /></a>
-                <figcaption>Dark mode follows the Strapi admin theme</figcaption>
-              </figure>
-            </div>
-            <div class="gallery gallery-mobile">
-              <figure>
-                <a href="./img/mobile-tokens.webp"
-                  ><img
-                    src="./img/mobile-tokens.webp"
-                    width="390"
-                    height="844"
-                    loading="lazy"
-                    alt="Tokens shown as cards on a 390 pixel wide phone screen"
-                /></a>
-                <figcaption>Tokens on a phone</figcaption>
-              </figure>
-              <figure>
-                <a href="./img/mobile-jwt-sessions.webp"
-                  ><img
-                    src="./img/mobile-jwt-sessions.webp"
-                    width="390"
-                    height="844"
-                    loading="lazy"
-                    alt="JWT sessions page with status cards on a 390 pixel wide phone screen"
-                /></a>
-                <figcaption>JWT sessions on a phone</figcaption>
-              </figure>
-            </div>
-          </section>
+        <section class="section" id="features" aria-labelledby="features-title">
+          <h2 id="features-title">Features</h2>
+          <p class="section-lead">
+            Passwordless authentication by e-mail, optional second factors, and an admin panel for
+            tokens, sessions and IP bans. Every feature ships in the npm package; there is no key to
+            unlock anything.
+          </p>
+          <ol class="flow" aria-label="How a login works">
+            <li>
+              <h3>Request</h3>
+              <p>Your app calls <code>POST /send-link</code> with an e-mail address.</p>
+            </li>
+            <li>
+              <h3>Click</h3>
+              <p>The user opens the link; your landing page posts the token to Strapi.</p>
+            </li>
+            <li>
+              <h3>Session</h3>
+              <p>Strapi answers with a JWT, or first asks for an OTP or TOTP code.</p>
+            </li>
+          </ol>
+          <div class="card-grid">
+            <article class="card">
+              <h3>Magic links by e-mail</h3>
+              <p>
+                Hashed, expiring, single-use links sent through your Strapi e-mail provider, Magic
+                Mail or Email Designer 5. The request never reveals whether an account exists.
+              </p>
+            </article>
+            <article class="card">
+              <h3>E-mail OTP</h3>
+              <p>
+                Ask for a one-time code from a second e-mail after the link click. Attempts are
+                limited and counted atomically.
+              </p>
+            </article>
+            <article class="card">
+              <h3>TOTP and MFA</h3>
+              <p>
+                Optional or required authenticator apps. Users enrol during sign-in or later from
+                their account, and get ten one-time backup codes.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Native sessions</h3>
+              <p>
+                Works with Users &amp; Permissions in legacy JWT mode and in refresh mode, where
+                logins return a refresh token like <code>/api/auth/local</code>.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Context and delivery status</h3>
+              <p>
+                Pass a small <code>context</code> such as <code>redirectTo</code> through the link.
+                Each e-mailed link shows whether the provider accepted, rejected or bounced it.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Admin panel</h3>
+              <p>
+                Tokens, OTP codes, JWT sessions, IP bans and settings, in five languages, light and
+                dark mode, with permissions enforced on the server.
+              </p>
+            </article>
+          </div>
+        </section>
 
-          <section class="section" id="install" aria-labelledby="install-title">
-            <h2 id="install-title">Install</h2>
-            <p>
-              Requires Strapi 5.50 or newer (acceptance host: 5.63.0), Node.js 22 to 26 and a
-              configured Strapi e-mail provider. npm, yarn and pnpm install it without peer
-              warnings.
-            </p>
-            <div class="code-card">
-              <div class="code-label">One minute, in your Strapi project</div>
-              <pre><code>npm install strapi-plugin-magic-link-v5
+        <section class="section" id="gallery" aria-labelledby="gallery-title">
+          <h2 id="gallery-title">Gallery</h2>
+          <p class="section-lead">
+            The admin panel follows the Strapi Design System, in light and dark mode and on small
+            screens. All screenshots use synthetic data.
+          </p>
+          <div class="gallery">
+            <figure class="shot">
+              <a href="./img/create-token.webp"
+                ><img
+                  src="./img/create-token.webp"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Create Magic Link Token dialog with e-mail address, validity in hours, JSON context and a send-by-e-mail option"
+              /></a>
+              <figcaption>Create a link for a user, with lifetime and context</figcaption>
+            </figure>
+            <figure class="shot">
+              <a href="./img/jwt-sessions.webp"
+                ><img
+                  src="./img/jwt-sessions.webp"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="JWT sessions table with user, IP address, user agent, status and revoke actions"
+              /></a>
+              <figcaption>JWT sessions: revoke one session or a whole refresh family</figcaption>
+            </figure>
+            <figure class="shot">
+              <a href="./img/ip-bans.webp"
+                ><img
+                  src="./img/ip-bans.webp"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="IP bans list with three IPv4 addresses and one IPv6 address"
+              /></a>
+              <figcaption>IP bans for IPv4 addresses and IPv6 /64 networks</figcaption>
+            </figure>
+            <figure class="shot">
+              <a href="./img/settings-general.webp"
+                ><img
+                  src="./img/settings-general.webp"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="General settings with interface language, automatic user creation, reusable links and link lifetime"
+              /></a>
+              <figcaption>Settings: general options and link lifetime</figcaption>
+            </figure>
+            <figure class="shot">
+              <a href="./img/settings-mfa.webp"
+                ><img
+                  src="./img/settings-mfa.webp"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Sign-in mode cards: magic link only, magic link plus e-mail code, magic link plus authenticator app, and authenticator-only sign-in"
+              /></a>
+              <figcaption>Settings: sign-in modes, e-mail OTP and TOTP MFA</figcaption>
+            </figure>
+            <figure class="shot">
+              <a href="./img/tokens-dark.webp"
+                ><img
+                  src="./img/tokens-dark.webp"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Tokens page in dark mode"
+              /></a>
+              <figcaption>Dark mode follows the Strapi admin theme</figcaption>
+            </figure>
+          </div>
+          <div class="gallery gallery-mobile">
+            <figure class="shot">
+              <a href="./img/mobile-tokens.webp"
+                ><img
+                  src="./img/mobile-tokens.webp"
+                  width="390"
+                  height="844"
+                  loading="lazy"
+                  alt="Tokens shown as cards on a 390 pixel wide phone screen"
+              /></a>
+              <figcaption>Tokens on a phone</figcaption>
+            </figure>
+            <figure class="shot">
+              <a href="./img/mobile-jwt-sessions.webp"
+                ><img
+                  src="./img/mobile-jwt-sessions.webp"
+                  width="390"
+                  height="844"
+                  loading="lazy"
+                  alt="JWT sessions page with status cards on a 390 pixel wide phone screen"
+              /></a>
+              <figcaption>JWT sessions on a phone</figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section class="section" id="install" aria-labelledby="install-title">
+          <h2 id="install-title">Install</h2>
+          <p>
+            Requires Strapi 5.50 or newer (acceptance host: 5.63.0), Node.js 22 to 26 and a
+            configured Strapi e-mail provider. npm, yarn and pnpm install it without peer warnings.
+          </p>
+          <div class="code-card">
+            <div class="code-label">One minute, in your Strapi project</div>
+            <pre><code>npm install strapi-plugin-magic-link-v5
 echo "MAGIC_LINK_ENCRYPTION_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")" &gt;&gt; .env
 echo "MAGIC_LINK_OTP_PEPPER=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")" &gt;&gt; .env
 npm run build &amp;&amp; npm run develop</code></pre>
-            </div>
-            <ol class="steps">
-              <li>
-                <p>
-                  The plugin refuses to start without the two secrets (32 or more characters each).
-                  For a throwaway local setup, <code>MAGIC_LINK_ALLOW_DEV_SECRETS=true</code> works
-                  outside production.
-                </p>
-              </li>
-              <li>
-                <p>
-                  In <strong>Settings → Magic Link → Settings → General</strong>, set the frontend
-                  base URL and login path of your landing page.
-                </p>
-              </li>
-              <li>
-                <p>Send the first link.</p>
-                <div class="code-card">
-                  <pre><code>curl -X POST http://localhost:1337/api/magic-link/send-link \
+          </div>
+          <ol class="steps">
+            <li>
+              <p>
+                The plugin refuses to start without the two secrets (32 or more characters each).
+                For a throwaway local setup, <code>MAGIC_LINK_ALLOW_DEV_SECRETS=true</code> works
+                outside production.
+              </p>
+            </li>
+            <li>
+              <p>
+                In <strong>Settings → Magic Link → Settings → General</strong>, set the frontend
+                base URL and login path of your landing page.
+              </p>
+            </li>
+            <li>
+              <p>Send the first link.</p>
+              <div class="code-card">
+                <pre><code>curl -X POST http://localhost:1337/api/magic-link/send-link \
   -H 'Content-Type: application/json' \
   -d '{"email":"ada@example.com"}'
 # { "email": "ada@example.com", "username": null, "sent": true, "delivery": "email" }</code></pre>
-                </div>
-              </li>
-            </ol>
-            <p>
-              The answer is the same whether or not the account exists. By default only existing
-              users get a link; auto-registration is a setting.
-            </p>
-          </section>
+              </div>
+            </li>
+          </ol>
+          <p>
+            The answer is the same whether or not the account exists. By default only existing users
+            get a link; auto-registration is a setting.
+          </p>
+        </section>
 
-          <section class="section" id="configuration" aria-labelledby="configuration-title">
-            <h2 id="configuration-title">Configuration</h2>
-            <p>
-              Most options live in <strong>Settings → Magic Link → Settings</strong>: link lifetime
-              and length, where links point, sender and templates, auto-registration, rate limits
-              and the sign-in mode. The README lists every key with its default.
-            </p>
-            <div class="table-wrap">
-              <table>
-                <caption>
-                  Sign-in modes
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Mode</th>
-                    <th scope="col">Setting</th>
-                    <th scope="col">After the link click</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Link only</td>
-                    <td>default</td>
-                    <td>The user is signed in</td>
-                  </tr>
-                  <tr>
-                    <td>Link + e-mail OTP</td>
-                    <td><code>otp_enabled</code></td>
-                    <td>A code from a second e-mail</td>
-                  </tr>
-                  <tr>
-                    <td>Link + TOTP (optional MFA)</td>
-                    <td><code>mfa_mode: optional</code></td>
-                    <td>A code from the app if the user enrolled</td>
-                  </tr>
-                  <tr>
-                    <td>Link + TOTP (required MFA)</td>
-                    <td><code>mfa_mode: required</code></td>
-                    <td>A code from the app; enrolment on the spot if needed</td>
-                  </tr>
-                  <tr>
-                    <td>TOTP only</td>
-                    <td><code>totp_as_primary_auth</code></td>
-                    <td>No e-mail: <code>POST /login-totp</code></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <caption>
-                  Settings you will touch first
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Key</th>
-                    <th scope="col">Default</th>
-                    <th scope="col">Meaning</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td><code>frontend_url</code>, <code>frontend_login_path</code></td>
-                    <td>empty, <code>/auth/magic-link</code></td>
-                    <td>Your landing page (https; http only for localhost)</td>
-                  </tr>
-                  <tr>
-                    <td><code>expire_period</code></td>
-                    <td><code>3600</code></td>
-                    <td>Link lifetime in seconds</td>
-                  </tr>
-                  <tr>
-                    <td><code>stays_valid</code></td>
-                    <td><code>false</code></td>
-                    <td>Allow a link to be used more than once until it expires</td>
-                  </tr>
-                  <tr>
-                    <td><code>jwt_token_expires_in</code></td>
-                    <td><code>30d</code></td>
-                    <td>JWT lifetime in legacy mode</td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <code>rate_limit_max_attempts</code>, <code>rate_limit_window_minutes</code>
-                    </td>
-                    <td><code>5</code>, <code>15</code></td>
-                    <td>Requests per IP and per address in the window</td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <code>createUserIfNotExists</code> +
-                      <code>allow_magic_links_on_public_registration</code>
-                    </td>
-                    <td><code>true</code>, <code>false</code></td>
-                    <td>Create accounts on first login (also needs users-permissions sign-ups)</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <caption>
-                  Server config (<code>config/plugins.js</code>, all optional)
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Key</th>
-                    <th scope="col">Default</th>
-                    <th scope="col">Effect</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td><code>allowedLinkOrigins</code></td>
-                    <td><code>[]</code></td>
-                    <td>
-                      Login links may only point at these origins; admins cannot change the list
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><code>rateLimit.redis</code></td>
-                    <td>off</td>
-                    <td>Redis fast path for rate limits; the database stays the fallback</td>
-                  </tr>
-                  <tr>
-                    <td><code>rateLimit.store</code></td>
-                    <td>database</td>
-                    <td><code>'memory'</code> keeps counters per process (single process only)</td>
-                  </tr>
-                  <tr>
-                    <td><code>deliveryWebhooks</code></td>
-                    <td><code>{}</code></td>
-                    <td>Bounce and complaint feedback from SendGrid, Mailgun, SES or Postmark</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <caption>
-                  Environment variables
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Variable</th>
-                    <th scope="col">Required</th>
-                    <th scope="col">Purpose</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td><code>MAGIC_LINK_ENCRYPTION_KEY</code></td>
-                    <td>yes</td>
-                    <td>AES-256-GCM key for TOTP secrets, 32+ characters</td>
-                  </tr>
-                  <tr>
-                    <td><code>MAGIC_LINK_OTP_PEPPER</code></td>
-                    <td>yes</td>
-                    <td>Key for OTP code hashes and backup-code HMACs, 32+ characters</td>
-                  </tr>
-                  <tr>
-                    <td><code>MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS</code></td>
-                    <td>no</td>
-                    <td>Old key during rotation; secrets are re-encrypted at startup</td>
-                  </tr>
-                  <tr>
-                    <td><code>MAGIC_LINK_ALLOW_DEV_SECRETS</code></td>
-                    <td>no</td>
-                    <td><code>true</code> allows derived development secrets outside production</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p>
-              E-mail templates use placeholders such as <code>{{LOGIN_URL}}</code>,
-              <code>{{EXPIRY_TEXT}}</code> and <code>{{USER}}</code>. Values are HTML-escaped and no
-              template code runs.
-            </p>
-            <p class="callout">
-              Behind a reverse proxy, set <code>proxy: { koa: true, maxIpsCount: 1 }</code> in
-              <code>config/server.js</code> so rate limits and IP bans see the real client address.
-            </p>
-          </section>
+        <section class="section" id="configuration" aria-labelledby="configuration-title">
+          <h2 id="configuration-title">Configuration</h2>
+          <p>
+            Most options live in <strong>Settings → Magic Link → Settings</strong>: link lifetime
+            and length, where links point, sender and templates, auto-registration, rate limits and
+            the sign-in mode. The README lists every key with its default.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <caption>
+                Sign-in modes
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Mode</th>
+                  <th scope="col">Setting</th>
+                  <th scope="col">After the link click</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Link only</td>
+                  <td>default</td>
+                  <td>The user is signed in</td>
+                </tr>
+                <tr>
+                  <td>Link + e-mail OTP</td>
+                  <td><code>otp_enabled</code></td>
+                  <td>A code from a second e-mail</td>
+                </tr>
+                <tr>
+                  <td>Link + TOTP (optional MFA)</td>
+                  <td><code>mfa_mode: optional</code></td>
+                  <td>A code from the app if the user enrolled</td>
+                </tr>
+                <tr>
+                  <td>Link + TOTP (required MFA)</td>
+                  <td><code>mfa_mode: required</code></td>
+                  <td>A code from the app; enrolment on the spot if needed</td>
+                </tr>
+                <tr>
+                  <td>TOTP only</td>
+                  <td><code>totp_as_primary_auth</code></td>
+                  <td>No e-mail: <code>POST /login-totp</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <caption>
+                Settings you will touch first
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Key</th>
+                  <th scope="col">Default</th>
+                  <th scope="col">Meaning</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>frontend_url</code>, <code>frontend_login_path</code></td>
+                  <td>empty, <code>/auth/magic-link</code></td>
+                  <td>Your landing page (https; http only for localhost)</td>
+                </tr>
+                <tr>
+                  <td><code>expire_period</code></td>
+                  <td><code>3600</code></td>
+                  <td>Link lifetime in seconds</td>
+                </tr>
+                <tr>
+                  <td><code>stays_valid</code></td>
+                  <td><code>false</code></td>
+                  <td>Allow a link to be used more than once until it expires</td>
+                </tr>
+                <tr>
+                  <td><code>jwt_token_expires_in</code></td>
+                  <td><code>30d</code></td>
+                  <td>JWT lifetime in legacy mode</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>rate_limit_max_attempts</code>, <code>rate_limit_window_minutes</code>
+                  </td>
+                  <td><code>5</code>, <code>15</code></td>
+                  <td>Requests per IP and per address in the window</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>createUserIfNotExists</code> +
+                    <code>allow_magic_links_on_public_registration</code>
+                  </td>
+                  <td><code>true</code>, <code>false</code></td>
+                  <td>Create accounts on first login (also needs users-permissions sign-ups)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <caption>
+                Server config (<code>config/plugins.js</code>, all optional)
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Key</th>
+                  <th scope="col">Default</th>
+                  <th scope="col">Effect</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>allowedLinkOrigins</code></td>
+                  <td><code>[]</code></td>
+                  <td>
+                    Login links may only point at these origins; admins cannot change the list
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>rateLimit.redis</code></td>
+                  <td>off</td>
+                  <td>Redis fast path for rate limits; the database stays the fallback</td>
+                </tr>
+                <tr>
+                  <td><code>rateLimit.store</code></td>
+                  <td>database</td>
+                  <td><code>'memory'</code> keeps counters per process (single process only)</td>
+                </tr>
+                <tr>
+                  <td><code>deliveryWebhooks</code></td>
+                  <td><code>{}</code></td>
+                  <td>Bounce and complaint feedback from SendGrid, Mailgun, SES or Postmark</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <caption>
+                Environment variables
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Variable</th>
+                  <th scope="col">Required</th>
+                  <th scope="col">Purpose</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>MAGIC_LINK_ENCRYPTION_KEY</code></td>
+                  <td>yes</td>
+                  <td>AES-256-GCM key for TOTP secrets, 32+ characters</td>
+                </tr>
+                <tr>
+                  <td><code>MAGIC_LINK_OTP_PEPPER</code></td>
+                  <td>yes</td>
+                  <td>Key for OTP code hashes and backup-code HMACs, 32+ characters</td>
+                </tr>
+                <tr>
+                  <td><code>MAGIC_LINK_ENCRYPTION_KEY_PREVIOUS</code></td>
+                  <td>no</td>
+                  <td>Old key during rotation; secrets are re-encrypted at startup</td>
+                </tr>
+                <tr>
+                  <td><code>MAGIC_LINK_ALLOW_DEV_SECRETS</code></td>
+                  <td>no</td>
+                  <td><code>true</code> allows derived development secrets outside production</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            E-mail templates use placeholders such as <code>{{LOGIN_URL}}</code>,
+            <code>{{EXPIRY_TEXT}}</code> and <code>{{USER}}</code>. Values are HTML-escaped and no
+            template code runs.
+          </p>
+          <p class="callout">
+            Behind a reverse proxy, set <code>proxy: { koa: true, maxIpsCount: 1 }</code> in
+            <code>config/server.js</code> so rate limits and IP bans see the real client address.
+          </p>
+        </section>
 
-          <section class="section" id="permissions" aria-labelledby="permissions-title">
-            <h2 id="permissions-title">Permissions</h2>
-            <p>
-              Grant these in
-              <strong>Settings → Administration Panel → Roles → Plugins → Magic Link</strong>. The
-              server checks them on every admin route; the admin pages only hide what a role cannot
-              do.
-            </p>
-            <div class="table-wrap">
-              <table>
-                <caption>
-                  Admin actions
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Action</th>
-                    <th scope="col">Grants</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td><code>plugin::magic-link.read</code></td>
-                    <td>Menu entry and Tokens page: tokens, OTP codes, JWT sessions, IP bans</td>
-                  </tr>
-                  <tr>
-                    <td><code>plugin::magic-link.manage</code></td>
-                    <td>
-                      Create, block, extend and delete tokens; revoke sessions; ban IPs; cleanups
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><code>plugin::magic-link.tokens.issue</code></td>
-                    <td>Create a link without e-mail (impersonation). Grant sparingly.</td>
-                  </tr>
-                  <tr>
-                    <td><code>plugin::magic-link.settings.read</code></td>
-                    <td>Settings page, rate-limit statistics, MFA summary</td>
-                  </tr>
-                  <tr>
-                    <td><code>plugin::magic-link.settings.update</code></td>
-                    <td>Save settings, rate-limit cleanup and reset</td>
-                  </tr>
-                  <tr>
-                    <td><code>plugin::magic-link.settings.security</code></td>
-                    <td>
-                      Link targets, templates, sender, account, MFA, code and rate-limit rules
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p>
-              Users &amp; Permissions: the login routes are public by design and protected by rate
-              limits and IP bans. Grant the <strong>Magic-link → totp</strong> actions to the
-              Authenticated role if users should manage their authenticator themselves.
-            </p>
-          </section>
+        <section class="section" id="permissions" aria-labelledby="permissions-title">
+          <h2 id="permissions-title">Permissions</h2>
+          <p>
+            Grant these in
+            <strong>Settings → Administration Panel → Roles → Plugins → Magic Link</strong>. The
+            server checks them on every admin route; the admin pages only hide what a role cannot
+            do.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <caption>
+                Admin actions
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Action</th>
+                  <th scope="col">Grants</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>plugin::magic-link.read</code></td>
+                  <td>Menu entry and Tokens page: tokens, OTP codes, JWT sessions, IP bans</td>
+                </tr>
+                <tr>
+                  <td><code>plugin::magic-link.manage</code></td>
+                  <td>
+                    Create, block, extend and delete tokens; revoke sessions; ban IPs; cleanups
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>plugin::magic-link.tokens.issue</code></td>
+                  <td>Create a link without e-mail (impersonation). Grant sparingly.</td>
+                </tr>
+                <tr>
+                  <td><code>plugin::magic-link.settings.read</code></td>
+                  <td>Settings page, rate-limit statistics, MFA summary</td>
+                </tr>
+                <tr>
+                  <td><code>plugin::magic-link.settings.update</code></td>
+                  <td>Save settings, rate-limit cleanup and reset</td>
+                </tr>
+                <tr>
+                  <td><code>plugin::magic-link.settings.security</code></td>
+                  <td>Link targets, templates, sender, account, MFA, code and rate-limit rules</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Users &amp; Permissions: the login routes are public by design and protected by rate
+            limits and IP bans. Grant the <strong>Magic-link → totp</strong> actions to the
+            Authenticated role if users should manage their authenticator themselves.
+          </p>
+        </section>
 
-          <section class="section" id="security" aria-labelledby="security-title">
-            <h2 id="security-title">Security</h2>
-            <p class="section-lead">What is protected, and how.</p>
-            <div class="card-grid">
-              <article class="card">
-                <h3>Login links</h3>
-                <p>
-                  At least 132 bits, stored salted and hashed, expiring. A single-use link is
-                  consumed with a conditional update, so parallel clicks give one session.
-                </p>
-              </article>
-              <article class="card">
-                <h3>No account discovery</h3>
-                <p>
-                  <code>send-link</code> answers before any lookup or delivery, with the same body
-                  and timing for every address.
-                </p>
-              </article>
-              <article class="card">
-                <h3>Second factors</h3>
-                <p>
-                  Challenge state lives on the server. OTP attempts are counted before the
-                  comparison, TOTP codes cannot be replayed, and code checks are limited to 10 per
-                  account and 15 minutes even with rate limiting off.
-                </p>
-              </article>
-              <article class="card">
-                <h3>Sessions</h3>
-                <p>
-                  Revoked JWTs stay blocked until they expire. In refresh mode a revocation ends the
-                  whole users-permissions refresh family, rotated tokens included.
-                </p>
-              </article>
-              <article class="card">
-                <h3>Pre-account hijacking</h3>
-                <p>
-                  Confirming an unconfirmed account by link, OTP or enrolment first ends its
-                  sessions and clears a password someone else may have set.
-                </p>
-              </article>
-              <article class="card">
-                <h3>Admin permissions</h3>
-                <p>
-                  Every admin route checks a permission on the server. Impersonation
-                  (<code>tokens.issue</code>) and settings that redirect links
-                  (<code>settings.security</code>) have their own permissions.
-                </p>
-              </article>
-            </div>
-            <p class="callout warning">
-              Known limit: MFA covers the Magic Link login paths only. Password or social logins
-              through Users &amp; Permissions do not ask for a second factor, so disable the ones
-              you do not use.
-            </p>
-            <p>
-              Report vulnerabilities privately through
-              <a
-                href="https://github.com/Schero94/strapi-plugin-magic-link-v5/security/advisories/new"
-                >GitHub security advisories</a
-              >.
-            </p>
-          </section>
+        <section class="section" id="security" aria-labelledby="security-title">
+          <h2 id="security-title">Security</h2>
+          <p class="section-lead">What is protected, and how.</p>
+          <div class="card-grid">
+            <article class="card">
+              <h3>Login links</h3>
+              <p>
+                At least 132 bits, stored salted and hashed, expiring. A single-use link is consumed
+                with a conditional update, so parallel clicks give one session.
+              </p>
+            </article>
+            <article class="card">
+              <h3>No account discovery</h3>
+              <p>
+                <code>send-link</code> answers before any lookup or delivery, with the same body and
+                timing for every address.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Second factors</h3>
+              <p>
+                Challenge state lives on the server. OTP attempts are counted before the comparison,
+                TOTP codes cannot be replayed, and code checks are limited to 10 per account and 15
+                minutes even with rate limiting off.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Sessions</h3>
+              <p>
+                Revoked JWTs stay blocked until they expire. In refresh mode a revocation ends the
+                whole users-permissions refresh family, rotated tokens included.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Pre-account hijacking</h3>
+              <p>
+                Confirming an unconfirmed account by link, OTP or enrolment first ends its sessions
+                and clears a password someone else may have set.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Admin permissions</h3>
+              <p>
+                Every admin route checks a permission on the server. Impersonation
+                (<code>tokens.issue</code>) and settings that redirect links
+                (<code>settings.security</code>) have their own permissions.
+              </p>
+            </article>
+          </div>
+          <p class="callout warning">
+            Known limit: MFA covers the Magic Link login paths only. Password or social logins
+            through Users &amp; Permissions do not ask for a second factor, so disable the ones you
+            do not use.
+          </p>
+          <p>
+            Report vulnerabilities privately through
+            <a
+              href="https://github.com/Schero94/strapi-plugin-magic-link-v5/security/advisories/new"
+              >GitHub security advisories</a
+            >.
+          </p>
+        </section>
 
-          <section class="section" id="privacy" aria-labelledby="privacy-title">
-            <h2 id="privacy-title">Privacy and outbound connections</h2>
-            <p class="section-lead">
-              No telemetry, no usage statistics, no update check and no registration server. The
-              plugin sends nothing about your installation anywhere.
-            </p>
-            <div class="table-wrap">
-              <table>
-                <caption>
-                  What leaves your server, only because you configured it
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Connection</th>
-                    <th scope="col">When</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Your e-mail provider or Magic Mail</td>
-                    <td>A link, an OTP code or a TOTP setup code is e-mailed</td>
-                  </tr>
-                  <tr>
-                    <td><code>sns.&lt;region&gt;.amazonaws.com</code></td>
-                    <td>
-                      Only with the SES bounce webhook: the SNS signing certificate and the
-                      subscription confirmation
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Redis</td>
-                    <td>Only with <code>rateLimit.redis</code></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p>
-              Everything else stays in your Strapi database: login tokens as salted hashes (deleted
-              30 days after expiry), OTP codes as keyed hashes, TOTP secrets encrypted with
-              AES-256-GCM, one record per issued JWT (kept until 7 days after expiry) and rate-limit
-              counters. Plugin logs contain no e-mail addresses, tokens or login URLs.
-            </p>
-          </section>
+        <section class="section" id="privacy" aria-labelledby="privacy-title">
+          <h2 id="privacy-title">Privacy and outbound connections</h2>
+          <p class="section-lead">
+            No telemetry, no usage statistics, no update check and no registration server. The
+            plugin sends nothing about your installation anywhere.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <caption>
+                What leaves your server, only because you configured it
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Connection</th>
+                  <th scope="col">When</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Your e-mail provider or Magic Mail</td>
+                  <td>A link, an OTP code or a TOTP setup code is e-mailed</td>
+                </tr>
+                <tr>
+                  <td><code>sns.&lt;region&gt;.amazonaws.com</code></td>
+                  <td>
+                    Only with the SES bounce webhook: the SNS signing certificate and the
+                    subscription confirmation
+                  </td>
+                </tr>
+                <tr>
+                  <td>Redis</td>
+                  <td>Only with <code>rateLimit.redis</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Everything else stays in your Strapi database: login tokens as salted hashes (deleted 30
+            days after expiry), OTP codes as keyed hashes, TOTP secrets encrypted with AES-256-GCM,
+            one record per issued JWT (kept until 7 days after expiry) and rate-limit counters.
+            Plugin logs contain no e-mail addresses, tokens or login URLs.
+          </p>
+        </section>
 
-          <section class="section" id="performance" aria-labelledby="performance-title">
-            <h2 id="performance-title">Performance</h2>
-            <div class="card-grid">
-              <article class="card">
-                <h3>Logins do not queue</h3>
-                <p>
-                  A login inserts one session row without a lock. With 4 Strapi processes on
-                  PostgreSQL 16, 100 simultaneous link clicks finished in 0.38 s.
-                </p>
-              </article>
-              <article class="card">
-                <h3>Cheap revocation checks</h3>
-                <p>
-                  Each process caches the JWT blocklist for 2 seconds, so a Content API request
-                  normally costs no extra query.
-                </p>
-              </article>
-              <article class="card">
-                <h3>Shared rate limits</h3>
-                <p>
-                  One row per key in <code>magic_link_rate_limits</code>. Redis is an optional fast
-                  path; the database stays its fallback.
-                </p>
-              </article>
-              <article class="card">
-                <h3>Housekeeping off the request path</h3>
-                <p>
-                  Expired codes, old tokens, session records and limiter rows are removed every 5
-                  minutes by one process at a time.
-                </p>
-              </article>
-            </div>
-          </section>
+        <section class="section" id="performance" aria-labelledby="performance-title">
+          <h2 id="performance-title">Performance</h2>
+          <div class="card-grid">
+            <article class="card">
+              <h3>Logins do not queue</h3>
+              <p>
+                A login inserts one session row without a lock. With 4 Strapi processes on
+                PostgreSQL 16, 100 simultaneous link clicks finished in 0.38 s.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Cheap revocation checks</h3>
+              <p>
+                Each process caches the JWT blocklist for 2 seconds, so a Content API request
+                normally costs no extra query.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Shared rate limits</h3>
+              <p>
+                One row per key in <code>magic_link_rate_limits</code>. Redis is an optional fast
+                path; the database stays its fallback.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Housekeeping off the request path</h3>
+              <p>
+                Expired codes, old tokens, session records and limiter rows are removed every 5
+                minutes by one process at a time.
+              </p>
+            </article>
+          </div>
+        </section>
 
-          <section class="section" id="several-instances" aria-labelledby="instances-title">
-            <h2 id="instances-title">Running several instances (Railway replicas, pm2 cluster)</h2>
-            <p class="section-lead">
-              Magic Link works with any number of Strapi processes on one shared database, for
-              example 2 Railway replicas with 4 pm2 cluster workers each. Requests may land on any
-              process; sticky sessions are not needed and Redis is optional.
-            </p>
-            <ol class="steps">
-              <li>
-                <p>
-                  <strong>One database for all processes.</strong> PostgreSQL (recommended) or
-                  MySQL/MariaDB. SQLite works for several processes on one machine and file, not
-                  across machines.
-                </p>
-              </li>
-              <li>
-                <p>
-                  <strong>The same secrets everywhere:</strong> Strapi's <code>APP_KEYS</code>,
-                  <code>API_TOKEN_SALT</code>, <code>ADMIN_JWT_SECRET</code>,
-                  <code>JWT_SECRET</code>, <code>TRANSFER_TOKEN_SALT</code>,
-                  <code>ENCRYPTION_KEY</code>, plus <code>MAGIC_LINK_ENCRYPTION_KEY</code> and
-                  <code>MAGIC_LINK_OTP_PEPPER</code>.
-                </p>
-              </li>
-              <li>
-                <p>
-                  <strong>The real client IP.</strong> Behind Railway's edge proxy, set
-                  <code>proxy: { koa: true, maxIpsCount: 1 }</code> in
-                  <code>config/server.js</code>.
-                </p>
-              </li>
-              <li>
-                <p>
-                  <strong>Start the processes.</strong> On Railway, set the replica count in the
-                  service's scaling settings. For pm2 cluster mode:
-                </p>
-                <div class="code-card">
-                  <div class="code-label">ecosystem.config.js</div>
-                  <pre><code>module.exports = {
+        <section class="section" id="several-instances" aria-labelledby="instances-title">
+          <h2 id="instances-title">Running several instances (Railway replicas, pm2 cluster)</h2>
+          <p class="section-lead">
+            Magic Link works with any number of Strapi processes on one shared database, for example
+            2 Railway replicas with 4 pm2 cluster workers each. Requests may land on any process;
+            sticky sessions are not needed and Redis is optional.
+          </p>
+          <ol class="steps">
+            <li>
+              <p>
+                <strong>One database for all processes.</strong> PostgreSQL (recommended) or
+                MySQL/MariaDB. SQLite works for several processes on one machine and file, not
+                across machines.
+              </p>
+            </li>
+            <li>
+              <p>
+                <strong>The same secrets everywhere:</strong> Strapi's <code>APP_KEYS</code>,
+                <code>API_TOKEN_SALT</code>, <code>ADMIN_JWT_SECRET</code>, <code>JWT_SECRET</code>,
+                <code>TRANSFER_TOKEN_SALT</code>, <code>ENCRYPTION_KEY</code>, plus
+                <code>MAGIC_LINK_ENCRYPTION_KEY</code> and <code>MAGIC_LINK_OTP_PEPPER</code>.
+              </p>
+            </li>
+            <li>
+              <p>
+                <strong>The real client IP.</strong> Behind Railway's edge proxy, set
+                <code>proxy: { koa: true, maxIpsCount: 1 }</code> in <code>config/server.js</code>.
+              </p>
+            </li>
+            <li>
+              <p>
+                <strong>Start the processes.</strong> On Railway, set the replica count in the
+                service's scaling settings. For pm2 cluster mode:
+              </p>
+              <div class="code-card">
+                <div class="code-label">ecosystem.config.js</div>
+                <pre><code>module.exports = {
   apps: [
     {
       name: 'strapi',
@@ -802,90 +976,89 @@ npm run build &amp;&amp; npm run develop</code></pre>
     },
   ],
 };</code></pre>
-                </div>
-                <p>
-                  Start it with <code>pm2 start ecosystem.config.js</code>. Inside a Railway
-                  container, add <code>pm2</code> to the project and use
-                  <code>pm2-runtime start ecosystem.config.js</code> as the start command.
-                </p>
-              </li>
-              <li>
-                <p>
-                  <strong>Plugin config:</strong> nothing is required. Do not set
-                  <code>rateLimit: { store: 'memory' }</code> with several processes, or every limit
-                  is multiplied by the number of processes.
-                </p>
-              </li>
-            </ol>
-            <div class="table-wrap">
-              <table>
-                <caption>
-                  What is shared, and how
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">State</th>
-                    <th scope="col">Mechanism</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Login links, OTP codes, TOTP replay, backup codes</td>
-                    <td>Conditional database updates: accepted exactly once across processes</td>
-                  </tr>
-                  <tr>
-                    <td>JWT blocklist, IP bans, settings</td>
-                    <td>
-                      Written under a cluster-wide lock: PostgreSQL
-                      <code>pg_advisory_xact_lock</code>, MySQL <code>GET_LOCK</code>, SQLite's
-                      write lock
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>JWT session records</td>
-                    <td>
-                      One row per JWT in <code>magic_link_jwt_sessions</code>, inserted without a
-                      lock
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Rate limits</td>
-                    <td>
-                      Table <code>magic_link_rate_limits</code>, or Redis with the database as
-                      fallback
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>New accounts, account claims, challenge starts</td>
-                    <td>Locks and compare-and-set, so one address never gets two accounts</td>
-                  </tr>
-                  <tr>
-                    <td>Cleanup jobs and startup migrations</td>
-                    <td>One process at a time (a lease or the cluster lock)</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p>
-              Short windows: a revocation reaches other processes within 2 seconds, changed rate
-              limits within 5 seconds. When several processes start at once on an empty database or
-              after a schema change, all but one may stop once with
-              <code>relation ... already exists</code>; the restarted process starts normally (pm2
-              and Railway's on-failure policy restart it). Tested with 8 processes against SQLite
-              and PostgreSQL 16 (<code>npm run test:cluster</code>).
-            </p>
-          </section>
+              </div>
+              <p>
+                Start it with <code>pm2 start ecosystem.config.js</code>. Inside a Railway
+                container, add <code>pm2</code> to the project and use
+                <code>pm2-runtime start ecosystem.config.js</code> as the start command.
+              </p>
+            </li>
+            <li>
+              <p>
+                <strong>Plugin config:</strong> nothing is required. Do not set
+                <code>rateLimit: { store: 'memory' }</code> with several processes, or every limit
+                is multiplied by the number of processes.
+              </p>
+            </li>
+          </ol>
+          <div class="table-wrap">
+            <table>
+              <caption>
+                What is shared, and how
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">State</th>
+                  <th scope="col">Mechanism</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Login links, OTP codes, TOTP replay, backup codes</td>
+                  <td>Conditional database updates: accepted exactly once across processes</td>
+                </tr>
+                <tr>
+                  <td>JWT blocklist, IP bans, settings</td>
+                  <td>
+                    Written under a cluster-wide lock: PostgreSQL
+                    <code>pg_advisory_xact_lock</code>, MySQL <code>GET_LOCK</code>, SQLite's write
+                    lock
+                  </td>
+                </tr>
+                <tr>
+                  <td>JWT session records</td>
+                  <td>
+                    One row per JWT in <code>magic_link_jwt_sessions</code>, inserted without a lock
+                  </td>
+                </tr>
+                <tr>
+                  <td>Rate limits</td>
+                  <td>
+                    Table <code>magic_link_rate_limits</code>, or Redis with the database as
+                    fallback
+                  </td>
+                </tr>
+                <tr>
+                  <td>New accounts, account claims, challenge starts</td>
+                  <td>Locks and compare-and-set, so one address never gets two accounts</td>
+                </tr>
+                <tr>
+                  <td>Cleanup jobs and startup migrations</td>
+                  <td>One process at a time (a lease or the cluster lock)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Short windows: a revocation reaches other processes within 2 seconds, changed rate
+            limits within 5 seconds. When several processes start at once on an empty database or
+            after a schema change, all but one may stop once with
+            <code>relation ... already exists</code>; the restarted process starts normally (pm2 and
+            Railway's on-failure policy restart it). Tested with 8 processes against SQLite and
+            PostgreSQL 16 (<code>npm run test:cluster</code>).
+          </p>
+        </section>
 
-          <section class="section" id="api" aria-labelledby="api-title">
-            <h2 id="api-title">API</h2>
-            <p>
-              Public routes are mounted under <code>/api/magic-link</code>. Your landing page
-              receives <code>?loginToken=</code> and exchanges it with a POST, so the token stays
-              out of access logs and <code>Referer</code> headers.
-            </p>
-            <div class="code-card">
-              <div class="code-label">Landing page</div>
-              <pre><code>const loginToken = new URLSearchParams(location.search).get('loginToken');
+        <section class="section" id="api" aria-labelledby="api-title">
+          <h2 id="api-title">API</h2>
+          <p>
+            Public routes are mounted under <code>/api/magic-link</code>. Your landing page receives
+            <code>?loginToken=</code> and exchanges it with a POST, so the token stays out of access
+            logs and <code>Referer</code> headers.
+          </p>
+          <div class="code-card">
+            <div class="code-label">Landing page</div>
+            <pre><code>const loginToken = new URLSearchParams(location.search).get('loginToken');
 const res = await fetch('https://api.example.com/api/magic-link/login', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -893,211 +1066,260 @@ const res = await fetch('https://api.example.com/api/magic-link/login', {
 });
 const result = await res.json();
 // result.jwt, or result.requiresOTP / requiresTOTP / requiresTOTPSetup</code></pre>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <caption>
-                  Public routes
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Method</th>
-                    <th scope="col">Path</th>
-                    <th scope="col">Purpose</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>POST</td>
-                    <td><code>/send-link</code></td>
-                    <td>Send a magic link to <code>{ email, context? }</code></td>
-                  </tr>
-                  <tr>
-                    <td>POST</td>
-                    <td><code>/login</code></td>
-                    <td>Exchange <code>{ loginToken }</code> (GET kept for compatibility)</td>
-                  </tr>
-                  <tr>
-                    <td>POST</td>
-                    <td>
-                      <code>/otp/send</code>, <code>/otp/resend</code>, <code>/otp/verify</code>
-                    </td>
-                    <td>E-mail OTP step</td>
-                  </tr>
-                  <tr>
-                    <td>POST</td>
-                    <td><code>/verify-mfa-totp</code></td>
-                    <td>TOTP or backup code after the link</td>
-                  </tr>
-                  <tr>
-                    <td>POST</td>
-                    <td><code>/totp/enroll</code>, <code>/totp/enroll/confirm</code></td>
-                    <td>Enrol an authenticator during a required-MFA login</td>
-                  </tr>
-                  <tr>
-                    <td>GET, POST</td>
-                    <td>
-                      <code>/totp/status</code>, <code>/totp/setup</code>,
-                      <code>/totp/confirm</code>, <code>/totp/disable</code>,
-                      <code>/totp/backup-codes</code>
-                    </td>
-                    <td>Self-service for signed-in users (Authenticated role)</td>
-                  </tr>
-                  <tr>
-                    <td>POST</td>
-                    <td><code>/login-totp</code></td>
-                    <td>TOTP-only login</td>
-                  </tr>
-                  <tr>
-                    <td>POST</td>
-                    <td><code>/delivery-webhooks/:provider</code></td>
-                    <td>Signed bounce and complaint feedback (off until a secret is set)</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p>
-              Errors use the Strapi envelope with a stable <code>error.key</code>, for example
-              <code>token.invalid</code>, <code>mfa.invalidCode</code> or
-              <code>rate.limit.exceeded</code> (with <code>details.retryAfter</code>). Messages are
-              translated into English, German, French, Spanish and Portuguese.
-            </p>
-            <p>
-              With <code>jwtManagement: 'refresh'</code> in Users &amp; Permissions, logins return a
-              short-lived JWT and a refresh token; renew with the native
-              <code>POST /api/auth/refresh</code>. Admin routes live under
-              <code>/magic-link</code> and need an admin JWT plus the permission from the table
-              above. The
-              <a href="https://github.com/Schero94/strapi-plugin-magic-link-v5#public-api"
-                >README</a
-              >
-              lists every route with request and response examples and all error answers.
-            </p>
-          </section>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <caption>
+                Public routes
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Method</th>
+                  <th scope="col">Path</th>
+                  <th scope="col">Purpose</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>POST</td>
+                  <td><code>/send-link</code></td>
+                  <td>Send a magic link to <code>{ email, context? }</code></td>
+                </tr>
+                <tr>
+                  <td>POST</td>
+                  <td><code>/login</code></td>
+                  <td>Exchange <code>{ loginToken }</code> (GET kept for compatibility)</td>
+                </tr>
+                <tr>
+                  <td>POST</td>
+                  <td>
+                    <code>/otp/send</code>, <code>/otp/resend</code>, <code>/otp/verify</code>
+                  </td>
+                  <td>E-mail OTP step</td>
+                </tr>
+                <tr>
+                  <td>POST</td>
+                  <td><code>/verify-mfa-totp</code></td>
+                  <td>TOTP or backup code after the link</td>
+                </tr>
+                <tr>
+                  <td>POST</td>
+                  <td><code>/totp/enroll</code>, <code>/totp/enroll/confirm</code></td>
+                  <td>Enrol an authenticator during a required-MFA login</td>
+                </tr>
+                <tr>
+                  <td>GET, POST</td>
+                  <td>
+                    <code>/totp/status</code>, <code>/totp/setup</code>, <code>/totp/confirm</code>,
+                    <code>/totp/disable</code>,
+                    <code>/totp/backup-codes</code>
+                  </td>
+                  <td>Self-service for signed-in users (Authenticated role)</td>
+                </tr>
+                <tr>
+                  <td>POST</td>
+                  <td><code>/login-totp</code></td>
+                  <td>TOTP-only login</td>
+                </tr>
+                <tr>
+                  <td>POST</td>
+                  <td><code>/delivery-webhooks/:provider</code></td>
+                  <td>Signed bounce and complaint feedback (off until a secret is set)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Errors use the Strapi envelope with a stable <code>error.key</code>, for example
+            <code>token.invalid</code>, <code>mfa.invalidCode</code> or
+            <code>rate.limit.exceeded</code> (with <code>details.retryAfter</code>). Messages are
+            translated into English, German, French, Spanish and Portuguese.
+          </p>
+          <p>
+            With <code>jwtManagement: 'refresh'</code> in Users &amp; Permissions, logins return a
+            short-lived JWT and a refresh token; renew with the native
+            <code>POST /api/auth/refresh</code>. Admin routes live under
+            <code>/magic-link</code> and need an admin JWT plus the permission from the table above.
+            The
+            <a href="https://github.com/Schero94/strapi-plugin-magic-link-v5#public-api">README</a>
+            lists every route with request and response examples and all error answers.
+          </p>
+        </section>
 
-          <section class="section" id="faq" aria-labelledby="faq-title">
-            <h2 id="faq-title">FAQ</h2>
-            <div class="faq">
-              <details>
-                <summary>Does it replace the Strapi admin login?</summary>
-                <p>
-                  No. Magic Link signs in the users of your app (Users &amp; Permissions accounts).
-                  The Strapi admin login stays as it is.
-                </p>
-              </details>
-              <details>
-                <summary>Do I need a frontend?</summary>
-                <p>
-                  For a good experience, yes: a form that calls <code>send-link</code> and a landing
-                  page that posts the token to <code>/login</code>. Any framework works.
-                </p>
-              </details>
-              <details>
-                <summary>Can new users sign up with a link?</summary>
-                <p>
-                  Yes, when <code>createUserIfNotExists</code>,
-                  <code>allow_magic_links_on_public_registration</code> and the users-permissions
-                  sign-ups are all on.
-                </p>
-              </details>
-              <details>
-                <summary>Does it work with GraphQL?</summary>
-                <p>
-                  The login routes are REST. The JWT they return works for GraphQL like any
-                  users-permissions JWT, and revoked tokens are rejected there too.
-                </p>
-              </details>
-              <details>
-                <summary>Is there a paid version or a key to unlock features?</summary>
-                <p>
-                  No. Every feature is in the npm package. 7.0.0 removed the old optional key field
-                  and deletes a stored key on its first start.
-                </p>
-              </details>
-              <details>
-                <summary>Can I keep password login?</summary>
-                <p>
-                  Yes. <code>/api/auth/local</code> keeps working; the Magic Link MFA settings only
-                  apply to Magic Link logins.
-                </p>
-              </details>
-            </div>
-          </section>
+        <section class="section" id="faq" aria-labelledby="faq-title">
+          <h2 id="faq-title">FAQ</h2>
+          <div class="faq">
+            <details>
+              <summary>Does it replace the Strapi admin login?</summary>
+              <p>
+                No. Magic Link signs in the users of your app (Users &amp; Permissions accounts).
+                The Strapi admin login stays as it is.
+              </p>
+            </details>
+            <details>
+              <summary>Do I need a frontend?</summary>
+              <p>
+                For a good experience, yes: a form that calls <code>send-link</code> and a landing
+                page that posts the token to <code>/login</code>. Any framework works.
+              </p>
+            </details>
+            <details>
+              <summary>Can new users sign up with a link?</summary>
+              <p>
+                Yes, when <code>createUserIfNotExists</code>,
+                <code>allow_magic_links_on_public_registration</code> and the users-permissions
+                sign-ups are all on.
+              </p>
+            </details>
+            <details>
+              <summary>Does it work with GraphQL?</summary>
+              <p>
+                The login routes are REST. The JWT they return works for GraphQL like any
+                users-permissions JWT, and revoked tokens are rejected there too.
+              </p>
+            </details>
+            <details>
+              <summary>Is there a paid version or a key to unlock features?</summary>
+              <p>
+                No. Every feature is in the npm package. 7.0.0 removed the old optional key field
+                and deletes a stored key on its first start.
+              </p>
+            </details>
+            <details>
+              <summary>Can I keep password login?</summary>
+              <p>
+                Yes. <code>/api/auth/local</code> keeps working; the Magic Link MFA settings only
+                apply to Magic Link logins.
+              </p>
+            </details>
+          </div>
+        </section>
 
-          <section class="section" id="releases" aria-labelledby="releases-title">
-            <h2 id="releases-title">Releases and compatibility</h2>
-            <p>
-              7.0.0 removes the optional registration key, its admin page and its two admin routes.
-              Logins, second factors, sessions, <code>context</code> and delivery status are
-              unchanged, and the first start deletes a stored key. Upgrading from 5.x? Work through
-              the 6.0.0 guide first: new secrets, admin permissions, the POST token exchange and
-              template placeholders.
-            </p>
-            <div class="table-wrap">
-              <table>
-                <caption>
-                  Compatibility
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Magic Link</th>
-                    <th scope="col">Strapi</th>
-                    <th scope="col">Node.js</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>7.x</td>
-                    <td>5.50.0 or newer (acceptance host: 5.63.0)</td>
-                    <td>22 to 26</td>
-                  </tr>
-                  <tr>
-                    <td>6.x</td>
-                    <td>5.24.0 or newer</td>
-                    <td>22 to 26</td>
-                  </tr>
-                  <tr>
-                    <td>5.x</td>
-                    <td>5.0.0 or newer</td>
-                    <td>18 to 22</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p>
-              Releases use semantic-release and Conventional Commits and are published to npm with
-              trusted publishing and provenance. Dependabot proposes weekly updates; patch and minor
-              updates merge after lint, tests, build and verify pass. Run the same checks locally:
-            </p>
-            <div class="code-card">
-              <pre><code>npm ci --legacy-peer-deps
+        <section class="section" id="releases" aria-labelledby="releases-title">
+          <h2 id="releases-title">Releases and compatibility</h2>
+          <p>
+            7.0.0 removes the optional registration key, its admin page and its two admin routes.
+            Logins, second factors, sessions, <code>context</code> and delivery status are
+            unchanged, and the first start deletes a stored key. Upgrading from 5.x? Work through
+            the 6.0.0 guide first: new secrets, admin permissions, the POST token exchange and
+            template placeholders.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <caption>
+                Compatibility
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Magic Link</th>
+                  <th scope="col">Strapi</th>
+                  <th scope="col">Node.js</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>7.x</td>
+                  <td>5.50.0 or newer (acceptance host: 5.63.0)</td>
+                  <td>22 to 26</td>
+                </tr>
+                <tr>
+                  <td>6.x</td>
+                  <td>5.24.0 or newer</td>
+                  <td>22 to 26</td>
+                </tr>
+                <tr>
+                  <td>5.x</td>
+                  <td>5.0.0 or newer</td>
+                  <td>18 to 22</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Releases use semantic-release and Conventional Commits and are published to npm with
+            trusted publishing and provenance. Dependabot proposes weekly updates; patch and minor
+            updates merge after lint, tests, build and verify pass. Run the same checks locally:
+          </p>
+          <div class="code-card">
+            <pre><code>npm ci --legacy-peer-deps
 npm run lint &amp;&amp; npm run format:check &amp;&amp; npm test
 npm run build &amp;&amp; npm run verify</code></pre>
-            </div>
-            <p class="link-list">
-              <a
-                href="https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/docs/reference.md#upgrading-from-6x-to-700"
-                >Upgrade to 7.0.0</a
-              ><a
-                href="https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/docs/reference.md#upgrading-from-5x-to-600"
-                >Upgrade from 5.x</a
-              ><a href="https://github.com/Schero94/strapi-plugin-magic-link-v5/releases"
-                >Browse releases</a
-              ><a href="https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/new/choose"
-                >Report an issue</a
-              ><a href="https://www.npmjs.com/package/strapi-plugin-magic-link-v5"
-                >Install from npm</a
-              >
-            </p>
-          </section>
-        </div>
+          </div>
+          <p class="link-list">
+            <a
+              href="https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/docs/reference.md#upgrading-from-6x-to-700"
+              >Upgrade to 7.0.0</a
+            ><a
+              href="https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/docs/reference.md#upgrading-from-5x-to-600"
+              >Upgrade from 5.x</a
+            ><a href="https://github.com/Schero94/strapi-plugin-magic-link-v5/releases"
+              >Browse releases</a
+            ><a href="https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/new/choose"
+              >Report an issue</a
+            ><a href="https://www.npmjs.com/package/strapi-plugin-magic-link-v5"
+              >Install from npm</a
+            >
+          </p>
+        </section>
       </div>
     </main>
     <footer class="footer">
-      <p>
-        <a href="https://github.com/Schero94/strapi-plugin-magic-link-v5">Magic Link on GitHub</a>
-        · MIT License · No telemetry
-      </p>
+      <div class="footer-inner">
+        <div>
+          <p class="footer-name">Magic Link</p>
+          <p>
+            Passwordless login, OTP and TOTP MFA for Strapi 5. MIT licensed, no telemetry,
+            maintained by <a href="https://schero94.github.io/">Schero D.</a>
+          </p>
+          <p>
+            Overview and the other plugins:
+            <a href="https://schero94.github.io/plugins/magic-link/">Magic Link on the plugin hub</a
+            >.
+          </p>
+        </div>
+        <div>
+          <h2>Project</h2>
+          <ul>
+            <li>
+              <a href="https://github.com/Schero94/strapi-plugin-magic-link-v5"
+                >GitHub repository</a
+              >
+            </li>
+            <li>
+              <a href="https://www.npmjs.com/package/strapi-plugin-magic-link-v5">npm package</a>
+            </li>
+            <li>
+              <a
+                href="https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/CHANGELOG.md"
+                >Changelog</a
+              >
+            </li>
+            <li>
+              <a href="https://github.com/Schero94/strapi-plugin-magic-link-v5/issues">Issues</a>
+            </li>
+          </ul>
+        </div>
+        <div>
+          <h2>Docs</h2>
+          <ul>
+            <li>
+              <a href="https://github.com/Schero94/strapi-plugin-magic-link-v5#readme">README</a>
+            </li>
+            <li>
+              <a
+                href="https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/docs/reference.md"
+                >Reference</a
+              >
+            </li>
+            <li>
+              <a href="https://github.com/Schero94/strapi-plugin-magic-link-v5#public-api"
+                >Public API</a
+              >
+            </li>
+            <li><a href="./llms.txt">llms.txt</a></li>
+          </ul>
+        </div>
+      </div>
     </footer>
   </body>
 </html>
