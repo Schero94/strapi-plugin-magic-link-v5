@@ -2,7 +2,7 @@
 
 > Magic Link (npm: strapi-plugin-magic-link-v5, plugin id: magic-link) is a free, MIT-licensed Strapi 5 plugin for passwordless login. Users type their e-mail address, click the link and get a normal Users & Permissions session, the same kind `/api/auth/local` creates. Optional second factors: an e-mailed one-time code (OTP) or an authenticator app (TOTP) with backup codes.
 
-The current version is on npm (link below). The plugin sends no telemetry and makes no outbound calls of its own. It delivers by e-mail only.
+Current version: __PACKAGE_VERSION__ (npm). The plugin sends no telemetry and makes no outbound calls of its own. It delivers by e-mail only.
 
 What it does:
 
