@@ -53,6 +53,7 @@ Your landing page then posts the `loginToken` from the link to `POST /api/magic-
 - [FAQ](#faq)
 - [Troubleshooting](#troubleshooting)
 - [Upgrading](#upgrading)
+- [Showcase your company](#showcase-your-company)
 - [Languages, license and support](#languages-license-and-support)
 
 ## What you get
@@ -510,6 +511,12 @@ The admin panel ships English, German, French, Spanish and Portuguese. API error
 - [From 5.x to 6.0.0](https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/docs/reference.md#upgrading-from-5x-to-600): security release with new secrets, split admin permissions and e-mail-only delivery. Work through the numbered list.
 
 Every release and its changes are listed in the [CHANGELOG](https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/CHANGELOG.md) and on the [releases page](https://github.com/Schero94/strapi-plugin-magic-link-v5/releases).
+
+## Showcase your company
+
+Using Magic Link in production? [Add your company](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/new?template=showcase.yml) to the "Used by" section of the [documentation site](https://schero94.github.io/strapi-plugin-magic-link-v5/#used-by). The form asks for the company name, the website, a logo (PNG, JPEG or WebP, uploaded to the issue) and an optional one-line description.
+
+A maintainer reviews every request and approves it with the `showcase-approved` label. `.github/workflows/showcase.yml` then validates the issue with `.github/scripts/showcase.mjs`, converts the logo to a WebP of at most 320 x 160 pixels and opens a `docs:` pull request that changes `docs/site/showcase.json`. The logo appears on the site after that pull request is merged. Website links carry `rel="ugc noopener"`. To remove an entry, open an issue that names the company; a maintainer then applies the `showcase-remove` label.
 
 ## Languages, license and support
 

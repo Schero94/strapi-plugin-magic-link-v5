@@ -64,3 +64,77 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* "Used by" showcase. .github/scripts/showcase.mjs renders docs/site/showcase.json into
+   #used-by when the Pages workflow builds the site. Logos sit on a light neutral tile in both
+   colour schemes, so dark logos stay visible. Same block in every plugin site. */
+.section .showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 8rem), 1fr));
+  gap: var(--space-4);
+  max-width: none;
+  margin: 0 0 var(--space-5);
+  padding: 0;
+  list-style: none;
+}
+.section .showcase-item {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+}
+.showcase-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 2 / 1;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+.showcase-tile:hover {
+  border-color: var(--accent);
+}
+.showcase-tile img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 100%;
+  object-fit: contain;
+}
+.section .showcase-text {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+}
+.showcase-empty {
+  max-width: var(--measure);
+  padding: var(--space-5);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.section .showcase-cta {
+  margin: 0 0 var(--space-2);
+  font-weight: 650;
+}
+.section .showcase-note {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-s);
+}
+@media (min-width: 821px) {
+  .section .showcase-grid {
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .showcase-tile {
+    border-color: transparent;
+    background: #eef0f4;
+  }
+}
