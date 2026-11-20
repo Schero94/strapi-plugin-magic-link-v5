@@ -1,0 +1,157 @@
+# "Used by" showcase moderation, byte-identical in every plugin repository.
+#
+# A maintainer adds `showcase-approved` to a showcase issue (or `showcase-remove` to an issue that
+# names a listed company). Labels added by accounts without write access are ignored.
+#
+# - prepare: read-only token. Checks the labeller's permission, then .github/scripts/showcase.mjs
+#            reads the issue from $GITHUB_EVENT_PATH as untrusted data, validates the form,
+#            downloads the logo from GitHub's attachment host only and re-encodes it with sharp.
+# - publish: validates that result again, commits it to showcase/<add|remove>-<slug>, opens a pull
+#            request and comments on the issue. A rejection posts the reason and removes the label.
+#
+# Issue text never reaches a shell command line: it is read from the event file or passed through
+# env. The commit type is `docs:`, so merging the pull request publishes no npm release; the merge
+# deploys the Pages site, where pages.yml renders docs/site/showcase.json into static HTML.
+name: Showcase
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+# One run per issue at a time; approvals of different issues run side by side on their own branches.
+concurrency:
+  group: showcase-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.event.label.name == 'showcase-approved' || github.event.label.name == 'showcase-remove'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      action: ${{ steps.validate.outputs.action || steps.access.outputs.action }}
+      result: ${{ steps.validate.outputs.result }}
+    steps:
+      - name: Check who added the label
+        id: access
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SENDER: ${{ github.event.sender.login }}
+        # `permission` maps maintain to write and triage to read.
+        run: |
+          permission="$(gh api "repos/${REPOSITORY}/collaborators/${SENDER}/permission" --jq '.permission' 2>/dev/null || true)"
+          case "$permission" in
+            admin|write)
+              echo 'allowed=true' >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo '::notice::The label was added by an account without write access. Nothing to do.'
+              echo 'action=ignored' >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Checkout
+        if: steps.access.outputs.allowed == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        if: steps.access.outputs.allowed == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      - name: Install sharp
+        if: steps.access.outputs.allowed == 'true' && github.event.label.name == 'showcase-approved'
+        # Exact version, outside the repository, without lifecycle scripts. sharp 0.35 ships
+        # prebuilt libvips binaries as optional dependencies.
+        run: npm install --prefix "$RUNNER_TEMP/showcase-deps" --no-save --no-package-lock --ignore-scripts --no-audit --no-fund sharp@0.35.5
+
+      - name: Validate the issue
+        id: validate
+        if: steps.access.outputs.allowed == 'true'
+        env:
+          SHOWCASE_SHARP_DIR: ${{ runner.temp }}/showcase-deps
+        run: node .github/scripts/showcase.mjs prepare --event "$GITHUB_EVENT_PATH" --site docs/site
+
+  publish:
+    needs: prepare
+    if: contains(fromJSON('["add", "remove", "reject"]'), needs.prepare.outputs.action)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      - name: Apply the result
+        id: apply
+        env:
+          SHOWCASE_RESULT: ${{ needs.prepare.outputs.result }}
+        run: node .github/scripts/showcase.mjs apply --site docs/site --out "$RUNNER_TEMP/showcase"
+
+      - name: Commit and push the branch
+        if: steps.apply.outputs.action == 'add' || steps.apply.outputs.action == 'remove'
+        env:
+          BRANCH: ${{ steps.apply.outputs.branch }}
+          COMMIT_FILE: ${{ steps.apply.outputs.commit_file }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch --create "$BRANCH"
+          git add --all docs/site
+          git commit --file "$COMMIT_FILE"
+          git push --force origin "HEAD:refs/heads/${BRANCH}"
+
+      - name: Open the pull request and comment on the issue
+        if: steps.apply.outputs.action == 'add' || steps.apply.outputs.action == 'remove'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          BASE: ${{ github.event.repository.default_branch }}
+          ISSUE: ${{ github.event.issue.number }}
+          BRANCH: ${{ steps.apply.outputs.branch }}
+          TITLE: ${{ steps.apply.outputs.title }}
+          BODY_FILE: ${{ steps.apply.outputs.body_file }}
+        # Opening pull requests needs "Allow GitHub Actions to create and approve pull requests"
+        # (Settings > Actions > General). Without it, the comment links the ready branch instead.
+        run: |
+          url="$(gh pr list --repo "$REPOSITORY" --head "$BRANCH" --state open --json url --jq '.[0].url // empty')"
+          if [ -z "$url" ]; then
+            url="$(gh pr create --repo "$REPOSITORY" --base "$BASE" --head "$BRANCH" --title "$TITLE" --body-file "$BODY_FILE")" || url=''
+          fi
+          comment="$RUNNER_TEMP/showcase/issue-comment.md"
+          if [ -n "$url" ]; then
+            printf 'Thanks! The pull request for this request is ready for review: %s\n\nThe documentation site changes after it is merged.\n' "$url" > "$comment"
+          else
+            printf 'Thanks! The branch %s is ready for review. Open the pull request here: %s/%s/compare/%s...%s?expand=1\n\nThe documentation site changes after it is merged.\n' "$BRANCH" "$SERVER_URL" "$REPOSITORY" "$BASE" "$BRANCH" > "$comment"
+          fi
+          gh issue comment "$ISSUE" --repo "$REPOSITORY" --body-file "$comment"
+
+      - name: Report the rejection
+        if: steps.apply.outputs.action == 'reject'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+          LABEL: ${{ github.event.label.name }}
+          COMMENT_FILE: ${{ steps.apply.outputs.comment_file }}
+        run: |
+          gh issue comment "$ISSUE" --repo "$REPOSITORY" --body-file "$COMMENT_FILE"
+          gh issue edit "$ISSUE" --repo "$REPOSITORY" --remove-label "$LABEL"

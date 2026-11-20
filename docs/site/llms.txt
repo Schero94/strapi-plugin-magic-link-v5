@@ -41,6 +41,10 @@ npm run build && npm run develop
 
 Admin permissions: `plugin::magic-link.read`, `manage`, `tokens.issue`, `settings.read`, `settings.update`, `settings.security`. The login routes are public (`auth: false`) and protected by rate limits and IP bans. The Strapi admin login is not changed.
 
+## Used by
+
+No companies are listed yet. Using Magic Link in production? Add your company: https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/new?template=showcase.yml
+
 ## Docs
 
 - [Documentation site](https://schero94.github.io/strapi-plugin-magic-link-v5/): overview, screenshots, install, configuration, permissions, security, privacy, several instances, API, FAQ

@@ -9,3 +9,6 @@ contact_links:
   - name: Security vulnerability
     url: https://github.com/Schero94/strapi-plugin-magic-link-v5/security/advisories/new
     about: Report vulnerabilities privately, not as a public issue
+  - name: 🏢 Used by
+    url: https://schero94.github.io/strapi-plugin-magic-link-v5/#used-by
+    about: See the companies that use Magic Link. To add yours, choose "Showcase your company" above.
