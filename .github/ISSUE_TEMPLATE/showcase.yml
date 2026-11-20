@@ -1,0 +1,58 @@
+name: 🏢 Showcase your company
+description: Show your company's logo in the "Used by" section of the Magic Link documentation site.
+title: 'Showcase: '
+labels: ['showcase']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for using Magic Link! This form lists your company in the **Used by** section of the [documentation site](https://schero94.github.io/strapi-plugin-magic-link-v5/#used-by) and in its `llms.txt`.
+
+        - A maintainer reviews every request. After approval, a pull request adds your entry, and it appears on the site once that is merged.
+        - The link to your website carries `rel="ugc"`, as search engines ask for user-submitted links.
+        - Everything you enter here is public. Open an issue at any time to have the entry removed.
+
+  - type: input
+    id: name
+    attributes:
+      label: Company name
+      description: "As it should appear on the site: 2 to 60 characters, letters, digits, spaces and & . , ' ( ) + ! - only."
+      placeholder: Example Co
+    validations:
+      required: true
+
+  - type: input
+    id: website
+    attributes:
+      label: Website
+      description: The company's public website, starting with https://
+      placeholder: https://www.example.com
+    validations:
+      required: true
+
+  - type: textarea
+    id: logo
+    attributes:
+      label: Logo
+      description: Drag one PNG, JPEG or WebP file into this field (at most 500 KB, no SVG, no links to other sites). A wide logo on a transparent or white background works best; it is shown on a light tile at up to 320 x 160 pixels.
+    validations:
+      required: true
+
+  - type: input
+    id: description
+    attributes:
+      label: How you use the plugin (optional)
+      description: One plain-text sentence, at most 140 characters, without links.
+      placeholder: Our editors use it every day in our customer portal.
+
+  - type: checkboxes
+    id: permission
+    attributes:
+      label: Permission
+      options:
+        - label: I am authorised to represent this company and to allow use of its name and logo.
+          required: true
+        - label: The logo and name may be shown publicly on this site and in its llms.txt.
+          required: true
+        - label: Removal can be requested any time via an issue.
+          required: true

@@ -39,6 +39,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Render the showcase
+        # docs/site/showcase.json becomes static HTML, JSON-LD and an llms.txt section, so
+        # crawlers and language models see the "Used by" list without JavaScript.
+        run: node .github/scripts/showcase.mjs render --site docs/site
       - name: Stamp the package version
         # The site source never hardcodes the version: JSON-LD and llms.txt carry
         # __PACKAGE_VERSION__, replaced here with the version from package.json.
