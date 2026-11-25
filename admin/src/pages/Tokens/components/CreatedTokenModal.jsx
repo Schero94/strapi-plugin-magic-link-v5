@@ -129,7 +129,7 @@ export const CreatedTokenModal = ({ data, onClose, getReturnFocusFallback }) => 
         <Modal.Footer justifyContent="flex-end" gap={2}>
           {data.loginUrl ? (
             <Button variant="secondary" size="M" startIcon={<Link />} onClick={copyLink}>
-              {t('tokens.created.copyLink', 'Copy Link')}
+              {t('tokens.created.copyLink', 'Copy link')}
             </Button>
           ) : null}
           <Button variant="success" size="M" onClick={onClose}>

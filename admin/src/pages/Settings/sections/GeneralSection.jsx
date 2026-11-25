@@ -64,7 +64,7 @@ export const GeneralSection = ({ settings, update, disabled, errorFor, statusOn,
         <FieldGrid $columns={2}>
           <SettingField
             name="ui_language"
-            label={t('settings.language.label', 'Interface Language')}
+            label={t('settings.language.label', 'Interface language')}
             hint={t(
               'settings.language.hint',
               'Language of the Magic Link admin pages in this browser. It applies immediately.'
@@ -90,7 +90,7 @@ export const GeneralSection = ({ settings, update, disabled, errorFor, statusOn,
       <Panel>
         <GroupTitle
           align="center"
-          title={t('settings.features.title', 'MAIN FEATURES')}
+          title={t('settings.features.title', 'Main features')}
           subtitle={t(
             'settings.features.subtitle',
             'Enable or disable the main features of the Magic Link plugin'
@@ -98,7 +98,7 @@ export const GeneralSection = ({ settings, update, disabled, errorFor, statusOn,
         />
         <CardGrid $min="240px">
           <ToggleCard
-            title={t('settings.feature.createUser.title', 'Automatically Create Users')}
+            title={t('settings.feature.createUser.title', 'Automatically create users')}
             description={t(
               'settings.feature.createUser.description',
               'Creates an account when the email address is unknown. Follows the Users & Permissions registration and email confirmation settings.'

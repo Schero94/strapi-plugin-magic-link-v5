@@ -97,7 +97,7 @@ const ExtendTokenModal = ({ token, onClose, onSubmit, getReturnFocusFallback }) 
       >
         <Modal.Header closeLabel={t('common.close', 'Close')}>
           <Flex direction="column" alignItems="flex-start" gap={1} minWidth={0}>
-            <Modal.Title>{t('tokens.extend.title', 'Extend Token')}</Modal.Title>
+            <Modal.Title>{t('tokens.extend.title', 'Extend token')}</Modal.Title>
             <Typography variant="pi" textColor="neutral600" ellipsis>
               {token.email}
             </Typography>
@@ -216,7 +216,7 @@ const ExtendTokenModal = ({ token, onClose, onSubmit, getReturnFocusFallback }) 
               loading={isSubmitting}
               disabled={!daysValid}
             >
-              {t('tokens.extend.submit', 'Extend Token')}
+              {t('tokens.extend.submit', 'Extend token')}
             </Button>
           </Modal.Footer>
         </form>

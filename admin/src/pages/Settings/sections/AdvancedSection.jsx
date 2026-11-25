@@ -20,14 +20,14 @@ export const AdvancedSection = ({ settings, update, disabled, statusOn, statusOf
   return (
     <SectionBody>
       <GroupTitle
-        title={t('settings.advanced.title', 'ADDITIONAL OPTIONS')}
+        title={t('settings.advanced.title', 'Additional options')}
         subtitle={t('settings.advanced.subtitle', 'Advanced features for special use cases')}
       />
       <CardGrid $min="260px">
         <ToggleCard
           title={t(
             'settings.advanced.publicRegistration.title',
-            'Magic Links on Public Registration'
+            'Magic links on public registration'
           )}
           description={t(
             'settings.advanced.publicRegistration.description',
@@ -42,7 +42,7 @@ export const AdvancedSection = ({ settings, update, disabled, statusOn, statusOf
         <ToggleCard
           title={t(
             'settings.compatibility.passwordless.title',
-            'Passwordless Plugin Compatibility'
+            'Passwordless plugin compatibility'
           )}
           description={t(
             'settings.compatibility.passwordless.description',
@@ -66,7 +66,7 @@ export const AdvancedSection = ({ settings, update, disabled, statusOn, statusOf
       <Note
         tone="warning"
         icon={Code}
-        title={t('settings.compatibility.migration.title', 'Migration Note')}
+        title={t('settings.compatibility.migration.title', 'Migration note')}
       >
         {t(
           'settings.compatibility.migration.description',

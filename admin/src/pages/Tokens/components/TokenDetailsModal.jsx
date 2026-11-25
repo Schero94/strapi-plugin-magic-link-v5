@@ -69,7 +69,7 @@ export const TokenDetailsModal = ({
     {
       'magic-mail': t('tokens.delivery.channel.magicMail', 'Magic Mail'),
       'email-designer': t('tokens.delivery.channel.emailDesigner', 'Email Designer'),
-      email: t('tokens.delivery.channel.email', 'Strapi e-mail plugin'),
+      email: t('tokens.delivery.channel.email', 'Strapi email plugin'),
     }[token.delivery_channel] ?? null;
 
   return (
@@ -81,7 +81,7 @@ export const TokenDetailsModal = ({
       >
         <ModalHero $background={brand.violetHeroGradient}>
           <Box minWidth={0}>
-            <Modal.Title>{t('tokens.details.title', 'Token Details')}</Modal.Title>
+            <Modal.Title>{t('tokens.details.title', 'Token details')}</Modal.Title>
             <HeroSubtitle>{token.email}</HeroSubtitle>
           </Box>
           <Modal.Close>
@@ -122,7 +122,7 @@ export const TokenDetailsModal = ({
                       <Typography variant="pi" textColor="neutral600">
                         {t(
                           'tokens.delivery.unknownHint',
-                          'Issued without e-mail or before delivery tracking.'
+                          'Issued without email or before delivery tracking.'
                         )}
                       </Typography>
                     ) : (
@@ -185,7 +185,7 @@ export const TokenDetailsModal = ({
             {token.ip_address || token.user_agent ? (
               <Flex direction="column" alignItems="stretch" gap={2}>
                 <SubsectionHeading>
-                  {t('tokens.details.technicalInfo', 'Technical Information')}
+                  {t('tokens.details.technicalInfo', 'Technical information')}
                 </SubsectionHeading>
                 <Panel>
                   <Flex direction="column" alignItems="stretch" gap={2}>
@@ -219,7 +219,7 @@ export const TokenDetailsModal = ({
 
             {hasContext ? (
               <Flex direction="column" alignItems="stretch" gap={2}>
-                <SubsectionHeading>{t('tokens.details.context', 'Context Data')}</SubsectionHeading>
+                <SubsectionHeading>{t('tokens.details.context', 'Context data')}</SubsectionHeading>
                 <CodeBlock>{JSON.stringify(context, null, 2)}</CodeBlock>
               </Flex>
             ) : null}
@@ -235,7 +235,7 @@ export const TokenDetailsModal = ({
                       startIcon={<Plus />}
                       onClick={() => onReissue({ ...token, context: toUserContext(context) })}
                     >
-                      {t('tokens.actions.reactivate', 'New Token')}
+                      {t('tokens.actions.reactivate', 'Issue a new token')}
                     </Button>
                   ) : null}
                   {canExtend ? (

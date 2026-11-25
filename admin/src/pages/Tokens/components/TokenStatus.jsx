@@ -72,7 +72,7 @@ export const getDeliveryLabel = (t, state) => {
     case 'complained':
       return t('tokens.delivery.complained', 'Spam complaint');
     default:
-      return t('tokens.delivery.unknown', 'Unknown');
+      return t('tokens.delivery.unknown', 'Not tracked');
   }
 };
 

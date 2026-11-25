@@ -368,7 +368,7 @@ export const MagicLinksPanel = ({
                 setPending({ type: 'bulkDelete', keys: [...selectedKeys] });
               }}
             >
-              {t('tokens.actions.bulkDelete', 'Delete Selected')}
+              {t('tokens.actions.bulkDelete', 'Delete selected')}
             </Button>
           </Flex>
         </ActionBar>

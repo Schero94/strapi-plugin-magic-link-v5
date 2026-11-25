@@ -186,12 +186,12 @@ export const TokensTable = ({
           {noData && canManage ? (
             <GradientButton type="button" onClick={onCreate}>
               <Plus aria-hidden="true" focusable="false" />
-              {t('tokens.empty.createFirst', 'Create First Token')}
+              {t('tokens.empty.createFirst', 'Create first token')}
             </GradientButton>
           ) : null}
           {!noData && hasFilters ? (
             <Button variant="secondary" size="M" onClick={onResetFilters}>
-              {t('tokens.empty.resetFilters', 'Reset Filters')}
+              {t('tokens.empty.resetFilters', 'Reset filters')}
             </Button>
           ) : null}
         </StatePanel>

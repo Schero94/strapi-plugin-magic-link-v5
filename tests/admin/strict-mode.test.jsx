@@ -120,10 +120,10 @@ test('tokens page: every tab mounts and unmounts cleanly, the create dialog open
     path: '/plugins/magic-link',
     permissions: ALL,
     async whileMounted() {
-      await click(button(/^New Token$/));
+      await click(button(/^New token$/));
       assert.ok(document.querySelector('[role="dialog"]'), 'create dialog is open');
       await click(button('Cancel'));
-      for (const tab of ['OTP Codes', 'JWT Sessions', 'IP Bans']) {
+      for (const tab of ['OTP codes', 'JWT sessions', 'IP bans']) {
         await click(button(tab));
         // The OTP search is debounced; give each tab time to load.
         await act(async () => new Promise((resolve) => setTimeout(resolve, 400)));
@@ -168,10 +168,10 @@ test('tokens page: token details, extend and delete dialogs open and close clean
         );
         await click(button(/^(Cancel|Close)$/));
       }
-      await click(button('IP Bans'));
+      await click(button('IP bans'));
       await act(async () => new Promise((resolve) => setTimeout(resolve, 50)));
       await click(button('Ban IP'));
-      assert.match(document.body.textContent, /Ban IP Address/);
+      assert.match(document.body.textContent, /Ban IP address/);
       await click(button('Cancel'));
     },
   });
@@ -189,7 +189,7 @@ test('tokens page: creating a token sends one POST and shows the one-time token 
     path: '/plugins/magic-link',
     permissions: ALL,
     async whileMounted() {
-      await click(button(/^New Token$/));
+      await click(button(/^New token$/));
       await type(document.querySelector('input[name="create-token-email"]'), 'ada@example.test');
       const form = document.querySelector('[role="dialog"] form');
       await act(async () => form.requestSubmit());
