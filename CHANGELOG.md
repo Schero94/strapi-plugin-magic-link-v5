@@ -1,4 +1,10 @@
-## [Unreleased]
+## [7.1.7](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v7.1.6...v7.1.7) (2026-11-25)
+
+
+### Bug Fixes
+
+* **admin:** clearer click paths, consistent wording and spacing ([#48](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/48)) ([2aded31](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/2aded31745b643b8cc753537dbab25c9b05ca223))
+
 
 ### Changed
 
