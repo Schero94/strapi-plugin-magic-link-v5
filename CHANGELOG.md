@@ -1,4 +1,10 @@
-## [Unreleased]
+## [7.1.6](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v7.1.5...v7.1.6) (2026-11-25)
+
+
+### Bug Fixes
+
+* confirm page against link scanners, linear email and reason helpers, regional SNS hosts only ([#46](https://github.com/Schero94/strapi-plugin-magic-link-v5/issues/46)) ([468b978](https://github.com/Schero94/strapi-plugin-magic-link-v5/commit/468b978db0d8fc03108f196ff83c955c4e0719c2))
+
 
 Release type: patch (`fix`). No breaking change for API clients.
 
