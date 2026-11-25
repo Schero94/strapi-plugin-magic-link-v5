@@ -57,5 +57,10 @@
     "welcome.subjectApp": "Bem-vindo a {app}",
     "welcome.greeting": "Olá {name},",
     "welcome.body": "Obrigado por se cadastrar. Seu link de login está a caminho."
+  },
+  "page": {
+    "confirm.title": "Continuar o início de sessão",
+    "confirm.body": "Selecione o botão para concluir o início de sessão. Esta ligação funciona uma única vez.",
+    "confirm.button": "Iniciar sessão"
   }
 }

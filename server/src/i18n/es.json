@@ -57,5 +57,10 @@
     "welcome.subjectApp": "Bienvenido a {app}",
     "welcome.greeting": "Hola {name}:",
     "welcome.body": "Gracias por registrarte. Tu enlace de inicio de sesión está en camino."
+  },
+  "page": {
+    "confirm.title": "Continuar con el inicio de sesión",
+    "confirm.body": "Selecciona el botón para terminar de iniciar sesión. Este enlace funciona una sola vez.",
+    "confirm.button": "Iniciar sesión"
   }
 }
