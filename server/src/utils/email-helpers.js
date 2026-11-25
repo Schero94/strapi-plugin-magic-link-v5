@@ -178,29 +178,85 @@ const wrapEmailTemplate = (content, options = {}) => {
 </html>`;
 };
 
+/** Elements whose content is not text (dropped with their content). */
+const RAW_TEXT_ELEMENTS = new Set(['script', 'style']);
+/** Entities the e-mail templates and escapeHtml() produce. */
+const TEXT_ENTITIES = Object.freeze({
+  nbsp: ' ',
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  '#39': "'",
+  '#96': '`',
+});
+const MAX_TAG_NAME_LENGTH = 16;
+
 /**
- * Creates a clean, plain text version from HTML
- * @param {string} html - HTML content
- * @returns {string} Plain text version
+ * Lower-case element name right after `<` at `start`, or ''.
+ *
+ * @param {string} source - HTML.
+ * @param {number} start - Index of the first character after `<`.
+ * @returns {string} Element name.
+ */
+const tagNameAt = (source, start) => {
+  let end = start;
+  while (end < source.length && end - start < MAX_TAG_NAME_LENGTH) {
+    const code = source.charCodeAt(end);
+    const isLetter = (code | 0x20) >= 0x61 && (code | 0x20) <= 0x7a;
+    const isDigit = code >= 0x30 && code <= 0x39;
+    if (!isLetter && !isDigit) break;
+    end += 1;
+  }
+  return source.slice(start, end).toLowerCase();
+};
+
+/**
+ * Creates the plain-text part of an e-mail from its HTML part.
+ *
+ * One left-to-right scan instead of regex tag stripping (security audit
+ * 2026-11-25, ML-SEC-02 / CodeQL js/incomplete-multi-character-sanitization,
+ * js/bad-tag-filter, js/double-escaping): tags become spaces, `<script>` and
+ * `<style>` are dropped with their content up to the matching end tag (also
+ * `</script >`), an unterminated tag or raw-text element drops the rest, and
+ * entities are decoded in a single pass, so `&amp;lt;` stays `&lt;`. The
+ * result is only used as `text/plain`, never rendered as HTML. Every index
+ * only moves forward, so it runs in linear time on any input.
+ *
+ * @param {string} html - HTML content.
+ * @returns {string} Plain text version.
  */
 const createPlainTextVersion = (html) => {
-  let text = html
-    // Remove HTML tags
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    // Replace HTML entities
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    // Clean up whitespace
+  const source = String(html ?? '');
+  const lower = source.toLowerCase();
+  const parts = [];
+  let index = 0;
+  while (index < source.length) {
+    const open = source.indexOf('<', index);
+    if (open === -1) {
+      parts.push(source.slice(index));
+      break;
+    }
+    parts.push(source.slice(index, open));
+    const close = source.indexOf('>', open + 1);
+    if (close === -1) break;
+    parts.push(' ');
+    index = close + 1;
+    const name = tagNameAt(source, open + 1);
+    if (RAW_TEXT_ELEMENTS.has(name)) {
+      const end = lower.indexOf(`</${name}`, index);
+      if (end === -1) break;
+      const endClose = source.indexOf('>', end);
+      if (endClose === -1) break;
+      index = endClose + 1;
+    }
+  }
+  return parts
+    .join('')
+    .replace(/&(nbsp|amp|lt|gt|quot|apos|#39|#96);/g, (_entity, name) => TEXT_ENTITIES[name])
     .replace(/\s+/g, ' ')
-    .replace(/\n\s*\n/g, '\n\n')
     .trim();
-
-  return text;
 };
 
 /**
