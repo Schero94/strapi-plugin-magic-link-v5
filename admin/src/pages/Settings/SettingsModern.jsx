@@ -801,7 +801,7 @@ const SettingsModern = () => {
         <StickySaveBar>
           <Flex direction="column" gap={1} alignItems="flex-start" style={{ minWidth: 0 }}>
             <Typography variant="alpha" tag="h1" textColor="neutral800">
-              {t('settings.page.title', 'Magic Link Settings')}
+              {t('settings.page.title', 'Magic Link settings')}
             </Typography>
             <Typography variant="epsilon" textColor="neutral600" tag="p">
               {t('settings.page.subtitle', 'Configure passwordless authentication for your users')}
@@ -847,7 +847,7 @@ const SettingsModern = () => {
               >
                 {isSaving
                   ? t('settings.save.saving', 'Saving...')
-                  : t('settings.save.button', 'Save Changes')}
+                  : t('settings.save.button', 'Save changes')}
               </SaveButton>
             ) : null}
           </HeaderActions>
@@ -873,7 +873,7 @@ const SettingsModern = () => {
             </BannerIcon>
             <Flex direction="column" gap={1} alignItems="flex-start" style={{ minWidth: 0 }}>
               <Typography variant="omega" fontWeight="bold" textColor="neutral800" tag="p">
-                {t('settings.info.header', 'Important Configuration Notes')}
+                {t('settings.info.header', 'Important configuration notes')}
               </Typography>
               <Typography variant="pi" textColor="neutral700" tag="div">
                 <BulletList>
@@ -926,7 +926,7 @@ const SettingsModern = () => {
             <Check aria-hidden="true" />
             <Flex direction="column" gap={1} alignItems="flex-start">
               <Typography variant="omega" fontWeight="bold" textColor="neutral800">
-                {t('settings.footer.quickhelp', 'Quick Help')}
+                {t('settings.footer.quickhelp', 'Quick help')}
               </Typography>
               <Typography variant="pi" textColor="neutral700">
                 {t(
@@ -946,7 +946,7 @@ const SettingsModern = () => {
           'settings.rateLimit.resetConfirm',
           'All blocked IP addresses and email addresses can send requests again immediately.'
         )}
-        confirmLabel={t('settings.rateLimit.reset', 'Reset All Limits')}
+        confirmLabel={t('settings.rateLimit.reset', 'Reset all limits')}
         onConfirm={handleRateLimitReset}
         onClose={() => setConfirmReset(false)}
       />

@@ -1,3 +1,11 @@
+## [Unreleased]
+
+### Changed
+
+* English labels use sentence case like the rest of the admin: the token tabs ("Magic link tokens", "OTP codes", "JWT sessions", "IP bans"), "New token", the create, extend, details and IP ban dialogs, and every settings title. Section titles that were typed in capitals ("RATE LIMITING") are written in sentence case; the Design System still shows group titles in small capitals.
+* The token details action "New Token" reads "Issue a new token", so it is clear that it issues a new link for the same user.
+* One spelling of "email" in English ("Strapi email plugin" was "Strapi e-mail plugin"). The delivery state "Unknown" reads "Not tracked", matching its hint ("Issued without email or before delivery tracking").
+
 ## [7.1.6](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v7.1.5...v7.1.6) (2026-11-25)
 
 

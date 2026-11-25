@@ -369,7 +369,7 @@ const IPBans = () => {
             <EmptyState
               icon={Earth}
               tone="success"
-              title={t('ipban.empty.title', 'No Banned IPs')}
+              title={t('ipban.empty.title', 'No banned IPs')}
               description={
                 canManage
                   ? t(
@@ -397,7 +397,7 @@ const IPBans = () => {
             <StyledTable $hover="danger" colCount={canManage ? 3 : 2} rowCount={pageIPs.length + 1}>
               <Thead>
                 <Tr>
-                  <Th>{t('common.tableHeaders.ipAddress', 'IP Address')}</Th>
+                  <Th>{t('common.tableHeaders.ipAddress', 'IP address')}</Th>
                   <Th>{t('common.status', 'Status')}</Th>
                   {canManage ? (
                     <Th>
@@ -409,7 +409,7 @@ const IPBans = () => {
               <Tbody>
                 {pageIPs.map((ip) => (
                   <Tr key={ip}>
-                    <Td data-label={t('common.tableHeaders.ipAddress', 'IP Address')}>
+                    <Td data-label={t('common.tableHeaders.ipAddress', 'IP address')}>
                       <Flex alignItems="center" gap={2} style={{ minWidth: 0 }}>
                         <Avatar $background={brand.danger} aria-hidden="true">
                           <Lock />
@@ -459,7 +459,7 @@ const IPBans = () => {
             <form onSubmit={handleBanIP} noValidate>
               <Modal.Header closeLabel={t('common.close', 'Close')}>
                 <Flex direction="column" alignItems="flex-start" gap={1}>
-                  <Modal.Title>{t('ipban.modal.title', 'Ban IP Address')}</Modal.Title>
+                  <Modal.Title>{t('ipban.modal.title', 'Ban IP address')}</Modal.Title>
                   <Typography variant="pi" textColor="neutral600">
                     {t('ipban.modal.subtitle', 'Add an IP address to the block list')}
                   </Typography>
@@ -482,7 +482,7 @@ const IPBans = () => {
                     error={ipError}
                     hint={t('ipban.modal.hint', 'Enter an IPv4 or IPv6 address')}
                   >
-                    <Field.Label>{t('ipban.modal.label', 'IP Address')}</Field.Label>
+                    <Field.Label>{t('ipban.modal.label', 'IP address')}</Field.Label>
                     <MonoInput
                       autoFocus
                       autoComplete="off"

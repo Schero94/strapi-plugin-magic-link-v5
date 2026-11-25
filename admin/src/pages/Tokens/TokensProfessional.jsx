@@ -151,25 +151,25 @@ const TokensProfessional = () => {
     {
       id: 'magic-links',
       icon: Key,
-      label: t('tokens.tabs.magicLinks', 'Magic Link Tokens'),
+      label: t('tokens.tabs.magicLinks', 'Magic link tokens'),
       shortLabel: t('tokens.tabs.magicLinksShort', 'Links'),
     },
     {
       id: 'otp-codes',
       icon: Lock,
-      label: t('tokens.tabs.otpCodes', 'OTP Codes'),
+      label: t('tokens.tabs.otpCodes', 'OTP codes'),
       shortLabel: t('tokens.tabs.otpCodesShort', 'OTP'),
     },
     {
       id: 'jwt-sessions',
       icon: Shield,
-      label: t('tokens.tabs.jwtSessions', 'JWT Sessions'),
+      label: t('tokens.tabs.jwtSessions', 'JWT sessions'),
       shortLabel: t('tokens.tabs.jwtSessionsShort', 'JWT'),
     },
     {
       id: 'ip-bans',
       icon: Earth,
-      label: t('tokens.tabs.ipBans', 'IP Bans'),
+      label: t('tokens.tabs.ipBans', 'IP bans'),
       shortLabel: t('tokens.tabs.ipBansShort', 'IP'),
     },
   ];
@@ -190,7 +190,7 @@ const TokensProfessional = () => {
             <Box minWidth={0}>
               <Title tag="h1">
                 <Sparkle aria-hidden="true" focusable="false" />
-                {t('tokens.page.title', 'Token Management')}
+                {t('tokens.page.title', 'Token management')}
               </Title>
               <Subtitle tag="p">
                 {t(
@@ -207,7 +207,7 @@ const TokensProfessional = () => {
                   onClick={() => setIsCreateOpen(true)}
                 >
                   <Sparkle aria-hidden="true" focusable="false" />
-                  {t('tokens.actions.newToken', 'New Token')}
+                  {t('tokens.actions.newToken', 'New token')}
                 </HeaderButton>
               ) : null}
               <HeaderButton

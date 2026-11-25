@@ -676,8 +676,8 @@ const JWTSessions = () => {
                   >
                     <SortHeader>{t('common.user', 'User')}</SortHeader>
                   </Th>
-                  <Th>{t('common.tableHeaders.ipAddress', 'IP Address')}</Th>
-                  <Th>{t('common.userAgent', 'User Agent')}</Th>
+                  <Th>{t('common.tableHeaders.ipAddress', 'IP address')}</Th>
+                  <Th>{t('common.userAgent', 'User agent')}</Th>
                   <Th
                     aria-sort={ariaSort('status')}
                     action={sortButton(
@@ -703,7 +703,7 @@ const JWTSessions = () => {
                       t('common.tableHeaders.sortByExpiry', 'Sort by expiry date')
                     )}
                   >
-                    <SortHeader>{t('common.expiresAt', 'Expires At')}</SortHeader>
+                    <SortHeader>{t('common.expiresAt', 'Expires at')}</SortHeader>
                   </Th>
                   {canManage ? (
                     <Th>
@@ -748,12 +748,12 @@ const JWTSessions = () => {
                           </Flex>
                         </Flex>
                       </Td>
-                      <Td data-label={t('common.tableHeaders.ipAddress', 'IP Address')}>
+                      <Td data-label={t('common.tableHeaders.ipAddress', 'IP address')}>
                         <Typography variant="pi" textColor="neutral600">
                           {session.ipAddress || t('jwt.unknownValue', 'Unknown')}
                         </Typography>
                       </Td>
-                      <Td className="cell-agent" data-label={t('common.userAgent', 'User Agent')}>
+                      <Td className="cell-agent" data-label={t('common.userAgent', 'User agent')}>
                         <Flex alignItems="center" gap={1} style={{ minWidth: 0 }}>
                           <Monitor
                             aria-hidden="true"
@@ -786,7 +786,7 @@ const JWTSessions = () => {
                           <Typography variant="pi">{formatDateTime(session.createdAt)}</Typography>
                         </Flex>
                       </Td>
-                      <Td className="cell-date" data-label={t('common.expiresAt', 'Expires At')}>
+                      <Td className="cell-date" data-label={t('common.expiresAt', 'Expires at')}>
                         <Flex alignItems="center" gap={1}>
                           <Clock
                             aria-hidden="true"

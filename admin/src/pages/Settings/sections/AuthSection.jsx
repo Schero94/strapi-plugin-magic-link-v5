@@ -22,7 +22,7 @@ export const AuthSection = ({ settings, update, disabled, errorFor, statusOn, st
   const toggles = [
     {
       key: 'verify_email',
-      title: t('settings.auth.verifyEmail.title', 'Email Verification'),
+      title: t('settings.auth.verifyEmail.title', 'Email verification'),
       description: t(
         'settings.auth.verifyEmail.description',
         'Users must confirm their email address before they can sign in.'
@@ -30,7 +30,7 @@ export const AuthSection = ({ settings, update, disabled, errorFor, statusOn, st
     },
     {
       key: 'welcome_email',
-      title: t('settings.auth.welcomeEmail.title', 'Welcome Email'),
+      title: t('settings.auth.welcomeEmail.title', 'Welcome email'),
       description: t(
         'settings.auth.welcomeEmail.description',
         'Sends a welcome email to newly created users.'
@@ -46,7 +46,7 @@ export const AuthSection = ({ settings, update, disabled, errorFor, statusOn, st
     },
     {
       key: 'store_login_info',
-      title: t('settings.auth.storeLoginInfo.title', 'Store Login Data'),
+      title: t('settings.auth.storeLoginInfo.title', 'Store login data'),
       description: t(
         'settings.auth.storeLoginInfo.description',
         'Stores the IP address and browser of each login for security monitoring.'
@@ -59,7 +59,7 @@ export const AuthSection = ({ settings, update, disabled, errorFor, statusOn, st
       <Panel>
         <GroupTitle
           align="center"
-          title={t('settings.auth.options.title', 'AUTHENTICATION OPTIONS')}
+          title={t('settings.auth.options.title', 'Authentication options')}
           subtitle={t(
             'settings.auth.options.subtitle',
             'Configure how users are authenticated and managed'
@@ -85,7 +85,7 @@ export const AuthSection = ({ settings, update, disabled, errorFor, statusOn, st
       <FieldGrid $columns={2}>
         <SettingField
           name="user_creation_strategy"
-          label={t('settings.auth.strategy.label', 'User Creation Strategy')}
+          label={t('settings.auth.strategy.label', 'User creation strategy')}
           hint={t(
             'settings.auth.strategy.hint',
             'Used when an administrator creates a link for an unknown email address.'

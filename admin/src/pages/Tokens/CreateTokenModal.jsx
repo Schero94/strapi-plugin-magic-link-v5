@@ -122,7 +122,7 @@ const CreateTokenModal = ({ isOpen, defaultTtl, onClose, onSubmit }) => {
           aria-describedby={undefined}
         >
           <Modal.Header closeLabel={t('common.close', 'Close')}>
-            <Modal.Title>{t('tokens.create.title', 'Create Magic Link Token')}</Modal.Title>
+            <Modal.Title>{t('tokens.create.title', 'Create a magic link token')}</Modal.Title>
           </Modal.Header>
           <form onSubmit={handleSubmit} autoComplete="off" noValidate>
             <Modal.Body>
@@ -159,7 +159,7 @@ const CreateTokenModal = ({ isOpen, defaultTtl, onClose, onSubmit }) => {
                   )}
                 >
                   <Field.Label>
-                    {t('tokens.create.ttl.label', 'Validity Period (Hours)')}
+                    {t('tokens.create.ttl.label', 'Validity period (hours)')}
                   </Field.Label>
                   <NumberInput
                     value={form.ttl}
@@ -181,7 +181,7 @@ const CreateTokenModal = ({ isOpen, defaultTtl, onClose, onSubmit }) => {
                   )}
                 >
                   <Field.Label>
-                    {t('tokens.create.context.label', 'JSON Context (Optional)')}
+                    {t('tokens.create.context.label', 'JSON context (optional)')}
                   </Field.Label>
                   <Textarea
                     placeholder={t('tokens.create.context.placeholder', '\'{ "key": "value" }\'')}
@@ -240,7 +240,7 @@ const CreateTokenModal = ({ isOpen, defaultTtl, onClose, onSubmit }) => {
                 <Sparkle aria-hidden="true" focusable="false" />
                 {isSubmitting
                   ? t('tokens.create.submitting', 'Creating...')
-                  : t('tokens.create.submit', 'Create Token')}
+                  : t('tokens.create.submit', 'Create token')}
               </GradientButton>
             </Modal.Footer>
           </form>

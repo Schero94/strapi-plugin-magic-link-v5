@@ -54,7 +54,7 @@ export const RateLimitSection = ({
       <Panel>
         <GroupTitle
           align="center"
-          title={t('settings.rateLimit.title', 'RATE LIMITING')}
+          title={t('settings.rateLimit.title', 'Rate limiting')}
           subtitle={t(
             'settings.rateLimit.subtitle',
             'Prevent abuse by limiting the number of requests per IP address and email'
@@ -62,7 +62,7 @@ export const RateLimitSection = ({
         />
         <CardGrid $min="260px">
           <ToggleCard
-            title={t('settings.rateLimit.enable.title', 'Enable Rate Limiting')}
+            title={t('settings.rateLimit.enable.title', 'Enable rate limiting')}
             description={t(
               'settings.rateLimit.enable.description',
               'Protects against brute-force attacks and spam by limiting login link requests.'
@@ -98,7 +98,7 @@ export const RateLimitSection = ({
         </SettingField>
         <SettingField
           name="rate_limit_window_minutes"
-          label={t('settings.rateLimit.windowMinutes.label', 'Time Window (Minutes)')}
+          label={t('settings.rateLimit.windowMinutes.label', 'Time window (minutes)')}
           hint={t(
             'settings.rateLimit.windowMinutes.hint',
             'Period in which requests are counted (1 to 10,080 minutes).'
@@ -116,7 +116,7 @@ export const RateLimitSection = ({
         </SettingField>
       </FieldGrid>
 
-      <GroupTitle title={t('settings.rateLimit.stats.title', 'CURRENT STATISTICS')} />
+      <GroupTitle title={t('settings.rateLimit.stats.title', 'Current statistics')} />
       {stats.status === 'loading' || stats.status === 'idle' ? (
         <Flex justifyContent="center" padding={4}>
           <Loader small>{t('settings.rateLimit.stats.loading', 'Loading statistics...')}</Loader>
@@ -143,12 +143,12 @@ export const RateLimitSection = ({
             <Stat
               tone="neutral"
               value={value('totalEntries')}
-              label={t('settings.rateLimit.stats.total', 'Total Entries')}
+              label={t('settings.rateLimit.stats.total', 'Total entries')}
             />
             <Stat
               tone="danger"
               value={value('blocked')}
-              label={t('settings.rateLimit.stats.blocked', 'Currently Blocked')}
+              label={t('settings.rateLimit.stats.blocked', 'Currently blocked')}
             />
             <Stat
               tone="primary"
@@ -158,7 +158,7 @@ export const RateLimitSection = ({
             <Stat
               tone="success"
               value={value('emailLimits')}
-              label={t('settings.rateLimit.stats.emailLimits', 'Email Limits')}
+              label={t('settings.rateLimit.stats.emailLimits', 'Email limits')}
             />
           </CardGrid>
           <Typography variant="pi" textColor="neutral600">
@@ -184,7 +184,7 @@ export const RateLimitSection = ({
                 onClick={onRequestReset}
                 startIcon={<Trash />}
               >
-                {t('settings.rateLimit.reset', 'Reset All Limits')}
+                {t('settings.rateLimit.reset', 'Reset all limits')}
               </Button>
             </Flex>
           ) : null}

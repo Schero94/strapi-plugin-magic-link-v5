@@ -585,7 +585,7 @@ const OTPCodes = () => {
                   <Th>{t('common.status', 'Status')}</Th>
                   <Th>{t('otp.table.attempts', 'Attempts')}</Th>
                   <Th>{t('common.created', 'Created')}</Th>
-                  <Th>{t('common.expiresAt', 'Expires At')}</Th>
+                  <Th>{t('common.expiresAt', 'Expires at')}</Th>
                   {canManage ? (
                     <Th>
                       <VisuallyHidden>{t('common.actions', 'Actions')}</VisuallyHidden>
@@ -642,7 +642,7 @@ const OTPCodes = () => {
                       <Td className="cell-date" data-label={t('common.created', 'Created')}>
                         <Typography variant="pi">{formatDateTime(code.createdAt)}</Typography>
                       </Td>
-                      <Td className="cell-date" data-label={t('common.expiresAt', 'Expires At')}>
+                      <Td className="cell-date" data-label={t('common.expiresAt', 'Expires at')}>
                         <Typography
                           variant="pi"
                           textColor={status === 'expired' ? 'danger600' : 'neutral800'}

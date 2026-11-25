@@ -187,7 +187,7 @@ export const EmailSection = ({
       )}
 
       <GroupTitle
-        title={t('settings.email.sender.title', 'SENDER INFORMATION')}
+        title={t('settings.email.sender.title', 'Sender information')}
         subtitle={t(
           'settings.email.sender.subtitle',
           'This information appears in emails sent to users'
@@ -196,7 +196,7 @@ export const EmailSection = ({
       <FieldGrid $columns={3}>
         <SettingField
           name="from_name"
-          label={t('settings.email.fromName.label', 'Sender Name')}
+          label={t('settings.email.fromName.label', 'Sender name')}
           hint={t(
             'settings.email.fromName.hint',
             'The name users see as the sender, such as your app name.'
@@ -213,7 +213,7 @@ export const EmailSection = ({
         </SettingField>
         <SettingField
           name="from_email"
-          label={t('settings.email.fromEmail.label', 'Sender Email')}
+          label={t('settings.email.fromEmail.label', 'Sender email')}
           hint={t(
             'settings.email.fromEmail.hint',
             'Must be an address your email provider may send from. Leave empty to use the provider default.'
@@ -404,7 +404,7 @@ export const EmailSection = ({
       <Flex direction="column" gap={4} alignItems="stretch">
         <Flex gap={2} alignItems="center" wrap="wrap">
           <GroupTitle
-            title={t('settings.email.templates.title', 'EMAIL TEMPLATES')}
+            title={t('settings.email.templates.title', 'Email templates')}
             subtitle={
               usingThirdParty
                 ? t(
@@ -564,7 +564,7 @@ export const EmailSection = ({
                   >
                     {t('settings.email.html.title', 'HTML template')}
                   </SubsectionHeading>
-                  <Badge variant="success">{t('settings.email.html.badge', 'Main Template')}</Badge>
+                  <Badge variant="success">{t('settings.email.html.badge', 'Main template')}</Badge>
                 </Flex>
                 <Button
                   variant="tertiary"
@@ -577,7 +577,7 @@ export const EmailSection = ({
                     })
                   }
                 >
-                  {t('settings.email.html.loadDefault', 'Load Default Template')}
+                  {t('settings.email.html.loadDefault', 'Load default template')}
                 </Button>
               </Flex>
               <Typography
@@ -626,7 +626,7 @@ export const EmailSection = ({
                     })
                   }
                 >
-                  {t('settings.email.html.copy', 'Copy Template')}
+                  {t('settings.email.html.copy', 'Copy template')}
                 </Button>
               </Flex>
             </Card>
@@ -654,7 +654,7 @@ export const EmailSection = ({
                     })
                   }
                 >
-                  {t('settings.email.text.loadDefault', 'Load Default Template')}
+                  {t('settings.email.text.loadDefault', 'Load default template')}
                 </Button>
               </Flex>
               <Typography
@@ -695,7 +695,7 @@ export const EmailSection = ({
                     })
                   }
                 >
-                  {t('settings.email.text.copy', 'Copy Template')}
+                  {t('settings.email.text.copy', 'Copy template')}
                 </Button>
               </Flex>
             </Card>
