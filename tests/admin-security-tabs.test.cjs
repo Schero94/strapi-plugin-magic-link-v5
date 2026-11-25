@@ -165,7 +165,7 @@ test('OTP rows never keep the stored code hash or magic-link token (UI-17)', () 
   assert.equal('magicLinkToken' in row, false);
   assert.equal(row.attempts, 2);
   assert.equal(row.used, false);
-  assert.equal(row.createdAt, past.replace('.000Z', '.000Z'));
+  assert.equal(row.createdAt, past, 'created_at maps to createdAt unchanged');
   assert.equal(utils.getOtpReference(row), 'ABCD1234');
   assert.equal(utils.getOtpReference({ id: 9 }), '#9');
 });
