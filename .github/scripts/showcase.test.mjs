@@ -16,6 +16,7 @@ import {
   CONSENT_OPTIONS,
   FORM_HEADINGS,
   LABELS,
+  SLIDER_MIN,
   ShowcaseError,
   apply,
   checkStoredLogo,
@@ -30,6 +31,7 @@ import {
   prepare,
   readImageInfo,
   readShowcase,
+  renderShowcaseHtml,
   renderSite,
   slugify,
   validateConsent,
@@ -177,14 +179,16 @@ function makeSite() {
     </script>
   </head>
   <body>
-    <main id="main-content">
-      <section class="section" id="used-by" aria-labelledby="used-by-title" data-plugin="Example Plugin">
+    <div class="hero-copy">
+      <h1>Example Plugin</h1>
+      <section class="used-by" id="used-by" aria-labelledby="used-by-title" data-plugin="Example Plugin">
         <h2 id="used-by-title">Used by</h2>
         <!-- showcase:start -->
         <p>old</p>
         <!-- showcase:end -->
       </section>
-    </main>
+    </div>
+    <main id="main-content"></main>
   </body>
 </html>
 `
@@ -537,14 +541,19 @@ test('end to end: approve, apply, render, then remove again', async () => {
     const html = readFileSync(path.join(site, 'index.html'), 'utf8');
     assert.match(
       html,
-      /<a class="showcase-tile" href="https:\/\/www\.example\.com\/" rel="ugc noopener">/
+      /<a class="showcase-tile" href="https:\/\/www\.example\.com\/" rel="ugc noopener" title="Editors share saved list views across three teams\.">/
     );
     assert.match(
       html,
-      /<img src="\.\/showcase\/example-co\.png" alt="Example Co" width="300" height="120" loading="lazy" decoding="async" \/>/
+      /<img src="\.\/showcase\/example-co\.png" alt="Example Co" width="300" height="120" decoding="async" \/>/
     );
     assert.doesNotMatch(html, /target=/);
-    assert.match(html, /Using Example Plugin in production\?/);
+    assert.match(
+      html,
+      /<ul class="showcase-row" role="list" aria-label="Companies that use Example Plugin">/
+    );
+    assert.doesNotMatch(html, /showcase-marquee|<ul[^>]*aria-hidden|tabindex/);
+    assert.match(html, /Add your logo<span aria-hidden="true"> →<\/span><\/a>/);
     assert.match(
       html,
       /https:\/\/github\.com\/Example\/Example-Plugin\/issues\/new\?template=showcase\.yml/
@@ -600,8 +609,11 @@ test('end to end: approve, apply, render, then remove again', async () => {
 
     renderSite(site, { packageFile: path.join(root, 'package.json') });
     const empty = readFileSync(path.join(site, 'index.html'), 'utf8');
-    assert.match(empty, /class="showcase-empty"/);
-    assert.match(empty, /Add your company<\/a>/);
+    assert.match(
+      empty,
+      /<p class="showcase-empty">Using Example Plugin in production\? <a class="showcase-add" href="https:\/\/github\.com\/Example\/Example-Plugin\/issues\/new\?template=showcase\.yml">Show your logo here/
+    );
+    assert.doesNotMatch(empty, /showcase-tile/);
     assert.doesNotMatch(empty, /"mentions"/);
     assert.match(readFileSync(path.join(site, 'llms.txt'), 'utf8'), /No companies are listed yet/);
   } finally {
@@ -704,6 +716,56 @@ test('apply: a tampered prepare result is rejected', () => {
   } finally {
     cleanup();
   }
+});
+
+test('render: still row below SLIDER_MIN logos, slider with an aria-hidden loop copy from it', () => {
+  const info = {
+    pluginName: 'Example <Plugin>',
+    formUrl: 'https://github.com/Example/Example-Plugin/issues/new?template=showcase.yml',
+  };
+  const make = (count) =>
+    Array.from({ length: count }, (_, index) => ({
+      name: `Example ${String.fromCharCode(65 + index)}`,
+      url: `https://${String.fromCharCode(97 + index)}.example.com/`,
+      logo: `showcase/example-${String.fromCharCode(97 + index)}.webp`,
+      description: '',
+      issue: index + 1,
+      addedAt: '2026-11-25',
+    }));
+  const sizes = (entries) =>
+    new Map(entries.map((entry) => [entry.logo, { width: 200, height: 80 }]));
+  const count = (html, pattern) => (html.match(pattern) ?? []).length;
+
+  assert.ok(SLIDER_MIN >= 5, 'two to four logos must never move');
+  const few = make(SLIDER_MIN - 1);
+  const row = renderShowcaseHtml(few, info, sizes(few), '  ');
+  assert.match(row, /^<!-- showcase:start -->\n {2}<p class="showcase-more">/);
+  assert.match(row, /\n {2}<!-- showcase:end -->$/);
+  assert.match(
+    row,
+    /<ul class="showcase-row" role="list" aria-label="Companies that use Example &lt;Plugin&gt;">/
+  );
+  assert.equal(count(row, /class="showcase-tile"/g), SLIDER_MIN - 1);
+  assert.doesNotMatch(row, /showcase-marquee|<ul[^>]*aria-hidden|tabindex/);
+
+  const many = make(SLIDER_MIN + 3);
+  const slider = renderShowcaseHtml(many, info, sizes(many));
+  assert.match(
+    slider,
+    /<div class="showcase-marquee" data-count="8">\n {2}<div class="showcase-track">/
+  );
+  assert.equal(count(slider, /<ul class="showcase-list" role="list"/g), 2);
+  assert.equal(count(slider, /<ul class="showcase-list" role="list" aria-hidden="true">/g), 1);
+  // Each company once in the accessible list, once more in the hidden loop copy.
+  assert.equal(count(slider, /class="showcase-tile"/g), many.length * 2);
+  const [visible, hidden] = slider.split(
+    '<ul class="showcase-list" role="list" aria-hidden="true">'
+  );
+  assert.equal(count(visible, /tabindex/g), 0);
+  assert.equal(count(hidden, /class="showcase-tile"[^>]*tabindex="-1"/g), many.length);
+  assert.equal(count(slider, /rel="ugc noopener"/g), many.length * 2);
+  assert.equal(count(slider, /alt="Example [A-Z]"/g), many.length * 2);
+  assert.doesNotMatch(slider, /<script|style=|target=/);
 });
 
 test('render: refuses hand-edited data that is not safe to publish', () => {
