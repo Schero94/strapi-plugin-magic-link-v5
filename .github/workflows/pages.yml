@@ -16,24 +16,27 @@ on:
 permissions:
   contents: read
 
+# One Pages deployment at a time, as in the official starter workflows: a newer
+# run waits for the running one instead of cancelling a deployment mid-flight.
+# Only the latest waiting run is kept, so a push and the follow-up run after a
+# release collapse into one deployment of the newest commit.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  deploy:
+  # Build and deploy are separate jobs, the layout of the official Pages starter
+  # workflows and the actions/deploy-pages README. deploy-pages finds the
+  # github-pages artifact by name, and a lookup straight after the upload in the
+  # same job can come back empty (actions/deploy-pages#451).
+  build:
     # Deploy after a successful Release run triggered by a push to main only.
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -56,6 +59,29 @@ jobs:
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: docs/site
+
+  deploy:
+    # Skipped together with build when the Release condition above is not met.
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment-retry.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
+        # A freshly uploaded artifact can take a few seconds to show up in the
+        # lookup (actions/deploy-pages#451), so a failed attempt is retried once
+        # below. The retry reuses the uploaded artifact; it never uploads again.
+        continue-on-error: true
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+      - name: Wait before retrying the deployment
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 45
+      - name: Retry the deployment
+        id: deployment-retry
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
