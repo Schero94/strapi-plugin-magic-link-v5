@@ -31,6 +31,8 @@ const DELIVERY_STATUSES = Object.freeze(['sent', 'rejected', 'failed', 'queued']
 const FEEDBACK_STATUSES = Object.freeze(['bounced', 'complained']);
 const DELIVERY_CHANNELS = Object.freeze(['magic-mail', 'email-designer', 'email']);
 const MAX_REASON_LENGTH = 64;
+/** Longer reason input is cut before normalising (codes are short). */
+const MAX_REASON_INPUT_LENGTH = 256;
 const MAX_MESSAGE_ID_LENGTH = 255;
 
 /** Credential or configuration problems on our side: never the recipient's fault. */
@@ -45,11 +47,18 @@ const REJECTING_HTTP_STATUS = new Set([400, 406, 413, 422]);
  */
 const toReasonCode = (value) => {
   if (typeof value !== 'string') return null;
-  const code = value
+  // Bounded input and a loop instead of /^_+|_+$/, which is quadratic on
+  // long underscore runs (security audit 2026-11-25, ML-SEC-03).
+  const mapped = value
+    .slice(0, MAX_REASON_INPUT_LENGTH)
     .trim()
     .toUpperCase()
-    .replace(/[^A-Z0-9_]+/g, '_')
-    .replace(/^_+|_+$/g, '');
+    .replace(/[^A-Z0-9_]+/g, '_');
+  let start = 0;
+  let end = mapped.length;
+  while (start < end && mapped[start] === '_') start += 1;
+  while (end > start && mapped[end - 1] === '_') end -= 1;
+  const code = mapped.slice(start, end);
   if (!code) return null;
   return code.slice(0, MAX_REASON_LENGTH);
 };

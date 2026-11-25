@@ -26,6 +26,7 @@ const { requiredChallenge, challengeSatisfiesPolicy } = require('../utils/challe
 const { filterContext } = require('../utils/context-policy');
 const { issueLoginSession, setNoStoreHeaders } = require('../utils/login-session');
 const { claimUnconfirmedAccount } = require('../utils/account-claim');
+const { wantsConfirmationPage, sendConfirmationPage } = require('../utils/login-confirm-page');
 const {
   sendLinkSchema,
   loginExchangeSchema,
@@ -219,7 +220,9 @@ module.exports = {
    *
    * POST /api/magic-link/login { loginToken } is the recommended call from a
    * frontend landing page. GET /api/magic-link/login?loginToken=... is kept
-   * for compatibility (the token then appears in access logs).
+   * for API clients (the token then appears in access logs). A GET that asks
+   * for an HTML page (browser navigation, mail link scanner) only gets a
+   * confirm page whose form POSTs the token; it never consumes the link.
    *
    * @param {object} ctx - Koa context.
    * @returns {Promise<void>}
@@ -229,6 +232,13 @@ module.exports = {
     const loginToken = readLoginToken(ctx);
     if (!loginToken) {
       return i18n.sendError(ctx, 'token.invalid', 400);
+    }
+
+    // Page navigations (browsers, and mail scanners that imitate them) get a
+    // confirm page; only the confirmed POST consumes the link (ML-SEC-01).
+    if (wantsConfirmationPage(ctx)) {
+      sendConfirmationPage(ctx, loginToken);
+      return undefined;
     }
 
     if (!(await allowRequest(ctx, ctx.request.ip, 'login'))) return undefined;

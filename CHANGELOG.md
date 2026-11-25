@@ -1,3 +1,19 @@
+## [Unreleased]
+
+Release type: patch (`fix`). No breaking change for API clients.
+
+### Security
+
+* **Login links are no longer used up by mail link scanners (ML-SEC-01, medium).** Without `frontend_url` the e-mailed link points at `GET /api/magic-link/login?loginToken=...`. Mail security scanners and link previews open every link before the recipient does: the GET consumed the single-use link, the scanner received the session JWT, and the user's own click failed. A GET that asks for an HTML page (a browser navigation, `Accept: text/html` or `Sec-Fetch-Dest: document`) now gets a small confirm page with a "Log in" button; nothing is looked up or consumed until that button POSTs the token to the same route. The page has no script, works under Strapi's default Content-Security-Policy and is translated (de, en, es, fr, pt).
+* **Plain-text e-mail fallback in linear time (ML-SEC-02, low, CodeQL 5-8).** When `message_text` is empty, the text part is now built by one left-to-right scan instead of regex tag stripping. The old code took several seconds on large templates with many `<style` fragments, decoded entities twice (`&amp;lt;` became `<`) and missed `</script >`. Only a template set by an admin with `settings.security` could reach it; the text part was never rendered as HTML.
+* **Reason codes in linear time (ML-SEC-03, low, CodeQL 3).** `toReasonCode` caps its input and trims underscores without the quadratic `/_+$/` pattern. Its callers only pass short provider codes, so it was not reachable from outside.
+* **SNS certificate host check (ML-SEC-04, low).** SES bounce webhooks accepted signing certificates and subscribe URLs from any `sns.<label>.amazonaws.com` host, including `sns.s3.amazonaws.com`, which is the S3 bucket named "sns" and belongs to a third party. Only regional SNS endpoints (`sns.<region>.amazonaws.com`, `.com.cn` in China) are accepted now. A forged notification could only have changed the delivery status shown for a token.
+
+### Migration
+
+* Nothing to do for frontends that POST the token (the recommended flow) or call the GET route from code (`fetch` sends `Accept: */*`).
+* If your e-mailed link points straight at `GET /api/magic-link/login` (no `frontend_url`), users now see a confirm page and select "Log in" before the JSON answer appears. An API client that sends `Accept: text/html` on purpose and wants the old exchange must send `Accept: application/json` instead.
+
 ## [7.1.5](https://github.com/Schero94/strapi-plugin-magic-link-v5/compare/v7.1.4...v7.1.5) (2026-11-18)
 
 

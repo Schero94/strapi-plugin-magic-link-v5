@@ -28,8 +28,16 @@ const crypto = require('crypto');
 /** Accepted clock skew / delivery delay for signed timestamps (seconds). */
 const MAX_WEBHOOK_AGE_SECONDS = 60 * 60;
 
-/** SNS signing certificates and subscribe URLs live on these hosts only. */
-const SNS_HOST = /^sns\.[a-z0-9-]+\.amazonaws\.com(\.cn)?$/;
+/**
+ * SNS signing certificates and subscribe URLs live on the regional SNS
+ * endpoints only: `sns.<region>.amazonaws.com` (`.com.cn` in China), e.g.
+ * `sns.us-east-1`, `sns.us-gov-west-1`, `sns.cn-north-1`. The region label
+ * must look like a region (letters, dash-separated words, a final number):
+ * the earlier `[a-z0-9-]+` also accepted S3 hosts such as
+ * `sns.s3.amazonaws.com`, the bucket named "sns", which belongs to someone
+ * else (security audit 2026-11-25, ML-SEC-04).
+ */
+const SNS_HOST = /^sns\.[a-z]{2,4}(?:-[a-z]+)+-\d{1,2}\.amazonaws\.com(?:\.cn)?$/;
 const SNS_TYPES = new Set(['Notification', 'SubscriptionConfirmation', 'UnsubscribeConfirmation']);
 
 /**

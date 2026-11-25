@@ -292,7 +292,7 @@ const me = await fetch('https://api.example.com/api/users/me', {
 
 Anything in web storage can be read by a script injected into your page. If that matters for you, keep the JWT in memory and use [refresh mode](#refresh-mode-users-permissions-sessions) with the refresh token in an httpOnly cookie.
 
-`GET /api/magic-link/login?loginToken=...` still works. You can point `confirmationUrl` straight at it, but the token then ends up in server logs, so prefer the POST exchange.
+`GET /api/magic-link/login?loginToken=...` still works for API clients. You can point `confirmationUrl` straight at it, but the token then ends up in server logs, so prefer the POST exchange. When a browser opens that link (or a mail security scanner that imitates one), it gets a small confirm page with a "Log in" button instead, so a scanner that opens every link cannot use up the login link. Only the button's POST logs the user in.
 
 ### Where the link points
 
@@ -359,7 +359,7 @@ All routes are under `/api/magic-link` (or your `api.rest.prefix`). Every answer
 | ------ | ---------------------- | ----------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `POST` | `/send-link`           | none              | `{ email, username?, context?, delivery? }`                | `{ email, username, sent: true, delivery: "email" }`                             |
 | `POST` | `/login`               | none              | `{ loginToken, deviceId? }`                                | session, or a challenge (`requiresOTP`, `requiresTOTP`, `requiresTOTPSetup`)     |
-| `GET`  | `/login?loginToken=`   | none              | (query)                                                    | same as `POST /login`                                                            |
+| `GET`  | `/login?loginToken=`   | none              | (query)                                                    | same as `POST /login`; a page request (`Accept: text/html`) gets a confirm page  |
 | `POST` | `/otp/send`            | none              | `{ email, magicLinkToken }`                                | `{ success, message, expiresIn, type: "email" }`                                 |
 | `POST` | `/otp/resend`          | none              | `{ email, magicLinkToken }`                                | `{ success, message, expiresIn }`, after `otp_resend_cooldown`                   |
 | `POST` | `/otp/verify`          | none              | `{ email, code, magicLinkToken }`                          | session with `otpVerified: true`                                                 |
@@ -466,7 +466,7 @@ The [docs site](https://schero94.github.io/strapi-plugin-magic-link-v5/) has the
 No. Magic Link signs in the users of your app (Users & Permissions accounts). The Strapi admin login stays as it is.
 
 **Do I need a frontend?**
-Yes, for a good experience: a form that calls `send-link` and a landing page that posts the token to `/login`. Any framework works (Next.js, Nuxt, SvelteKit, plain HTML). Without a frontend you can point `confirmationUrl` at `GET /api/magic-link/login`, but then the token shows up in server logs.
+Yes, for a good experience: a form that calls `send-link` and a landing page that posts the token to `/login`. Any framework works (Next.js, Nuxt, SvelteKit, plain HTML). Without a frontend you can point `confirmationUrl` at `GET /api/magic-link/login`: the browser shows a confirm page, and the token shows up in server logs.
 
 **Can new users sign up with a link?**
 Yes, when `createUserIfNotExists`, `allow_magic_links_on_public_registration` and the users-permissions sign-ups are all on. See [Auto-registration](https://github.com/Schero94/strapi-plugin-magic-link-v5/blob/main/docs/reference.md#auto-registration).

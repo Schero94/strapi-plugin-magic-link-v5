@@ -57,5 +57,10 @@
     "welcome.subjectApp": "Bienvenue sur {app}",
     "welcome.greeting": "Bonjour {name},",
     "welcome.body": "Merci de votre inscription. Votre lien de connexion arrive."
+  },
+  "page": {
+    "confirm.title": "Poursuivre la connexion",
+    "confirm.body": "Sélectionnez le bouton pour terminer la connexion. Ce lien ne fonctionne qu'une fois.",
+    "confirm.button": "Se connecter"
   }
 }

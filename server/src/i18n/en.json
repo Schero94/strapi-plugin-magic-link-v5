@@ -57,5 +57,10 @@
     "welcome.subjectApp": "Welcome to {app}",
     "welcome.greeting": "Hi {name},",
     "welcome.body": "Thanks for joining. Your login link is on the way."
+  },
+  "page": {
+    "confirm.title": "Continue to log in",
+    "confirm.body": "Select the button to finish logging in. This link works once.",
+    "confirm.button": "Log in"
   }
 }

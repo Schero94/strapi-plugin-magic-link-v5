@@ -57,5 +57,10 @@
     "welcome.subjectApp": "Willkommen bei {app}",
     "welcome.greeting": "Hallo {name},",
     "welcome.body": "Danke für Ihre Registrierung. Ihr Anmeldelink ist unterwegs."
+  },
+  "page": {
+    "confirm.title": "Anmeldung fortsetzen",
+    "confirm.body": "Wählen Sie die Schaltfläche, um die Anmeldung abzuschließen. Dieser Link funktioniert einmal.",
+    "confirm.button": "Anmelden"
   }
 }
