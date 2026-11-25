@@ -15,7 +15,9 @@
  * - `apply` validates that result again, writes docs/site/showcase.json, the logo and the
  *   sitemap `lastmod`, and writes the commit message, pull request body or rejection comment.
  * - `render` writes showcase.json into docs/site/index.html (static HTML and JSON-LD) and
- *   docs/site/llms.txt, so crawlers and language models see the list without JavaScript.
+ *   docs/site/llms.txt, so crawlers and language models see the list without JavaScript. The
+ *   page shows it as the "Used by" strip directly under the hero: a call to action while the
+ *   list is empty, a still logo row for a few companies and a logo slider from SLIDER_MIN on.
  *
  * sharp is optional: `SHOWCASE_SHARP_DIR` names a directory with an installed sharp (the
  * workflow installs an exact version there and then requires it). Without sharp, a logo is kept
@@ -969,8 +971,43 @@ function jsonLdScript(data, indent) {
 }
 
 /**
- * Builds the HTML between the showcase markers: a logo grid and the call to action, or only the
- * call to action when the list is empty. Every value is escaped; links carry rel="ugc noopener".
+ * Number of logos from which the strip becomes a moving slider. Fewer logos form a still row,
+ * because a loop of two or three logos looks broken and repeats the same names.
+ */
+export const SLIDER_MIN = 5;
+
+/**
+ * Builds the logo tiles of one list. The copy that closes the slider loop is hidden from
+ * assistive technology and its links leave the tab order, so every company is announced and
+ * focused once.
+ * @param {Array<object>} entries Sorted, validated entries.
+ * @param {Map<string, { width: number, height: number }>} sizes Logo pixel sizes by path.
+ * @param {boolean} [copy] Whether this is the decorative second copy.
+ * @returns {string[]} HTML lines of the list items.
+ */
+function renderTiles(entries, sizes, copy = false) {
+  const lines = [];
+  for (const entry of entries) {
+    const size = sizes.get(entry.logo);
+    const title = entry.description ? ` title="${escapeHtml(entry.description)}"` : '';
+    const tab = copy ? ' tabindex="-1"' : '';
+    lines.push(
+      '<li>',
+      `  <a class="showcase-tile" href="${escapeHtml(entry.url)}" rel="ugc noopener"${title}${tab}>`,
+      `    <img src="./${escapeHtml(entry.logo)}" alt="${escapeHtml(entry.name)}" width="${size.width}" height="${size.height}" decoding="async" />`,
+      '  </a>',
+      '</li>'
+    );
+  }
+  return lines;
+}
+
+/**
+ * Builds the HTML between the showcase markers, the content of the "Used by" strip under the
+ * hero. No entries: one slim call to action. Fewer than SLIDER_MIN entries: a still row of
+ * logos. More: a slider with the list and a second, aria-hidden copy for a seamless CSS loop
+ * (`site.js` starts it and adds the Pause button; without JavaScript the row stays still and
+ * scrolls sideways). Every value is escaped; links carry rel="ugc noopener".
  * @param {Array<object>} entries Validated entries.
  * @param {{ pluginName: string, formUrl: string }} info Page facts.
  * @param {Map<string, { width: number, height: number }>} sizes Logo pixel sizes by path.
@@ -979,37 +1016,38 @@ function jsonLdScript(data, indent) {
  */
 export function renderShowcaseHtml(entries, info, sizes, indent = '') {
   const lines = [HTML_START];
-  const cta = `<p class="showcase-cta">Using ${escapeHtml(info.pluginName)} in production? <a class="showcase-add" href="${escapeHtml(info.formUrl)}">Add your company</a></p>`;
+  const formUrl = escapeHtml(info.formUrl);
+  const arrow = '<span aria-hidden="true"> →</span>';
   if (entries.length === 0) {
     lines.push(
-      '<div class="showcase-empty">',
-      `  ${cta}`,
-      '  <p class="showcase-note">Fill in the short form on GitHub with your company name, website and logo. A maintainer reviews every entry before it appears here.</p>',
-      '</div>'
+      `<p class="showcase-empty">Using ${escapeHtml(info.pluginName)} in production? <a class="showcase-add" href="${formUrl}">Show your logo here${arrow}</a></p>`
     );
   } else {
+    const sorted = sortEntries(entries);
+    const nest = (items, depth) => items.map((line) => `${'  '.repeat(depth)}${line}`);
     lines.push(
-      `<p class="section-lead">Teams that run ${escapeHtml(info.pluginName)} in production. Each company submitted its own entry, and a maintainer reviewed it before it was published.</p>`,
-      '<ul class="showcase-grid">'
+      `<p class="showcase-more"><a class="showcase-add" href="${formUrl}">Add your logo${arrow}</a></p>`
     );
-    for (const entry of sortEntries(entries)) {
-      const size = sizes.get(entry.logo);
+    if (sorted.length < SLIDER_MIN) {
       lines.push(
-        '  <li class="showcase-item">',
-        `    <a class="showcase-tile" href="${escapeHtml(entry.url)}" rel="ugc noopener">`,
-        `      <img src="./${escapeHtml(entry.logo)}" alt="${escapeHtml(entry.name)}" width="${size.width}" height="${size.height}" loading="lazy" decoding="async" />`,
-        '    </a>'
+        `<ul class="showcase-row" role="list" aria-label="Companies that use ${escapeHtml(info.pluginName)}">`,
+        ...nest(renderTiles(sorted, sizes), 1),
+        '</ul>'
       );
-      if (entry.description) {
-        lines.push(`    <p class="showcase-text">${escapeHtml(entry.description)}</p>`);
-      }
-      lines.push('  </li>');
+    } else {
+      lines.push(
+        `<div class="showcase-marquee" data-count="${sorted.length}">`,
+        '  <div class="showcase-track">',
+        `    <ul class="showcase-list" role="list" aria-label="Companies that use ${escapeHtml(info.pluginName)}">`,
+        ...nest(renderTiles(sorted, sizes), 3),
+        '    </ul>',
+        '    <ul class="showcase-list" role="list" aria-hidden="true">',
+        ...nest(renderTiles(sorted, sizes, true), 3),
+        '    </ul>',
+        '  </div>',
+        '</div>'
+      );
     }
-    lines.push(
-      '</ul>',
-      cta,
-      '<p class="showcase-note">Links to company websites are submitted by the companies themselves.</p>'
-    );
   }
   lines.push(HTML_END);
   return lines.map((line, index) => (index === 0 ? line : `${indent}${line}`)).join('\n');
