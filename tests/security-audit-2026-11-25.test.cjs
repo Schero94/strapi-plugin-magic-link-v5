@@ -83,7 +83,8 @@ test('ML-SEC-01: the confirm page escapes the token and never reflects markup', 
   const ctx = createCtx({ query: { loginToken: hostile }, headers: { accept: BROWSER_ACCEPT } });
   await auth.login(ctx);
   assert.equal(ctx.status, 200);
-  assert.doesNotMatch(ctx.body, /<script>/);
+  // The page has no script element at all (any case, any attributes).
+  assert.equal(ctx.body.toLowerCase().includes('<script'), false);
   assert.match(ctx.body, /&quot;&gt;&lt;script&gt;/);
 });
 
