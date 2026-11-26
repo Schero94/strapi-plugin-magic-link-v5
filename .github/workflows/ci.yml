@@ -42,6 +42,9 @@ jobs:
       - name: Dependency gate unit tests
         run: node --test .github/scripts/dependency-gate.test.mjs
 
+      - name: Compatibility canary unit tests
+        run: node --test .github/scripts/compat-canary.test.mjs
+
       - name: Showcase script unit tests
         run: node --test .github/scripts/showcase.test.mjs
       - name: Admin StrictMode tests (React 18)

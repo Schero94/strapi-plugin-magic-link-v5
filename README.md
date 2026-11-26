@@ -122,6 +122,12 @@ What the host needs:
 
 The admin panel uses the Design System, icons and `react-intl` that every Strapi 5 admin already ships. They are optional peer dependencies, so npm, yarn and pnpm install the plugin into a fresh Strapi 5 project without peer warnings.
 
+### Compatibility canary
+
+A scheduled workflow, `.github/workflows/canary.yml`, runs every Monday at 04:17 UTC and on demand (Actions → Compatibility canary → Run workflow). It installs the newest Strapi 5.x release over the lockfile and tests the plugin on the newest Node.js release, the newest LTS and every LTS line inside `engines.node`: the tests, the admin tests, the build and both verify scripts as in `ci.yml`, and the real Strapi host suite of the `strapi-floor` job (magic-link login, session revocation, token rejection in both JWT modes) on a host with the Strapi under test.
+
+A failure opens or updates one issue labelled `compat` ("Compatibility: Strapi X.Y.Z / Node A.B.C") with the failing jobs, the failing step and a log excerpt; the next green run closes it. The last passing and the last run are recorded in the closed issue "Compatibility canary state". A manual run can force a Strapi version (`strapi`) or Node.js versions (`node`), and `dry-run` prints the plan instead of writing issues. Pull requests that change the canary run it as a dry run. The logic lives in `.github/scripts/compat-canary.mjs` (byte-identical in every plugin of the workbench, unit-tested in `compat-canary.test.mjs`).
+
 ## Quick start (5 minutes)
 
 ### 1. Install
